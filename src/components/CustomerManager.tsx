@@ -170,13 +170,25 @@ export default function CustomerManager({
           customNotes
         })
       });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
-        setGeneratedMessages(data.messages);
-        setSelectedMessageIndex(0);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+          setGeneratedMessages(data.messages);
+          setSelectedMessageIndex(0);
+          return;
+        }
       }
+      throw new Error('API response invalid');
     } catch (err) {
-      console.warn('AI Marketing generation error:', err);
+      console.warn('AI Marketing generation note:', err);
+      // Smart dynamic templates fallback
+      const fallbackTemplates = [
+        `🌸 প্রিয় {name}, আসসালামু আলাইকুম!\n${brandSettings?.footer?.brandName || 'সেরা (Sera Fashion House)'}-এ চলে এসেছে এক্সক্লুসিভ নতুন কালেকশন: "${productName}"! নিখুঁত ফিনিশিং ও প্রিমিয়াম ডিজাইনে নিজেকে সাজিয়ে নিন।\n✨ স্পেশাল অফার: আজই অর্ডার করলে কুপন কোড [${couponCode}] দিয়ে উপভোগ করুন বিশেষ ছাড়!\n🛍️ কালেকশন দেখতে ও অর্ডার করতে ভিজিট করুন: {link}`,
+        `👗 প্রিয় {name}, আপনার পছন্দের সেরা কালেকশনে যুক্ত হয়েছে লেটেস্ট "${productName}"!\nসীমিত স্টক, তাই পছন্দ হলে এখনই অর্ডার কনফার্ম করে রাখুন।\n🎁 আপনার জন্য উপহার: কুপন [${couponCode}] ব্যবহার করলেই পাচ্ছেন ${offerDiscount}!\n🚚 সারা দেশে ক্যাশ অন ডেলিভারি। ভিজিট করুন: {link}`,
+        `✨ হ্যালো {name}! ট্রেন্ডি ও মার্জিত ফ্যাশনে আপনাকে স্বাগতম।\nআমাদের নতুন লঞ্চ হওয়া "${productName}" এখন লাইভ! সেরা কোয়ালিটির নিশ্চয়তা।\n🔥 অফার কোড: ${couponCode}\n👉 এখনই দেখতে ক্লিক করুন: {link}`
+      ];
+      setGeneratedMessages(fallbackTemplates);
+      setSelectedMessageIndex(0);
     } finally {
       setIsGeneratingAI(false);
     }
