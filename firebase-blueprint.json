@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A customer order for Sera Fashion House",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "address": { "type": "string" },
+        "district": { "type": "string" },
+        "upazila": { "type": "string" },
+        "category": { "type": "string", "enum": ["Three Piece", "Saree", "Others"] },
+        "productCode": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "deliveryCharge": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "deliveryOption": { "type": "string", "enum": ["Home Delivery", "Courier Pickup"] },
+        "deliveryArea": { "type": "string", "enum": ["Inside Dhaka", "Outside Dhaka"] },
+        "paymentMethod": { "type": "string", "enum": ["Cash On Delivery", "bKash", "Nagad", "Rocket"] },
+        "transactionId": { "type": "string" },
+        "paymentScreenshotUrl": { "type": "string" },
+        "productScreenshotUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Confirmed", "Processing", "Delivered", "Cancelled"] },
+        "orderId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "mobileNumber", "address", "district", "category", "productCode", "quantity", "price", "deliveryArea", "paymentMethod", "status", "orderId", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A fashion product available for purchase",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string", "enum": ["Three Piece", "Saree", "Others"] },
+        "productCode": { "type": "string" },
+        "stock": { "type": "number" },
+        "discount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "imageUrl", "category", "productCode", "stock", "isActive", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "General settings of Sera Fashion House",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logoUrl"]
+    },
+    "VisitorSession": {
+      "title": "VisitorSession",
+      "description": "A real-time browsing session of a visitor",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "deviceInfo": { "type": "string" },
+        "currentStage": { "type": "string" },
+        "views": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "createdAt", "lastActiveAt"]
+    },
+    "ProductReview": {
+      "title": "ProductReview",
+      "description": "A customized product review submitted by customers or curated by the admin.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "customerName", "rating", "comment", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Registered customer accounts for personalized shopping, orders, and free marketing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "password": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "district": { "type": "string" },
+        "upazila": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "phone", "createdAt"]
+    },
+    "CustomerAnnouncement": {
+      "title": "CustomerAnnouncement",
+      "description": "Broadcasted free promotional announcements and offers for registered customers",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "couponCode": { "type": "string" },
+        "badge": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "isActive", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of customer orders"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of available fashion products"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "General settings or configurations like brand logo"
+    },
+    "/visitor_sessions/{sessionId}": {
+      "schema": "VisitorSession",
+      "description": "Collection of visitor active sessions for live tracking"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "ProductReview",
+      "description": "Collection of professional customized customer reviews"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Collection of registered customer accounts"
+    },
+    "/customer_announcements/{announcementId}": {
+      "schema": "CustomerAnnouncement",
+      "description": "Collection of free in-app promotional announcements for registered customers"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Sera Fashion House Order System",
+  "description": "Premium customer order and management system for Sera Fashion House, a luxury Three Piece and Saree brand.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,98 @@
+# ======================================================================
+# SERA FASHION - Ultra High-Performance Apache / cPanel / LiteSpeed Configuration
+# ======================================================================
+
+# 1. Default Index File & Charset
+DirectoryIndex index.html
+AddDefaultCharset UTF-8
+
+# 2. Prevent Directory Browsing (Security Hardening)
+<IfModule mod_autoindex.c>
+  Options -Indexes
+</IfModule>
+
+# 3. Explicit MIME Types (Ensures JavaScript ES Modules, CSS, and Fonts Load Correctly on all cPanels)
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/javascript .js .mjs
+  AddType text/css .css
+  AddType image/svg+xml .svg .svgz
+  AddType application/json .json
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType font/otf .otf
+  AddType image/webp .webp
+  AddType image/x-icon .ico
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+</IfModule>
+
+# 4. Fallback 404 Handler for Single Page Application
+ErrorDocument 404 index.html
+
+# 5. SPA URL Rewriting & HTTPS Redirection
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # HTTPS Redirection (Safe for direct SSL, Cloudflare Flexible/Full, and cPanel AutoSSL)
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteCond %{HTTP:CF-Visitor} !{"scheme":"https"}
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Don't rewrite real existing files or directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Route all other frontend URLs directly to index.html for Single Page Application
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# 6. GZIP & Brotli Compression (Blazing Fast Asset Loading)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+  AddOutputFilterByType DEFLATE application/xml application/xhtml+xml application/rss+xml
+  AddOutputFilterByType DEFLATE image/svg+xml font/ttf font/otf font/woff font/woff2
+</IfModule>
+
+# 7. Browser Caching / Leverage Browser Cache for Maximum Speed
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 month"
+
+  # HTML - Always fresh for instantaneous updates
+  ExpiresByType text/html "access plus 0 seconds"
+
+  # CSS & JavaScript
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+
+  # Media: Images, Icons, Video
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+
+  # Web Fonts
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# 8. Security & Font CORS Headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Allow web fonts to load across subdomains or CDNs
+  <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2|font.css|css|js)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+</IfModule>
