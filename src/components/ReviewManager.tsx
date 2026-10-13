@@ -64,7 +64,7 @@ export default function ReviewManager() {
     const fetchProducts = async () => {
       try {
         const data = await getAllProducts(true);
-        setProducts(data);
+        setProducts(data.filter((p: any) => p && p.isActive !== false));
       } catch (err) {
         console.error("Failed to load products for review manager", err);
       } finally {

@@ -504,8 +504,17 @@ export default function ProductManager() {
 
   const toggleActive = async (product: Product) => {
     if (!product.id) return;
-    await updateProduct(product.id, { isActive: !product.isActive });
-    fetchProducts();
+    const newActive = !product.isActive;
+    // 1. Optimistic immediate state update
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isActive: newActive } : p));
+    showNotification(
+      newActive 
+        ? `"${product.title}" সফলভাবে ওয়েবসাইটে দৃশ্যমান (Active) করা হয়েছে!` 
+        : `"${product.title}" ওয়েবসাইট থেকে হাইড (Hidden) করা হয়েছে!`, 
+      'info'
+    );
+    // 2. Persist to storage & cloud
+    await updateProduct(product.id, { isActive: newActive });
   };
 
   const ADMIN_PRODUCTS_PER_PAGE = 10;
@@ -593,26 +602,38 @@ export default function ProductManager() {
                   alt={product.title}
                   className="w-full h-full object-cover transition-transform group-hover:scale-110"
                 />
-                <div className="absolute top-4 right-4 flex flex-col gap-2">
+                <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
                   <button 
+                    type="button"
                     onClick={() => toggleActive(product)}
-                    className={`p-2 rounded-xl backdrop-blur-md transition-all shadow-lg ${product.isActive ? 'bg-white/90 text-emerald-500' : 'bg-brand-charcoal/90 text-gray-400'}`}
+                    className={`p-2 rounded-xl backdrop-blur-md transition-all shadow-lg ${product.isActive ? 'bg-white/95 text-emerald-600 hover:bg-emerald-50' : 'bg-brand-charcoal/95 text-amber-300 hover:bg-black ring-2 ring-amber-400/50'}`}
+                    title={product.isActive ? 'ওয়েবসাইট থেকে প্রোডাক্টটি হাইড করতে ক্লিক করুন' : 'প্রোডাক্টটি ওয়েবসাইটে দৃশ্যমান (Active) করতে ক্লিক করুন'}
                   >
                     {product.isActive ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                   <button 
+                    type="button"
                     onClick={() => handleOpenModal(product)}
                     className="p-2 bg-white/90 text-rose-500 rounded-xl backdrop-blur-md hover:bg-rose-500 hover:text-white transition-all shadow-lg"
+                    title="প্রোডাক্ট এডিট করুন"
                   >
                     <Edit size={18} />
                   </button>
                   <button 
+                    type="button"
                     onClick={() => handleDelete(product)}
                     className="p-2 bg-white/90 text-gray-400 rounded-xl backdrop-blur-md hover:bg-rose-600 hover:text-white transition-all shadow-lg"
+                    title="প্রোডাক্ট ডিলিট করুন"
                   >
                     <Trash2 size={18} />
                   </button>
                 </div>
+                {!product.isActive && (
+                  <div className="absolute top-4 left-4 z-10 px-3 py-1 rounded-full bg-brand-charcoal/90 text-amber-300 text-[10.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-lg border border-amber-400/40 flex items-center gap-1.5">
+                    <EyeOff size={12} className="text-amber-400" />
+                    <span>হাইড করা (Hidden)</span>
+                  </div>
+                )}
                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
                   <span className="bg-brand-charcoal text-white px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
                     {product.category}

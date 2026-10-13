@@ -512,11 +512,18 @@ export const subscribeOrders = async (callback: (orders: Order[]) => void) => {
       return !deletedIds.has(k1) && !deletedIds.has(k2);
     });
 
-    if (isAuthoritative) {
-      currentList = filterOut(newList);
-    } else {
-      currentList = filterOut(mergeOrderLists(newList, currentList));
+    const updated = isAuthoritative 
+      ? filterOut(newList) 
+      : filterOut(mergeOrderLists(newList, currentList));
+
+    // Prevent redundant state updates and re-renders if list hasn't changed
+    const prevKey = currentList.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}`).join('|');
+    const newKey = updated.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}`).join('|');
+    if (currentList.length > 0 && prevKey === newKey) {
+      return;
     }
+
+    currentList = updated;
 
     try {
       localStorage.setItem('cached_orders', JSON.stringify(currentList));

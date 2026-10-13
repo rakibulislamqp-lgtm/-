@@ -19,7 +19,7 @@ export default function ProductPicker({ onSelect, selectedId }: ProductPickerPro
       try {
         setLoading(true);
         const data = await getAllProducts(true); // Only active products
-        setProducts(data);
+        setProducts(data.filter((p: any) => p && p.isActive !== false));
         setError(false);
       } catch (err) {
         console.error("Failed to fetch products:", err);

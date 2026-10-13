@@ -171,7 +171,7 @@ export default function SocialProofPopup({
     ]).then(([prods, orders]) => {
       if (!isMounted) return;
       if (prods && prods.length > 0) {
-        setProducts(prods);
+        setProducts(prods.filter((p: any) => p && p.isActive !== false));
       }
       if (orders && orders.length > 0) {
         setRealOrders(orders);

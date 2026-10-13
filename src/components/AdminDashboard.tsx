@@ -694,11 +694,11 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (orders) {
+    if (orders && orders.length > 0) {
       try {
         localStorage.setItem('cached_orders', JSON.stringify(orders));
       } catch (cacheErr) {
-        console.warn("Failed to write updated orders cache to localStorage:", cacheErr);
+        // Silently skip if quota limit reached
       }
     }
   }, [orders]);

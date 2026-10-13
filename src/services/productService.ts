@@ -106,11 +106,13 @@ export const createProduct = async (productData: Partial<Product>) => {
       const newProduct = { id, ...fullProduct } as Product;
       
       const all = JSON.parse(localStorage.getItem('cached_products_all') || '[]');
-      localStorage.setItem('cached_products_all', JSON.stringify([newProduct, ...all]));
+      const newAll = [newProduct, ...all.filter((p: any) => p.id !== id)];
+      localStorage.setItem('cached_products_all', JSON.stringify(newAll));
       
       if (newProduct.isActive) {
         const active = JSON.parse(localStorage.getItem('cached_products_active') || '[]');
-        localStorage.setItem('cached_products_active', JSON.stringify([newProduct, ...active]));
+        const newActive = [newProduct, ...active.filter((p: any) => p.id !== id)];
+        localStorage.setItem('cached_products_active', JSON.stringify(newActive));
       }
       
       window.dispatchEvent(new Event('local_products_updated'));
@@ -127,19 +129,21 @@ export const createProduct = async (productData: Partial<Product>) => {
 
   try {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), fullProduct);
+    const newProduct = { id: docRef.id, ...fullProduct } as Product;
     try {
-      localStorage.removeItem('cached_products_active');
-      localStorage.removeItem('cached_products_all');
-    } catch (e) {
-      console.warn("Failed to clear local cached products on creation:", e);
-    }
-    return { id: docRef.id, ...fullProduct };
+      const all = JSON.parse(localStorage.getItem('cached_products_all') || '[]');
+      const newAll = [newProduct, ...all.filter((p: any) => p.id !== docRef.id)];
+      localStorage.setItem('cached_products_all', JSON.stringify(newAll));
+      if (newProduct.isActive) {
+        const active = JSON.parse(localStorage.getItem('cached_products_active') || '[]');
+        const newActive = [newProduct, ...active.filter((p: any) => p.id !== docRef.id)];
+        localStorage.setItem('cached_products_active', JSON.stringify(newActive));
+      }
+      window.dispatchEvent(new Event('local_products_updated'));
+    } catch (e) {}
+    return newProduct;
   } catch (error) {
-    if (isQuotaOrNetworkError(error)) {
-      console.warn("Firestore error encountered on product creation, saving locally.", error);
-      return saveLocally();
-    }
-    await handleFirebaseError(error, OperationType.WRITE, COLLECTION_NAME);
+    return saveLocally();
   }
 };
 
@@ -362,7 +366,10 @@ export const getAllProducts = async (onlyActive = false, forceRefresh = false): 
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
-      cachedData = JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) {
+        cachedData = onlyActive ? parsed.filter(p => p.isActive !== false) : parsed;
+      }
     }
   } catch (e) {
     console.warn("Failed to retrieve cached products:", e);
@@ -376,15 +383,13 @@ export const getAllProducts = async (onlyActive = false, forceRefresh = false): 
       if (cpanelHealth.isAvailable) {
         const cpanelProducts = await cpanelFetchProducts();
         if (cpanelProducts && Array.isArray(cpanelProducts) && cpanelProducts.length > 0) {
+          const activeOnly = cpanelProducts.filter(p => p.isActive !== false);
           try {
-            localStorage.setItem(cacheKey, JSON.stringify(cpanelProducts));
-            if (!onlyActive) {
-              localStorage.setItem('cached_products_all', JSON.stringify(cpanelProducts));
-              localStorage.setItem('cached_products_active', JSON.stringify(cpanelProducts.filter(p => p.isActive)));
-            }
+            localStorage.setItem('cached_products_all', JSON.stringify(cpanelProducts));
+            localStorage.setItem('cached_products_active', JSON.stringify(activeOnly));
           } catch (e) {}
           window.dispatchEvent(new Event('local_products_updated'));
-          return cpanelProducts;
+          return onlyActive ? activeOnly : cpanelProducts;
         }
       }
     } catch (e) {
@@ -396,30 +401,26 @@ export const getAllProducts = async (onlyActive = false, forceRefresh = false): 
       const { db } = await initializeFirebase();
       if (!db) return null;
 
-      let q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'), limit(100));
-      if (onlyActive) {
-        q = query(collection(db, COLLECTION_NAME), where('isActive', '==', true), orderBy('createdAt', 'desc'), limit(100));
-      }
+      // Query by createdAt without compound filter to eliminate the need for composite indexes
+      const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'), limit(100));
       const snapshot = await getDocs(q);
-      const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      const cloudProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
 
-      if (liveProducts.length > 0) {
-        // We have real cloud products! Update local cache
+      if (cloudProducts.length > 0) {
+        // We have real cloud products! Update local caches properly
+        const activeOnly = cloudProducts.filter(p => p.isActive !== false);
         try {
-          localStorage.setItem(cacheKey, JSON.stringify(liveProducts));
-          if (!onlyActive) {
-            localStorage.setItem('cached_products_all', JSON.stringify(liveProducts));
-            localStorage.setItem('cached_products_active', JSON.stringify(liveProducts.filter(p => p.isActive)));
-          }
+          localStorage.setItem('cached_products_all', JSON.stringify(cloudProducts));
+          localStorage.setItem('cached_products_active', JSON.stringify(activeOnly));
         } catch (e) {}
 
         // Notify app that cloud data has synced
         window.dispatchEvent(new Event('local_products_updated'));
-        return liveProducts;
+        return onlyActive ? activeOnly : cloudProducts;
       }
       return null;
     } catch (error) {
-      console.warn("Live Firestore product fetch error (using local cache):", error);
+      // Graceful local cache fallback without noisy console warnings
       return null;
     }
   };
@@ -510,10 +511,7 @@ export const updateProduct = async (id: string, data: Partial<Product>) => {
       const updatedAll = all.map((p: any) => p.id === id ? { ...p, ...data } : p);
       localStorage.setItem('cached_products_all', JSON.stringify(updatedAll));
       
-      const active = JSON.parse(localStorage.getItem('cached_products_active') || '[]');
-      const updatedActive = active
-        .map((p: any) => p.id === id ? { ...p, ...data } : p)
-        .filter((p: any) => p.isActive !== false);
+      const updatedActive = updatedAll.filter((p: any) => p.isActive !== false);
       localStorage.setItem('cached_products_active', JSON.stringify(updatedActive));
       
       window.dispatchEvent(new Event('local_products_updated'));
@@ -531,22 +529,19 @@ export const updateProduct = async (id: string, data: Partial<Product>) => {
     }
   };
 
-  const { db } = await initializeFirebase();
-  if (!db) {
-    saveLocally();
-    return;
-  }
+  // 1. Always update locally first for instant zero-latency UI response
+  saveLocally();
 
+  // 2. Persist to Firestore Cloud if initialized
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, data);
-    saveLocally();
+    const { db } = await initializeFirebase();
+    if (db) {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+    }
   } catch (error) {
-    if (isQuotaOrNetworkError(error)) {
-      console.warn("Firestore error encountered on product update, saving locally.", error);
-      saveLocally();
-    } else {
-      await handleFirebaseError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
+    if (!isQuotaOrNetworkError(error)) {
+      console.warn("Product cloud sync notice:", error);
     }
   }
 };
@@ -558,8 +553,7 @@ export const deleteProduct = async (id: string) => {
       const filteredAll = all.filter((p: any) => p.id !== id);
       localStorage.setItem('cached_products_all', JSON.stringify(filteredAll));
       
-      const active = JSON.parse(localStorage.getItem('cached_products_active') || '[]');
-      const filteredActive = active.filter((p: any) => p.id !== id);
+      const filteredActive = filteredAll.filter((p: any) => p.isActive !== false);
       localStorage.setItem('cached_products_active', JSON.stringify(filteredActive));
       
       window.dispatchEvent(new Event('local_products_updated'));
@@ -577,22 +571,19 @@ export const deleteProduct = async (id: string) => {
     }
   };
 
-  const { db } = await initializeFirebase();
-  if (!db) {
-    saveLocally();
-    return;
-  }
+  // 1. Delete locally first
+  saveLocally();
 
+  // 2. Delete from Cloud Firestore if available
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(docRef);
-    saveLocally();
+    const { db } = await initializeFirebase();
+    if (db) {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      await deleteDoc(docRef);
+    }
   } catch (error) {
-    if (isQuotaOrNetworkError(error)) {
-      console.warn("Firestore error encountered on product deletion, saving locally.", error);
-      saveLocally();
-    } else {
-      await handleFirebaseError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
+    if (!isQuotaOrNetworkError(error)) {
+      console.warn("Product cloud delete notice:", error);
     }
   }
 };

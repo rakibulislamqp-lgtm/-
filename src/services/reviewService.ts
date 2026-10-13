@@ -316,11 +316,12 @@ export const getReviewsForProduct = async (productId: string, productCode: strin
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
-        where('productId', '==', productId),
-        orderBy('createdAt', 'desc')
+        where('productId', '==', productId)
       );
       const snapshot = await getDocs(q);
-      const firebaseReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductReview));
+      const firebaseReviews = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as ProductReview))
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       
       const existingIds = new Set(realReviews.map(r => r.id));
       firebaseReviews.forEach(fr => {
@@ -332,7 +333,6 @@ export const getReviewsForProduct = async (productId: string, productCode: strin
       if (detectQuotaError(error)) {
         markQuotaExhausted();
       }
-      console.warn("Could not load reviews from Firestore, using offline cache:", error);
     }
   }
 

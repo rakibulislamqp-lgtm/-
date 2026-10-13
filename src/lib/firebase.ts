@@ -49,7 +49,6 @@ export const markQuotaExhausted = () => {
   try {
     localStorage.setItem('firestore_quota_exhausted_date', getTodayString());
   } catch (e) {}
-  console.warn('Firestore quota has been marked as EXHAUSTED for today:', getTodayString());
   window.dispatchEvent(new Event('firestore_quota_exhausted'));
 };
 
@@ -143,7 +142,6 @@ const testConnection = async (database: any) => {
       errMsg.includes('limit exceeded') ||
       errMsg.includes('exhausted')
     ) {
-      console.warn("Firestore Quota Limit exceeded active in testConnection. Triggering offline mode.");
       markQuotaExhausted();
     } else if (error.code === 'unavailable' || error.message?.includes('offline') || error.message?.includes('backend')) {
       console.log("Firebase connection: operating in persistent offline cache mode.");

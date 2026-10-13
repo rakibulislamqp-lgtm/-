@@ -1,5 +1,5 @@
 import { doc, setDoc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
-import { initializeFirebase } from '../lib/firebase';
+import { initializeFirebase, checkIsQuotaExhausted, markQuotaExhausted } from '../lib/firebase';
 import { VisitorSession, ProductView, VisitorStage, Product, TrackingEvent } from '../types';
 
 let currentSessionId: string | null = null;
@@ -36,8 +36,8 @@ const saveAndBroadcastSession = (session: VisitorSession) => {
     if (trackingChannel) {
       trackingChannel.postMessage({ type: 'SESSION_UPDATE', session });
     }
-  } catch (e) {
-    console.warn("Local session broadcast warning:", e);
+  } catch {
+    // Silently continue locally
   }
 };
 
@@ -46,7 +46,7 @@ const detectQuotaError = (error: any): boolean => {
   if (!error) return false;
   const errMsg = String(error.message || error).toLowerCase();
   const errCode = String(error.code || '').toLowerCase();
-  return (
+  const isQuota = (
     errCode === 'resource-exhausted' ||
     errCode === 'quota-exceeded' ||
     errCode === 'unavailable' ||
@@ -58,6 +58,10 @@ const detectQuotaError = (error: any): boolean => {
     errMsg.includes('offline') ||
     errMsg.includes('denied')
   );
+  if (isQuota) {
+    markQuotaExhausted();
+  }
+  return isQuota;
 };
 
 // Helper to remove undefined fields recursively so Firestore doesn't reject writing them
@@ -134,8 +138,8 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
       localWonDiscount = Number(couponObj.discount) || 0;
       if (couponObj.name) localCustomerName = couponObj.name;
       if (couponObj.phone) localMobileNumber = couponObj.phone;
-    } catch (e) {
-      console.warn("Telemetry auto-sync of spin data error:", e);
+    } catch {
+      // Ignore spin read error silently
     }
   }
 
@@ -164,7 +168,7 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
         currentSessionData.lastActiveAt = currentNow;
       }
 
-      if (isOfflineTracking) return;
+      if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
       try {
         const { db: freshDb } = await initializeFirebase();
@@ -173,14 +177,14 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
         await setDoc(sessionDoc, cleanUndefined({ lastActiveAt: currentNow }), { merge: true });
       } catch (e) {
         if (detectQuotaError(e)) {
-          console.warn("Telemetry offline transition initiated by heartbeat limit response.");
           isOfflineTracking = true;
         }
       }
     }, 20000);
   };
 
-  if (isOfflineTracking) {
+  if (isOfflineTracking || checkIsQuotaExhausted()) {
+    isOfflineTracking = true;
     currentSessionData = defaultSession;
     setupHeartbeat();
     return currentSessionData;
@@ -238,10 +242,7 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
     }
   } catch (error) {
     if (detectQuotaError(error)) {
-      console.warn("Telemetry database exhausted, running locally without firing network events.");
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to retrieve or create visitor session starting from scratch locally:", error);
     }
     currentSessionData = defaultSession;
   }
@@ -280,7 +281,7 @@ export const updateVisitorStage = async (stage: VisitorStage, stageLabel: string
 
   saveAndBroadcastSession(currentSessionData);
 
-  if (isOfflineTracking) return;
+  if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
   try {
     const { db } = await initializeFirebase();
@@ -294,8 +295,6 @@ export const updateVisitorStage = async (stage: VisitorStage, stageLabel: string
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to update visitor stage:", err);
     }
   }
 };
@@ -348,7 +347,7 @@ export const trackProductView = async (product: Product) => {
 
   saveAndBroadcastSession(currentSessionData);
 
-  if (isOfflineTracking) return;
+  if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
   try {
     const { db } = await initializeFirebase();
@@ -365,8 +364,6 @@ export const trackProductView = async (product: Product) => {
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to track product view in firebase:", err);
     }
   }
 };
@@ -412,7 +409,7 @@ export const updateVisitorCustomerInfo = async (info: {
 
   saveAndBroadcastSession(currentSessionData);
 
-  if (isOfflineTracking) return;
+  if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
   try {
     const { db } = await initializeFirebase();
@@ -422,8 +419,6 @@ export const updateVisitorCustomerInfo = async (info: {
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to update visitor contact info:", err);
     }
   }
 };
@@ -467,7 +462,7 @@ export const updateVisitorSpinInfo = async (spinData: {
     ...(spinData.mobileNumber && { mobileNumber: spinData.mobileNumber })
   };
 
-  if (isOfflineTracking) return;
+  if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
   try {
     const { db } = await initializeFirebase();
@@ -477,8 +472,6 @@ export const updateVisitorSpinInfo = async (spinData: {
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to update visitor spin info:", err);
     }
   }
 };
@@ -534,7 +527,7 @@ export const logVisitorEvent = async (
 
         saveAndBroadcastSession(currentSessionData);
 
-        if (isOfflineTracking) return;
+        if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
         try {
           const { db } = await initializeFirebase();
@@ -544,8 +537,6 @@ export const logVisitorEvent = async (
         } catch (e) {
           if (detectQuotaError(e)) {
             isOfflineTracking = true;
-          } else {
-            console.warn("Deduplicate scroll event failed", e);
           }
         }
         return;
@@ -565,7 +556,7 @@ export const logVisitorEvent = async (
 
         saveAndBroadcastSession(currentSessionData);
 
-        if (isOfflineTracking) return;
+        if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
         try {
           const { db } = await initializeFirebase();
@@ -575,8 +566,6 @@ export const logVisitorEvent = async (
         } catch (e) {
           if (detectQuotaError(e)) {
             isOfflineTracking = true;
-          } else {
-            console.warn("Deduplicate input event failed", e);
           }
         }
         return;
@@ -593,7 +582,7 @@ export const logVisitorEvent = async (
 
   saveAndBroadcastSession(currentSessionData);
 
-  if (isOfflineTracking) return;
+  if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
   try {
     const { db } = await initializeFirebase();
@@ -606,8 +595,6 @@ export const logVisitorEvent = async (
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
-    } else {
-      console.warn("Failed to log visitor event:", err);
     }
   }
 };
@@ -630,8 +617,8 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
           }
         });
       }
-    } catch (e) {
-      console.warn("Error reading local session cache:", e);
+    } catch {
+      // Silently handle read cache issue
     }
 
     // 2. Merge with Firestore sessions
@@ -682,22 +669,24 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
   let unsubscribeFirestore = () => {};
 
   try {
-    const { db } = await initializeFirebase();
-    if (db && !isOfflineTracking) {
-      const sessionsCol = collection(db, 'visitor_sessions');
-      const q = query(sessionsCol);
-      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-        firestoreSessions = [];
-        snapshot.forEach((docSnap) => {
-          firestoreSessions.push({ id: docSnap.id, ...docSnap.data() } as VisitorSession);
+    if (!checkIsQuotaExhausted() && !isOfflineTracking) {
+      const { db } = await initializeFirebase();
+      if (db && !isOfflineTracking) {
+        const sessionsCol = collection(db, 'visitor_sessions');
+        const q = query(sessionsCol);
+        unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+          firestoreSessions = [];
+          snapshot.forEach((docSnap) => {
+            firestoreSessions.push({ id: docSnap.id, ...docSnap.data() } as VisitorSession);
+          });
+          callback(getMergedSessions());
+        }, (err) => {
+          if (detectQuotaError(err)) {
+            isOfflineTracking = true;
+          }
+          callback(getMergedSessions());
         });
-        callback(getMergedSessions());
-      }, (err) => {
-        if (detectQuotaError(err)) {
-          isOfflineTracking = true;
-        }
-        callback(getMergedSessions());
-      });
+      }
     }
   } catch (err) {
     if (detectQuotaError(err)) {

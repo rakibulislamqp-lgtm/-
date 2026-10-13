@@ -33,7 +33,8 @@ export default function ProductShowcase({
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const cached = localStorage.getItem('cached_products_active');
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed.filter((p: any) => p && p.isActive !== false) : [];
     } catch (e) {
       return [];
     }
@@ -139,7 +140,7 @@ export default function ProductShowcase({
     const loadShowcaseData = async () => {
       // First, get cached or immediate active products for instant loading speed
       const data = await getAllProducts(true);
-      setProducts(data);
+      setProducts(data.filter((p: any) => p && p.isActive !== false));
       setLoading(false);
 
       // Load orders in background without blocking product rendering
@@ -158,13 +159,24 @@ export default function ProductShowcase({
       try {
         const freshData = await getAllProducts(true, true);
         if (freshData && freshData.length > 0) {
-          setProducts(freshData);
+          setProducts(freshData.filter((p: any) => p && p.isActive !== false));
         }
       } catch (e) {
         console.warn("Could not get background fresh products updates:", e);
       }
     };
     loadShowcaseData();
+
+    // Listen to local_products_updated events (triggered by Admin hide/show or edit)
+    const handleProductsUpdated = async () => {
+      const updated = await getAllProducts(true);
+      setProducts(updated.filter((p: any) => p && p.isActive !== false));
+    };
+    window.addEventListener('local_products_updated', handleProductsUpdated);
+
+    return () => {
+      window.removeEventListener('local_products_updated', handleProductsUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -252,10 +264,12 @@ export default function ProductShowcase({
   };
 
   const sortedProducts = useMemo(() => {
-    let filtered = products.filter(p => {
-      if (activeCategory === 'ALL') return true;
-      return (p.category || '').toUpperCase() === activeCategory.toUpperCase();
-    });
+    let filtered = products
+      .filter(p => p && p.isActive !== false)
+      .filter(p => {
+        if (activeCategory === 'ALL') return true;
+        return (p.category || '').toUpperCase() === activeCategory.toUpperCase();
+      });
     let result = [...filtered];
     
     if (sortBy === 'price-desc') {

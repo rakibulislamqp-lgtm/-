@@ -997,7 +997,10 @@ Sitemap: ${baseUrl}/sitemap.xml`;
   // 6. Vite integration of public routing asset pipeline
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

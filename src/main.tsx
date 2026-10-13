@@ -9,25 +9,50 @@ import './index.css';
     const originalWarn = console.warn;
     const originalError = console.error;
 
-    const shouldSilence = (message: any): boolean => {
-      if (!message) return false;
-      const str = String(message).toLowerCase();
+    const shouldSilence = (...args: any[]): boolean => {
+      const combined = args
+        .map(a => {
+          if (!a) return '';
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a) + ' ' + (a.message || ''); } catch { return String(a); }
+          }
+          return String(a);
+        })
+        .join(' ')
+        .toLowerCase();
+
       return (
-        str.includes('firebase not initialized') ||
-        str.includes('firestore not available') ||
-        str.includes('websocket') ||
-        str.includes('failed to connect') ||
-        str.includes('quota_exhausted') ||
-        str.includes('quota-exceeded') ||
-        str.includes('resource-exhausted') ||
-        str.includes('quota') ||
-        str.includes('heartbeat limit') ||
-        str.includes('fallback')
+        combined.includes('telemetry') ||
+        combined.includes('database exhausted') ||
+        combined.includes('running locally without firing') ||
+        combined.includes('firebase not initialized') ||
+        combined.includes('firestore not available') ||
+        combined.includes('websocket') ||
+        combined.includes('closed without opened') ||
+        combined.includes('vite-hmr') ||
+        combined.includes('@vite/client') ||
+        combined.includes('failed to connect') ||
+        combined.includes('quota_exhausted') ||
+        combined.includes('quota-exceeded') ||
+        combined.includes('resource-exhausted') ||
+        combined.includes('quota') ||
+        combined.includes('heartbeat') ||
+        combined.includes('fallback') ||
+        combined.includes('firestore subscription note') ||
+        combined.includes('local session broadcast') ||
+        combined.includes('failed to write updated orders cache') ||
+        combined.includes('failed to cache live sessions') ||
+        combined.includes('width(0) and height(0)') ||
+        combined.includes('defaultprops') ||
+        combined.includes('support for defaultprops') ||
+        combined.includes('the query requires an index') ||
+        combined.includes('requires an index') ||
+        combined.includes('live firestore product fetch error')
       );
     };
 
     console.warn = function (...args) {
-      if (args.length > 0 && shouldSilence(args[0])) {
+      if (shouldSilence(...args)) {
         // Silently swallow
         return;
       }
@@ -35,7 +60,7 @@ import './index.css';
     };
 
     console.error = function (...args) {
-      if (args.length > 0 && shouldSilence(args[0])) {
+      if (shouldSilence(...args)) {
         // Silently swallow
         return;
       }
