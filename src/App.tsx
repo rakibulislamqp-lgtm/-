@@ -1167,19 +1167,32 @@ export default function App() {
       
       {view === 'form' && !isSubmitted && (
         <div className={`fixed right-4 sm:right-6 z-40 transition-all duration-300 ${cart.length > 0 ? 'bottom-[92px]' : 'bottom-4 sm:bottom-6'}`}>
-          <a 
-            href={facebookUrl}
-            onClick={handleOpenFacebook}
-            className="w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center shadow-[0_8px_24px_rgba(24,119,242,0.45)] border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-110 active:scale-90 transition-all duration-150 group touch-manipulation"
-            title="Sera Facebook Page"
-          >
-            <svg 
-              viewBox="0 0 24 24" 
-              className="w-6 h-6 sm:w-7 sm:h-7 fill-white drop-shadow-sm transition-transform duration-300 group-hover:rotate-12"
+          <div className="relative flex items-center justify-center">
+            {/* Concentric expanding vibration shockwaves (কম্পন তরঙ্গ) */}
+            <span className="absolute inset-0 rounded-full bg-[#1877F2]/45 animate-fb-ripple pointer-events-none" />
+            <span className="absolute inset-0 rounded-full bg-[#1877F2]/30 animate-fb-ripple-delayed pointer-events-none" />
+
+            <a 
+              href={facebookUrl}
+              onClick={handleOpenFacebook}
+              className="relative z-10 w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center shadow-[0_8px_25px_rgba(24,119,242,0.6)] border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-110 active:scale-90 transition-all duration-150 group touch-manipulation animate-fb-vibrate"
+              title="SERA FASHION ফেসবুক পেজ - সরাসরি মেসেজ দিন"
+              aria-label="SERA FASHION Facebook Page"
             >
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-          </a>
+              <svg 
+                viewBox="0 0 24 24" 
+                className="w-6 h-6 sm:w-7 sm:h-7 fill-white drop-shadow-sm transition-transform duration-300 group-hover:rotate-12"
+              >
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+
+              {/* Attention-grabbing live pulse dot */}
+              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4 pointer-events-none">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white shadow-xs" />
+              </span>
+            </a>
+          </div>
         </div>
       )}
 

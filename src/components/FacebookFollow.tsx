@@ -204,6 +204,14 @@ export default function FacebookFollow({ facebookUrl, onOpenChange, logoUrl }: F
                 />
               </svg>
 
+              {/* Concentric vibration ripple shockwaves */}
+              {!isProcessing && !isSuccess && (
+                <>
+                  <span className="absolute w-36 h-36 rounded-full bg-[#1877F2]/40 animate-fb-ripple pointer-events-none z-10" />
+                  <span className="absolute w-36 h-36 rounded-full bg-[#1877F2]/25 animate-fb-ripple-delayed pointer-events-none z-10" />
+                </>
+              )}
+
               {/* Main Circular Facebook Button */}
               <motion.button
                 id="facebook-follow-pulsing-btn"
@@ -217,7 +225,7 @@ export default function FacebookFollow({ facebookUrl, onOpenChange, logoUrl }: F
                     ? 'bg-emerald-500 shadow-emerald-500/30' 
                     : isProcessing 
                     ? 'bg-blue-600 scale-95' 
-                    : 'bg-[#1877F2] hover:bg-[#1565C0]'
+                    : 'bg-[#1877F2] hover:bg-[#1565C0] animate-fb-vibrate'
                 }`}
               >
                 <AnimatePresence mode="wait">
