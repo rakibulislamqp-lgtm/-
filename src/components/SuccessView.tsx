@@ -2,12 +2,13 @@ import { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Heart, CheckCircle2, ShoppingCart, Download, Printer, Loader2, 
-  Package, Tag, Gift
+  Package, Tag, Gift, Users, Copy, Check, MessageCircle, Sparkles 
 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { toPng } from 'html-to-image';
 import { DigitalInvoice } from './DigitalInvoice';
 import { Order } from '../types';
+import { generateReferralCodeForPhone } from '../services/loyaltyService';
 
 interface SuccessViewProps {
   order: Order;
@@ -16,6 +17,22 @@ interface SuccessViewProps {
 export default function SuccessView({ order }: SuccessViewProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
+
+  const myReferralCode = generateReferralCodeForPhone(order.mobileNumber || '');
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://serafashion.com';
+  const referralLink = `${baseUrl}?ref=${myReferralCode}`;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(referralLink);
+    setCopiedRef(true);
+    setTimeout(() => setCopiedRef(false), 2000);
+  };
+
+  const shareWhatsApp = () => {
+    const text = `আসসালামু আলাইকুম! সেরা ফ্যাশন (SERA FASHION) থেকে আমি দারুণ শাড়ি ও থ্রি-পিস অর্ডার করেছি। আমার এই রেফারেল লিংক থেকে অর্ডার করলে তুমি পাবে সাথে সাথে ৳৫০ ছাড়! 🛍️\n\nঅর্ডার লিংক: ${referralLink}\nঅথবা চেকআউটে কোড দাও: ${myReferralCode}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  };
 
   // Original Print Functionality
   const handlePrint = useReactToPrint({
@@ -186,6 +203,48 @@ export default function SuccessView({ order }: SuccessViewProps) {
               <p><strong className="text-gray-900">মোবাইল:</strong> {order.mobileNumber}</p>
               <p className="col-span-2"><strong className="text-gray-900">ঠিকানা:</strong> {order.address}, {order.upazila ? `${order.upazila}, ` : ''}${order.district}</p>
             </div>
+          </div>
+
+          {/* 🎁 HIGH-CONVERTING REFER & EARN ৳100 BONUS CARD */}
+          <div className="bg-gradient-to-br from-amber-500/10 via-rose-500/10 to-amber-500/5 p-4 sm:p-5 rounded-2xl border-2 border-amber-400/50 text-left space-y-3.5 shadow-md">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-600 text-white flex items-center justify-center shadow-xs">
+                  <Gift size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 font-serif">বন্ধুকে রেফার করে আয় করুন ৳১০০ বোনাস!</h4>
+                  <p className="text-[10px] text-slate-500 font-medium">বন্ধু পাবে ৳৫০ ছাড়, আর আপনার একাউন্টে জমা হবে ৳১০০ ক্যাশ রিওয়ার্ড!</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200">
+                +৳১০০ বোনাস
+              </span>
+            </div>
+
+            <div className="bg-white p-3 rounded-xl border border-amber-200/80 flex items-center justify-between gap-2 shadow-2xs">
+              <div>
+                <span className="text-[9.5px] font-bold text-slate-400 block uppercase">আপনার রেফারেল কোড:</span>
+                <span className="text-sm font-mono font-black text-slate-900 tracking-wider">{myReferralCode}</span>
+              </div>
+              <button
+                type="button"
+                onClick={copyLink}
+                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95"
+              >
+                {copiedRef ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                <span>{copiedRef ? 'কপি হয়েছে' : 'লিংক কপি'}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={shareWhatsApp}
+              className="w-full py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+            >
+              <MessageCircle size={15} />
+              <span>বন্ধুদের হোয়াটসঅ্যাপে রেফার করুন (WhatsApp Share)</span>
+            </button>
           </div>
 
           {/* Download & Print Buttons */}

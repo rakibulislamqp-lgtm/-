@@ -101,6 +101,13 @@ export interface Order {
   deviceFingerprint?: string;
   isBlacklisted?: boolean;
   isBotAttack?: boolean;
+  // Referral & Loyalty Tracking Fields
+  referralCodeUsed?: string;
+  referrerPhone?: string;
+  isRepeatCustomer?: boolean;
+  customerOrderIndex?: number;
+  referralDiscountAmount?: number;
+  repeatDiscountAmount?: number;
 }
 
 export interface Product {
@@ -230,6 +237,14 @@ export interface BrandSettings {
   orderNotificationDuration?: number; // seconds to display popup (e.g. 4, 5, 7)
   orderNotificationInterval?: number; // interval between popups in seconds (e.g. 15, 20, 30)
   orderNotificationSize?: 'compact' | 'standard'; // 'compact' = mini sleek popup, 'standard' = standard card
+  // Customer Referral & Repeat Loyalty Settings
+  referralProgramEnabled?: boolean;
+  referralFriendDiscount?: number; // ৳ discount for the friend (default ৳50)
+  referralBonusAmount?: number; // ৳ bonus credited to the referrer (default ৳100)
+  repeatCustomerOfferEnabled?: boolean;
+  repeatCustomer2ndOrderDiscount?: number; // ৳ discount on 2nd purchase (default ৳50)
+  repeatCustomer3rdOrderDiscount?: number; // ৳ discount on 3rd+ purchase (default ৳100)
+  repeatCustomerOfferBannerText?: string;
 }
 
 export interface ProductView {

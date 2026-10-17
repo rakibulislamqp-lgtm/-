@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "SERA FASHION – সেরা ফ্যাশন হাউস",
+  "short_name": "SERA FASHION",
+  "description": "প্রিমিয়াম শাড়ি, থ্রি-পিস ও ট্রেন্ডি ফ্যাশন কালেকশন। ক্যাশ অন ডেলিভারিতে দ্রুত সারা বাংলাদেশে ডেলিভারি।",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "categories": ["shopping", "lifestyle", "fashion"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

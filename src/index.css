@@ -68,72 +68,106 @@
 /* High-Attraction Vibration & Sonar Wave Motion for Facebook Icon */
 @keyframes fb-vibration {
   0%, 100% {
-    transform: scale(1) rotate(0deg);
+    transform: scale(1) translate(0, 0) rotate(0deg);
   }
-  6%, 22% {
-    transform: scale(1.09) rotate(-9deg);
+  3% {
+    transform: scale(1.08) translate(-2px, 1.5px) rotate(-8deg);
   }
-  14%, 30% {
-    transform: scale(1.09) rotate(9deg);
+  6% {
+    transform: scale(1.08) translate(2px, -1.5px) rotate(8deg);
   }
-  38% {
-    transform: scale(1.06) rotate(-5deg);
+  9% {
+    transform: scale(1.1) translate(-2.5px, 2px) rotate(-9deg);
   }
-  46% {
-    transform: scale(1.06) rotate(5deg);
+  12% {
+    transform: scale(1.1) translate(2.5px, -2px) rotate(9deg);
   }
-  54% {
-    transform: scale(1.03) rotate(-2deg);
+  15% {
+    transform: scale(1.08) translate(-2px, 1px) rotate(-7deg);
+  }
+  18% {
+    transform: scale(1.08) translate(2px, -1px) rotate(7deg);
+  }
+  21% {
+    transform: scale(1.05) translate(-1px, 0.5px) rotate(-4deg);
+  }
+  24% {
+    transform: scale(1.04) translate(1px, -0.5px) rotate(4deg);
+  }
+  27% {
+    transform: scale(1.02) translate(-0.5px, 0.5px) rotate(-2deg);
+  }
+  30% {
+    transform: scale(1) translate(0, 0) rotate(0deg);
+  }
+  /* Second micro-buzz burst */
+  50% {
+    transform: scale(1) translate(0, 0) rotate(0deg);
+  }
+  53% {
+    transform: scale(1.07) translate(-1.5px, 1px) rotate(-6deg);
+  }
+  56% {
+    transform: scale(1.07) translate(1.5px, -1px) rotate(6deg);
+  }
+  59% {
+    transform: scale(1.08) translate(-2px, 1.5px) rotate(-7deg);
   }
   62% {
-    transform: scale(1.02) rotate(2deg);
+    transform: scale(1.08) translate(2px, -1.5px) rotate(7deg);
   }
-  70% {
-    transform: scale(1) rotate(0deg);
+  65% {
+    transform: scale(1.04) translate(-1px, 0.5px) rotate(-3deg);
+  }
+  68% {
+    transform: scale(1.02) translate(1px, -0.5px) rotate(3deg);
+  }
+  71%, 99% {
+    transform: scale(1) translate(0, 0) rotate(0deg);
   }
 }
 
 @keyframes fb-ripple {
   0% {
-    transform: scale(0.92);
-    opacity: 0.9;
+    transform: scale(0.9);
+    opacity: 0.95;
   }
-  50% {
-    opacity: 0.45;
+  45% {
+    opacity: 0.55;
   }
   100% {
-    transform: scale(1.85);
+    transform: scale(2.1);
     opacity: 0;
   }
 }
 
 @keyframes fb-ripple-delayed {
   0% {
-    transform: scale(0.92);
-    opacity: 0.75;
+    transform: scale(0.85);
+    opacity: 0.85;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.4;
   }
   100% {
-    transform: scale(2.25);
+    transform: scale(2.6);
     opacity: 0;
   }
 }
 
 .animate-fb-vibrate {
-  animation: fb-vibration 2.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+  animation: fb-vibration 2.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
   transform-origin: center center;
   will-change: transform;
 }
 
 .animate-fb-ripple {
-  animation: fb-ripple 2.6s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+  animation: fb-ripple 2.8s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
   will-change: transform, opacity;
 }
 
 .animate-fb-ripple-delayed {
-  animation: fb-ripple-delayed 2.6s cubic-bezier(0.1, 0.8, 0.3, 1) 0.45s infinite;
+  animation: fb-ripple-delayed 2.8s cubic-bezier(0.1, 0.8, 0.3, 1) 0.5s infinite;
   will-change: transform, opacity;
 }
 

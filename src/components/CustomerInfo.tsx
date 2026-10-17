@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Search, MapPin, ChevronDown, Sparkles, Zap, RotateCcw, ShieldCheck, Check } from 'lucide-react';
+import { User, Search, MapPin, ChevronDown, Sparkles, Zap, RotateCcw, ShieldCheck, Check, Crown } from 'lucide-react';
 import { DISTRICTS, DISTRICT_UPAZILA_MAP } from '../constants';
 import { updateVisitorCustomerInfo, updateVisitorStage } from '../services/trackingService';
 import { getLoggedInCustomer } from '../services/customerAuthService';
+import { getRepeatCustomerOffer, RepeatCustomerOfferResult } from '../services/loyaltyService';
 
 interface CustomerInfoProps {
   register: any;
@@ -41,6 +42,7 @@ export default function CustomerInfo({ register, errors, getValues, setValue }: 
   // Smart Saved Profile State
   const [savedProfile, setSavedProfile] = useState<SavedCustomerProfile | null>(null);
   const [isAutofilled, setIsAutofilled] = useState(false);
+  const [repeatOffer, setRepeatOffer] = useState<RepeatCustomerOfferResult | null>(null);
 
   const districtListRef = useRef<HTMLDivElement>(null);
   const upazilaListRef = useRef<HTMLDivElement>(null);
@@ -107,6 +109,27 @@ export default function CustomerInfo({ register, errors, getValues, setValue }: 
       setSelectedDistrict(currentDistrictValue || '');
     }
   }, [currentDistrictValue]);
+
+  // Check for repeat customer loyalty & special re-engagement offer
+  const checkRepeatStatus = async (phone: string) => {
+    const clean = phone ? phone.replace(/\D/g, '') : '';
+    if (clean.length === 11) {
+      try {
+        const res = await getRepeatCustomerOffer(clean);
+        if (res.isRepeat && res.discount > 0) {
+          setRepeatOffer(res);
+          setValue('discount', res.discount, { shouldValidate: true });
+          setValue('discountType', 'flat', { shouldValidate: true });
+        } else {
+          setRepeatOffer(null);
+        }
+      } catch (e) {
+        console.warn("Error checking repeat customer offer:", e);
+      }
+    } else {
+      setRepeatOffer(null);
+    }
+  };
 
   useEffect(() => {
     if (currentUpazilaValue !== upazilaInput) {
@@ -431,6 +454,9 @@ export default function CustomerInfo({ register, errors, getValues, setValue }: 
                 if (val.length >= 5) {
                   updateVisitorStage('filling_checkout', `মোবাইল টাইপ করছেন: ${val}`);
                 }
+                if (val.replace(/\D/g, '').length === 11) {
+                  checkRepeatStatus(val);
+                }
                 saveCurrentFormState();
               }
             })}
@@ -438,6 +464,28 @@ export default function CustomerInfo({ register, errors, getValues, setValue }: 
             className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-500 focus:bg-white px-3.5 py-3.5 text-xl sm:text-2xl font-black tracking-widest outline-none transition-all placeholder:text-gray-400 rounded-xl"
           />
           {errors.mobileNumber && <p className="text-rose-600 text-xs font-bold uppercase tracking-tight">{errors.mobileNumber.message}</p>}
+
+          {/* 👑 Repeat Customer Welcome Back Loyalty Offer Banner */}
+          {repeatOffer?.isRepeat && (
+            <div className="p-3.5 sm:p-4 bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 border-2 border-amber-400/70 rounded-2xl flex items-start gap-3 shadow-md animate-fade-in text-left">
+              <div className="w-9 h-9 bg-gradient-to-tr from-amber-500 to-rose-600 text-white rounded-xl shadow-xs flex items-center justify-center shrink-0 mt-0.5">
+                <Crown size={20} className="animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-300">
+                    {repeatOffer.badgeText}
+                  </span>
+                  <span className="text-xs font-black text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full">
+                    -৳{repeatOffer.discount} অফ সক্রিয় 🎉
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-slate-800 mt-1.5 leading-relaxed">
+                  {repeatOffer.message}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* District & Upazila */}

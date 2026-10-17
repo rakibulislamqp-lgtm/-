@@ -107,54 +107,116 @@ export default function ProductSection({ register, errors, control, setValue, ca
     }
   }, [setValue]);
 
-  const handleApplyCoupon = (codeToApply: string) => {
+  // Check for referral code in URL (e.g. ?ref=SERA1234)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref') || params.get('referral');
+      if (refCode) {
+        const cleanRef = refCode.trim().toUpperCase();
+        sessionStorage.setItem('sera_referral_code_used', cleanRef);
+        setCouponInput(cleanRef);
+        setAppliedCodeLabel(`রেফারেল: ${cleanRef}`);
+        setValue('discount', 50);
+        setValue('discountType', 'flat');
+        setFeedbackMsg({
+          text: `🎉 বন্ধুর রেফারেল কোড "${cleanRef}" সক্রিয় হয়েছে! আপনি পাচ্ছেন নিশ্চিত ৳৫০ ছাড়!`,
+          isError: false
+        });
+      }
+    } catch (e) {}
+  }, [setValue]);
+
+  const handleApplyCoupon = async (codeToApply: string) => {
     const cleanedCode = codeToApply.trim().toUpperCase();
     if (!cleanedCode) {
-      setFeedbackMsg({ text: 'দয়া করে কুপন কোড লিখুন', isError: true });
+      setFeedbackMsg({ text: 'দয়া করে কুপন বা রেফারেল কোড লিখুন', isError: true });
       return;
     }
 
-    if (!spinCoupon) {
+    // 1. Check if it's a Friend Referral Code (e.g. SERA5678, REF-..., etc.)
+    if (cleanedCode.startsWith('SERA') && cleanedCode.length >= 7 && !CODE_TO_DISCOUNT[cleanedCode]) {
+      sessionStorage.setItem('sera_referral_code_used', cleanedCode);
+      setValue('discount', 50);
+      setValue('discountType', 'flat');
+      setAppliedCodeLabel(`রেফারেল: ${cleanedCode}`);
+      setCouponInput(cleanedCode);
       setFeedbackMsg({ 
-        text: '🎁 দয়া করে প্রথমে বাম পাশের লটারি স্পিন ঘুরিয়ে আকর্ষণীয় ডিসকাউন্ট কুপন কোড জিতুন! অন্য কুপন ম্যানুয়ালি সিলেক্ট করা বন্ধ আছে।', 
-        isError: true 
+        text: `🎉 আপনার বন্ধুর রেফারেল কোড "${cleanedCode}" সফলভাবে কার্যকর হয়েছে! পাচ্ছেন ৳৫০ ছাড়!`, 
+        isError: false 
       });
+      setTimeout(() => setFeedbackMsg(null), 3000);
       return;
     }
 
-    if (cleanedCode !== spinCoupon.code.toUpperCase()) {
+    // 2. Check if it's a VIP Loyalty Reward Coupon (e.g. REWARD_50_XXXX, REWARD_100_XXXX)
+    if (cleanedCode.startsWith('REWARD_')) {
+      const parts = cleanedCode.split('_');
+      const discountVal = parseInt(parts[1], 10) || 50;
+      setValue('discount', discountVal);
+      setValue('discountType', 'flat');
+      setAppliedCodeLabel(cleanedCode);
+      setCouponInput(cleanedCode);
       setFeedbackMsg({ 
-        text: `🚫 আপনি শুধুমাত্র স্পিন জয়ের স্পেশাল কুপন কোড "${spinCoupon.code}" ব্যবহার করতে পারবেন!`, 
-        isError: true 
+        text: `👑 আপনার ভিআইপি লয়্যালটি রিওয়ার্ড কুপন "${cleanedCode}" সক্রিয় হয়েছে! পাচ্ছেন ৳${discountVal} ক্যাশ ছাড়!`, 
+        isError: false 
       });
+      setTimeout(() => setFeedbackMsg(null), 3000);
       return;
     }
 
-    // Use corrected / verified coupon values
-    let matchedDiscount = spinCoupon.discount;
-    let matchedDiscountType = spinCoupon.discountType || 'percentage';
-
-    // Fallback dictionary just in case
-    if (CODE_TO_DISCOUNT[cleanedCode] !== undefined) {
-      matchedDiscount = CODE_TO_DISCOUNT[cleanedCode];
-      matchedDiscountType = CODE_TO_DISCOUNT_TYPE[cleanedCode] || 'percentage';
+    // 3. Check for Old/Repeat Customer Re-engagement Codes
+    if (cleanedCode === 'WELCOMEBACK' || cleanedCode === 'REPEAT50' || cleanedCode === 'VIP100') {
+      const discountVal = cleanedCode === 'VIP100' ? 100 : 50;
+      setValue('discount', discountVal);
+      setValue('discountType', 'flat');
+      setAppliedCodeLabel(cleanedCode);
+      setCouponInput(cleanedCode);
+      setFeedbackMsg({ 
+        text: `👑 নিয়মিত গ্রাহক স্পেশাল রি-অর্ডার কুপন কার্যকর! পাচ্ছেন ৳${discountVal} নিশ্চিত ছাড়!`, 
+        isError: false 
+      });
+      setTimeout(() => setFeedbackMsg(null), 3000);
+      return;
     }
 
-    if (matchedDiscount !== undefined) {
+    // 4. Check Spin Wheel Won Coupon
+    if (spinCoupon && cleanedCode === spinCoupon.code.toUpperCase()) {
+      let matchedDiscount = spinCoupon.discount;
+      let matchedDiscountType = spinCoupon.discountType || 'percentage';
+      if (CODE_TO_DISCOUNT[cleanedCode] !== undefined) {
+        matchedDiscount = CODE_TO_DISCOUNT[cleanedCode];
+        matchedDiscountType = CODE_TO_DISCOUNT_TYPE[cleanedCode] || 'percentage';
+      }
       setValue('discount', matchedDiscount);
       setValue('discountType', matchedDiscountType);
       setAppliedCodeLabel(cleanedCode);
       setCouponInput(cleanedCode);
       setFeedbackMsg({ text: `🎉 আপনার স্পিন জয়ের কুপন কোড "${cleanedCode}" সফলভাবে কার্যকর হয়েছে!`, isError: false });
-      
-      // Auto close cards with a slick delay to keep UI clean
       setTimeout(() => {
         setShowPromoCards(false);
         setFeedbackMsg(null);
       }, 1800);
-    } else {
-      setFeedbackMsg({ text: 'ভুল বা মেয়াদোত্তীর্ণ কুপন কোড! দয়া করে সঠিক কোডটি দিন।', isError: true });
+      return;
     }
+
+    // 5. Standard promo code dictionary fallback
+    if (CODE_TO_DISCOUNT[cleanedCode] !== undefined) {
+      const matchedDiscount = CODE_TO_DISCOUNT[cleanedCode];
+      const matchedDiscountType = CODE_TO_DISCOUNT_TYPE[cleanedCode] || 'percentage';
+      setValue('discount', matchedDiscount);
+      setValue('discountType', matchedDiscountType);
+      setAppliedCodeLabel(cleanedCode);
+      setCouponInput(cleanedCode);
+      setFeedbackMsg({ text: `🎉 কুপন কোড "${cleanedCode}" সফলভাবে কার্যকর হয়েছে!`, isError: false });
+      setTimeout(() => {
+        setShowPromoCards(false);
+        setFeedbackMsg(null);
+      }, 1800);
+      return;
+    }
+
+    setFeedbackMsg({ text: 'ভুল বা মেয়াদোত্তীর্ণ কুপন কোড! দয়া করে সঠিক কোড বা রেফারেল কোড লিখুন।', isError: true });
   };
 
   const handleRemoveCoupon = () => {

@@ -30,6 +30,7 @@ import OrderTrackingModal from './OrderTrackingModal';
 import CourierFraudShield from './CourierFraudShield';
 import FooterManager from './FooterManager';
 import CustomerManager from './CustomerManager';
+import ReferralLoyaltyManager from './ReferralLoyaltyManager';
 import { Activity, MessageSquare, Target, Image as ImageIcon, BarChart3, LayoutTemplate, Users } from 'lucide-react';
 
 export interface CourierStat {
@@ -284,7 +285,7 @@ export const getCustomerTrust = (
 
 export default function AdminDashboard() {
   const [visitorSessions, setVisitorSessions] = useState<VisitorSession[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals'>('orders');
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
     orders: true,
     products: true,
@@ -298,9 +299,10 @@ export default function AdminDashboard() {
     fraud_shield: true,
     footer: true,
     registered_customers: true,
+    loyalty_referrals: true,
   });
 
-  const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers') => {
+  const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals') => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
   };
@@ -1516,6 +1518,30 @@ export default function AdminDashboard() {
                     </span>
                   </button>
 
+                  {/* Option 13: Referral & Loyalty Program */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('loyalty_referrals');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-xl text-xs font-extrabold transition-all group cursor-pointer ${
+                      activeTab === 'loyalty_referrals'
+                        ? 'bg-gradient-to-r from-amber-500 via-rose-600 to-amber-500 text-slate-950 font-black shadow-lg shadow-amber-900/30'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Gift size={16} className={activeTab === 'loyalty_referrals' ? 'text-slate-950' : 'text-amber-400 group-hover:scale-110 transition-transform shrink-0'} />
+                      <div className="text-left">
+                        <span className="block font-sans text-xs">১৩. রেফারেল ও লয়্যালটি প্রোগ্রাম</span>
+                        <span className="block text-[8px] opacity-80 font-semibold tracking-wide">বন্ধু রেফার বোনাস ও পুরোনো কাস্টমার ছাড়</span>
+                      </div>
+                    </div>
+                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-rose-500 text-slate-950 font-black text-[9px] rounded uppercase tracking-tighter shrink-0">
+                      LOYALTY 🎁
+                    </span>
+                  </button>
+
                   <div className="h-px bg-slate-800/80 my-3" />
 
                   <p className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider px-3.5 mb-1.5 text-left">অ্যাকশন ও কাস্টমার টুলস / Actions</p>
@@ -1682,6 +1708,13 @@ export default function AdminDashboard() {
             >
               <Users size={13} />
               Customers & AI ✨
+            </button>
+            <button 
+              onClick={() => setActiveTab('loyalty_referrals')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'loyalty_referrals' ? 'bg-gradient-to-r from-amber-500 via-rose-600 to-amber-500 text-slate-950 font-black shadow-lg shadow-amber-900/30' : 'text-amber-400 hover:text-white'}`}
+            >
+              <Gift size={13} />
+              Referral & Loyalty 🎁
             </button>
           </div>
 
@@ -2394,6 +2427,20 @@ export default function AdminDashboard() {
         {visitedTabs.registered_customers && (
           <div className={activeTab === 'registered_customers' ? 'block' : 'hidden'}>
             <CustomerManager 
+              orders={orders}
+              brandSettings={brandSettings}
+              onRefreshSettings={async () => {
+                const fresh = await getBrandSettings();
+                setBrandSettings(fresh);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Tab 13: Referral & Loyalty Program */}
+        {visitedTabs.loyalty_referrals && (
+          <div className={activeTab === 'loyalty_referrals' ? 'block' : 'hidden'}>
+            <ReferralLoyaltyManager 
               orders={orders}
               brandSettings={brandSettings}
               onRefreshSettings={async () => {

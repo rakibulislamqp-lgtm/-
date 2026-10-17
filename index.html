@@ -57,11 +57,31 @@
       })();
     </script>
     <title>SERA FASHION – সেরা ফ্যাশন হাউস ও প্রিমিয়াম কালেকশন</title>
-    
+    <!-- PWA & Mobile Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#090d16" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SERA FASHION" />
+
     <!-- Favicon / Brand Icon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <link rel="shortcut icon" href="/favicon.svg" />
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('SERA FASHION PWA ServiceWorker Registered:', reg.scope);
+          }).catch(function(err) {
+            console.warn('SERA FASHION PWA ServiceWorker Registration warning:', err);
+          });
+        });
+      }
+    </script>
     
     <!-- Meta SEO Tags -->
     <meta name="description" content="সেরা ফ্যাশন হাউজের এক্সক্লুসিভ শাড়ি, থ্রি-পিস ও প্রিমিয়াম কালেকশন। ক্যাশ অন ডেলিভারিতে দ্রুত সারা বাংলাদেশে ডেলিভারি।" />

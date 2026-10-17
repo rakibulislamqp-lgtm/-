@@ -9,14 +9,29 @@ export interface LoyaltyAccount {
   totalSpent: number;
   ordersCount: number;
   tier: 'Silver VIP' | 'Gold VIP' | 'Platinum VIP';
+  referralCode: string;
+  referralsCount?: number;
+  referralBonusEarned?: number;
+  referralBonusBalance?: number;
+  referredBy?: string;
   redeemedCoupons?: { code: string; discount: number; redeemedAt: string; isUsed: boolean }[];
   updatedAt: string;
+}
+
+export interface RepeatCustomerOfferResult {
+  isRepeat: boolean;
+  ordersCount: number;
+  discount: number;
+  tier: 'Silver VIP' | 'Gold VIP' | 'Platinum VIP' | 'First Time';
+  customerName: string;
+  message: string;
+  badgeText: string;
 }
 
 const LOCAL_LOYALTY_KEY = 'sera_loyalty_accounts_cache';
 
 // Helper to get local cache
-const getLocalLoyaltyAccounts = (): Record<string, LoyaltyAccount> => {
+export const getLocalLoyaltyAccounts = (): Record<string, LoyaltyAccount> => {
   try {
     const raw = localStorage.getItem(LOCAL_LOYALTY_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -26,12 +41,24 @@ const getLocalLoyaltyAccounts = (): Record<string, LoyaltyAccount> => {
 };
 
 // Helper to set local cache
-const saveLocalLoyaltyAccounts = (data: Record<string, LoyaltyAccount>) => {
+export const saveLocalLoyaltyAccounts = (data: Record<string, LoyaltyAccount>) => {
   try {
     localStorage.setItem(LOCAL_LOYALTY_KEY, JSON.stringify(data));
   } catch (e) {
     console.warn("Failed to cache loyalty data locally:", e);
   }
+};
+
+/**
+ * Generate a consistent, readable referral code from phone number
+ * e.g., 01712345678 -> SERA5678
+ */
+export const generateReferralCodeForPhone = (phone: string): string => {
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length >= 4) {
+    return `SERA${cleanPhone.slice(-4)}`;
+  }
+  return `SERA${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 };
 
 /**
@@ -44,11 +71,11 @@ export const calculateTier = (points: number): 'Silver VIP' | 'Gold VIP' | 'Plat
 };
 
 /**
- * Fetch loyalty account by phone number
+ * Fetch or auto-create loyalty account by phone number
  */
-export const getLoyaltyAccount = async (phone: string): Promise<LoyaltyAccount | null> => {
+export const getLoyaltyAccount = async (phone: string, customerName?: string): Promise<LoyaltyAccount | null> => {
   const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
-  if (!cleanPhone) return null;
+  if (!cleanPhone || cleanPhone.length < 10) return null;
 
   // 1. Try Firestore
   try {
@@ -58,6 +85,10 @@ export const getLoyaltyAccount = async (phone: string): Promise<LoyaltyAccount |
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const data = snap.data() as LoyaltyAccount;
+        // Ensure referralCode exists
+        if (!data.referralCode) {
+          data.referralCode = generateReferralCodeForPhone(cleanPhone);
+        }
         const cache = getLocalLoyaltyAccounts();
         cache[cleanPhone] = data;
         saveLocalLoyaltyAccounts(cache);
@@ -71,14 +102,138 @@ export const getLoyaltyAccount = async (phone: string): Promise<LoyaltyAccount |
   // 2. Local Cache fallback
   const cache = getLocalLoyaltyAccounts();
   if (cache[cleanPhone]) {
-    return cache[cleanPhone];
+    const acc = cache[cleanPhone];
+    if (!acc.referralCode) {
+      acc.referralCode = generateReferralCodeForPhone(cleanPhone);
+      cache[cleanPhone] = acc;
+      saveLocalLoyaltyAccounts(cache);
+    }
+    return acc;
+  }
+
+  // 3. If customerName is given or checking self, generate default entry
+  if (customerName) {
+    const newAcc: LoyaltyAccount = {
+      phone: cleanPhone,
+      customerName: customerName || 'Valued Customer',
+      points: 0,
+      totalSpent: 0,
+      ordersCount: 0,
+      tier: 'Silver VIP',
+      referralCode: generateReferralCodeForPhone(cleanPhone),
+      referralsCount: 0,
+      referralBonusEarned: 0,
+      referralBonusBalance: 0,
+      redeemedCoupons: [],
+      updatedAt: new Date().toISOString()
+    };
+    cache[cleanPhone] = newAcc;
+    saveLocalLoyaltyAccounts(cache);
+    return newAcc;
   }
 
   return null;
 };
 
 /**
- * Add loyalty points when an order is completed/placed
+ * Find account by Referral Code
+ */
+export const findAccountByReferralCode = async (code: string): Promise<LoyaltyAccount | null> => {
+  if (!code) return null;
+  const cleanCode = code.trim().toUpperCase();
+
+  // Search local cache first for superfast zero-latency lookup
+  const cache = getLocalLoyaltyAccounts();
+  for (const acc of Object.values(cache)) {
+    if (acc.referralCode?.toUpperCase() === cleanCode) {
+      return acc;
+    }
+  }
+
+  // Search Firestore
+  try {
+    const { db } = await initializeFirebase();
+    if (db) {
+      const colRef = collection(db, 'loyalty_accounts');
+      const snap = await getDocs(colRef);
+      for (const d of snap.docs) {
+        const data = d.data() as LoyaltyAccount;
+        if (data.referralCode?.toUpperCase() === cleanCode) {
+          cache[data.phone] = data;
+          saveLocalLoyaltyAccounts(cache);
+          return data;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Firestore referral lookup error:", err);
+  }
+
+  return null;
+};
+
+/**
+ * Check if customer is a repeat / regular buyer and compute special discounts
+ */
+export const getRepeatCustomerOffer = async (
+  phone: string,
+  configured2ndDiscount = 50,
+  configured3rdDiscount = 100
+): Promise<RepeatCustomerOfferResult> => {
+  const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return {
+      isRepeat: false,
+      ordersCount: 0,
+      discount: 0,
+      tier: 'First Time',
+      customerName: '',
+      message: '',
+      badgeText: ''
+    };
+  }
+
+  const account = await getLoyaltyAccount(cleanPhone);
+  if (!account || account.ordersCount < 1) {
+    return {
+      isRepeat: false,
+      ordersCount: 0,
+      discount: 0,
+      tier: 'First Time',
+      customerName: account?.customerName || '',
+      message: '',
+      badgeText: ''
+    };
+  }
+
+  // Returning Customer!
+  if (account.ordersCount === 1) {
+    // 2nd Order: Special Welcome Back Bonus
+    return {
+      isRepeat: true,
+      ordersCount: 1,
+      discount: configured2ndDiscount,
+      tier: account.tier,
+      customerName: account.customerName,
+      message: `স্বাগতম প্রিয় পুরোনো গ্রাহক! আপনি পূর্বে আমাদের সাথে ছিলেন। আপনার ২য় অর্ডারে স্পেশাল ৳${configured2ndDiscount} ছাড় স্বয়ংক্রিয়ভাবে একটিভ হয়েছে!`,
+      badgeText: `২য় অর্ডার বোনাস: ৳${configured2ndDiscount} অফ!`
+    };
+  }
+
+  // 3rd+ Orders: VIP Regular Customer Grand Discount
+  return {
+    isRepeat: true,
+    ordersCount: account.ordersCount,
+    discount: configured3rdDiscount,
+    tier: account.tier,
+    customerName: account.customerName,
+    message: `👑 ভিআইপি নিয়মিত গ্রাহক সম্মাননা! আপনি আমাদের বিশ্বস্ত কাস্টমার (${account.ordersCount}টি সফল অর্ডার)। আজকের অর্ডারে স্পেশাল ৳${configured3rdDiscount} মেগা ছাড় সক্রিয়!`,
+    badgeText: `ভিআইপি কাস্টমার অফার: ৳${configured3rdDiscount} অফ!`
+  };
+};
+
+/**
+ * Add loyalty points when an order is completed/placed & handle referral crediting
  */
 export const addLoyaltyPointsFromOrder = async (order: Order): Promise<LoyaltyAccount | null> => {
   if (!order || !order.mobileNumber) return null;
@@ -88,7 +243,7 @@ export const addLoyaltyPointsFromOrder = async (order: Order): Promise<LoyaltyAc
   // Calculate points: 1 point per ৳100 spent
   const earnedPoints = Math.max(1, Math.floor((order.totalAmount || 0) / 100));
 
-  const existing = await getLoyaltyAccount(cleanPhone);
+  const existing = await getLoyaltyAccount(cleanPhone, order.customerName);
 
   const updatedAccount: LoyaltyAccount = {
     phone: cleanPhone,
@@ -97,6 +252,11 @@ export const addLoyaltyPointsFromOrder = async (order: Order): Promise<LoyaltyAc
     totalSpent: (existing?.totalSpent || 0) + (order.totalAmount || 0),
     ordersCount: (existing?.ordersCount || 0) + 1,
     tier: calculateTier((existing?.points || 0) + earnedPoints),
+    referralCode: existing?.referralCode || generateReferralCodeForPhone(cleanPhone),
+    referralsCount: existing?.referralsCount || 0,
+    referralBonusEarned: existing?.referralBonusEarned || 0,
+    referralBonusBalance: existing?.referralBonusBalance || 0,
+    referredBy: order.referralCodeUsed || existing?.referredBy,
     redeemedCoupons: existing?.redeemedCoupons || [],
     updatedAt: new Date().toISOString()
   };
@@ -117,7 +277,61 @@ export const addLoyaltyPointsFromOrder = async (order: Order): Promise<LoyaltyAc
   cache[cleanPhone] = updatedAccount;
   saveLocalLoyaltyAccounts(cache);
 
+  // If a referral code was used by this friend, credit the referrer!
+  if (order.referralCodeUsed) {
+    try {
+      await creditReferralBonus(order.referralCodeUsed, cleanPhone, 100);
+    } catch (e) {
+      console.warn("Failed to credit referral bonus:", e);
+    }
+  }
+
   return updatedAccount;
+};
+
+/**
+ * Credit referral bonus to the referrer when their friend buys!
+ */
+export const creditReferralBonus = async (
+  referralCode: string,
+  buyerPhone: string,
+  bonusAmount = 100
+): Promise<boolean> => {
+  if (!referralCode) return false;
+  const referrer = await findAccountByReferralCode(referralCode);
+  
+  // Prevent self-referral
+  if (!referrer || referrer.phone === buyerPhone) {
+    return false;
+  }
+
+  const updatedReferrer: LoyaltyAccount = {
+    ...referrer,
+    referralsCount: (referrer.referralsCount || 0) + 1,
+    referralBonusEarned: (referrer.referralBonusEarned || 0) + bonusAmount,
+    referralBonusBalance: (referrer.referralBonusBalance || 0) + bonusAmount,
+    points: referrer.points + Math.floor(bonusAmount / 2), // Also award 50 loyalty points
+    tier: calculateTier(referrer.points + Math.floor(bonusAmount / 2)),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Update in Firestore
+  try {
+    const { db } = await initializeFirebase();
+    if (db) {
+      const ref = doc(db, 'loyalty_accounts', referrer.phone);
+      await setDoc(ref, updatedReferrer, { merge: true });
+    }
+  } catch (e) {
+    console.warn("Failed to credit referral bonus in Firestore:", e);
+  }
+
+  // Update in local cache
+  const cache = getLocalLoyaltyAccounts();
+  cache[referrer.phone] = updatedReferrer;
+  saveLocalLoyaltyAccounts(cache);
+
+  return true;
 };
 
 /**
@@ -191,7 +405,11 @@ export const getAllLoyaltyAccounts = async (): Promise<LoyaltyAccount[]> => {
       const colRef = collection(db, 'loyalty_accounts');
       const snap = await getDocs(colRef);
       snap.forEach(docSnap => {
-        list.push(docSnap.data() as LoyaltyAccount);
+        const item = docSnap.data() as LoyaltyAccount;
+        if (!item.referralCode) {
+          item.referralCode = generateReferralCodeForPhone(item.phone);
+        }
+        list.push(item);
       });
       if (list.length > 0) return list;
     }

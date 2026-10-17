@@ -43,6 +43,7 @@ import LoyaltyRewardsModal from './components/LoyaltyRewardsModal';
 import StickyMobileBuyBar from './components/StickyMobileBuyBar';
 import ExitIntentModal from './components/ExitIntentModal';
 import { Truck, Search, Crown } from 'lucide-react';
+import { addLoyaltyPointsFromOrder } from './services/loyaltyService';
 
 export default function App() {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -434,10 +435,13 @@ export default function App() {
         brandSettingsObj
       );
       
+      const referralCodeUsed = sessionStorage.getItem('sera_referral_code_used') || undefined;
+
       const result = await createOrder({
         ...data,
         items: cart,
         sessionId: getOrCreateSessionId(),
+        referralCodeUsed,
         // Attach Courier Fraud & Return Intelligence
         riskLevel: fraudProfile.riskLevel,
         fraudScore: fraudProfile.fraudScore,
@@ -459,6 +463,12 @@ export default function App() {
       });
 
       if (result) {
+        // Automatically credit loyalty points & reward referral bonus if friend ordered
+        addLoyaltyPointsFromOrder(result).catch(err => {
+          console.warn("Failed to credit loyalty points/referral bonus:", err);
+        });
+        sessionStorage.removeItem('sera_referral_code_used');
+
         // Mark local order timestamp for rate limiter
         markOrderSubmittedSecurity();
 
@@ -524,6 +534,19 @@ export default function App() {
       setSubmitting(false);
     }
   };
+
+  // Check for referral URL parameter (?ref=CODE or ?referral=CODE)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref') || params.get('referral');
+      if (ref) {
+        const cleanRef = ref.trim().toUpperCase();
+        sessionStorage.setItem('sera_referral_code_used', cleanRef);
+        showToast(`🎉 বন্ধুর রেফারেল কোড "${cleanRef}" যুক্ত হয়েছে! অর্ডারে পাচ্ছেন ৳৫০ ছাড়!`, "success");
+      }
+    } catch (e) {}
+  }, []);
 
   // Handle stage transition when checkoutMode changes
   useEffect(() => {
@@ -1166,8 +1189,18 @@ export default function App() {
       </AnimatePresence>
       
       {view === 'form' && !isSubmitted && (
-        <div className={`fixed right-4 sm:right-6 z-40 transition-all duration-300 ${cart.length > 0 ? 'bottom-[92px]' : 'bottom-4 sm:bottom-6'}`}>
-          <div className="relative flex items-center justify-center">
+        <div className={`fixed right-3 sm:right-6 z-40 transition-all duration-300 ${cart.length > 0 ? 'bottom-[92px]' : 'bottom-4 sm:bottom-6'}`}>
+          <div className="relative flex items-center justify-center group">
+            {/* Attractive Bengali Callout Badge (মেসেজ দিন) with subtle bounce */}
+            <a
+              href={facebookUrl}
+              onClick={handleOpenFacebook}
+              className="hidden sm:flex items-center gap-1.5 mr-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-900 text-[#1877F2] hover:text-white font-extrabold text-[11px] rounded-full shadow-lg border border-[#1877F2]/40 backdrop-blur-md transition-all duration-200 cursor-pointer select-none group-hover:scale-105"
+            >
+              <span className="w-2 h-2 rounded-full bg-[#1877F2] animate-ping" />
+              <span>ফেসবুকে কথা বলুন</span>
+            </a>
+
             {/* Concentric expanding vibration shockwaves (কম্পন তরঙ্গ) */}
             <span className="absolute inset-0 rounded-full bg-[#1877F2]/45 animate-fb-ripple pointer-events-none" />
             <span className="absolute inset-0 rounded-full bg-[#1877F2]/30 animate-fb-ripple-delayed pointer-events-none" />

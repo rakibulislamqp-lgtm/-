@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Eye, EyeOff, Edit3, LogOut, ChevronRight, 
   X, RefreshCw, ShieldCheck, Crown, ExternalLink, 
   FileText, AlertCircle, ArrowRight, Home, Heart,
-  Sparkles, Megaphone, Copy, Check, Gift, Tag
+  Sparkles, Megaphone, Copy, Check, Gift, Tag, MessageSquare
 } from 'lucide-react';
 import { CustomerUser, CustomerAnnouncement, Order } from '../types';
 import { 
@@ -15,6 +15,7 @@ import {
 } from '../services/customerAuthService';
 import { DISTRICTS, DISTRICT_UPAZILA_MAP } from '../constants';
 import { DigitalInvoice } from './DigitalInvoice';
+import { generateReferralCodeForPhone } from '../services/loyaltyService';
 
 interface CustomerPortalModalProps {
   isOpen: boolean;
@@ -589,6 +590,68 @@ export default function CustomerPortalModal({
                     <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">মোট কেনাকাটা</p>
                     <p className="text-lg font-black text-rose-400">৳{totalSpent.toLocaleString()}</p>
                   </div>
+                </div>
+              </div>
+
+              {/* 🎁 REGISTERED CUSTOMER REFER & EARN ৳100 BONUS CARD */}
+              <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/5 border-2 border-amber-400/40 p-4 sm:p-5 rounded-3xl shadow-sm text-left space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <Gift size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 font-serif">
+                        বন্ধু রেফার করুন ও পান ৳১০০ ক্যাশ বোনাস!
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        আপনার বন্ধু প্রথম অর্ডারে পাবে ৳৫০ ছাড়, আর আপনার একাউন্টে জমা হবে ৳১০০ ক্যাশ রিওয়ার্ড!
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full border border-rose-200 self-start sm:self-center">
+                    +৳১০০ বোনাস
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="bg-white p-2.5 rounded-xl border border-amber-200/80 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 block uppercase">আপনার রেফার কোড:</span>
+                      <span className="text-xs font-mono font-black text-slate-900 tracking-wider">
+                        {generateReferralCodeForPhone(customer.phone)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const code = generateReferralCodeForPhone(customer.phone);
+                        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://serafashion.com';
+                        navigator.clipboard.writeText(`${baseUrl}?ref=${code}`);
+                        setStatusMessage({ type: 'success', text: 'রেফারেল লিংক কপি হয়েছে!' });
+                        setTimeout(() => setStatusMessage(null), 2500);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                    >
+                      <Copy size={12} />
+                      <span>লিংক কপি</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = generateReferralCodeForPhone(customer.phone);
+                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://serafashion.com';
+                      const link = `${baseUrl}?ref=${code}`;
+                      const text = `আসসালামু আলাইকুম! সেরা ফ্যাশন (SERA FASHION) থেকে প্রিমিয়াম শাড়ি ও থ্রি-পিস অর্ডার করুন। আমার রেফারেল লিংক থেকে অর্ডার করলেই পাবেন সাথে সাথে ৳৫০ ছাড়! 🛍️\n\nঅর্ডার লিংক: ${link}\nরেফার কোড: ${code}`;
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  >
+                    <MessageSquare size={14} />
+                    <span>WhatsApp-এ রেফার করুন</span>
+                  </button>
                 </div>
               </div>
 
