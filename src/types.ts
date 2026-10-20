@@ -116,6 +116,8 @@ export interface Product {
   brand?: string;
   description: string;
   price: number;
+  regularPrice?: number;
+  sizes?: string[];
   imageUrl: string;
   videoUrl?: string;
   category: Category;
@@ -245,6 +247,104 @@ export interface BrandSettings {
   repeatCustomer2ndOrderDiscount?: number; // ৳ discount on 2nd purchase (default ৳50)
   repeatCustomer3rdOrderDiscount?: number; // ৳ discount on 3rd+ purchase (default ৳100)
   repeatCustomerOfferBannerText?: string;
+  // Landing Page Full Management & Structural Controls
+  landingPage?: LandingPageConfig;
+}
+
+export interface LandingPageFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface LandingPageTrustItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  iconName?: 'Truck' | 'RotateCcw' | 'ShieldCheck' | 'CheckCircle2' | 'Sparkles' | 'Award';
+}
+
+export type LandingPageSectionId = 
+  | 'announcement'
+  | 'hero'
+  | 'trust'
+  | 'products'
+  | 'policies'
+  | 'faq'
+  | 'consultation';
+
+export interface LandingPageConfig {
+  enabled: boolean;
+  pageTitle?: string;
+  campaignBadge?: string;
+  
+  // Top Announcement Bar
+  showAnnouncementBar: boolean;
+  announcementText: string;
+  announcementBadge: string;
+
+  // Hero Section
+  showHero: boolean;
+  heroBadge: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  heroCtaText: string;
+  heroBgGlow: boolean;
+
+  // Countdown
+  showCountdown: boolean;
+  countdownType: 'cycle' | 'fixed_date';
+  countdownHours: number;
+  countdownTargetDate?: string;
+  countdownLabel: string;
+
+  // Trust Badges
+  showTrustBadges: boolean;
+  trustItems?: LandingPageTrustItem[];
+
+  // Products Showcase
+  showProducts: boolean;
+  productsTitle: string;
+  productsSubtitle: string;
+  showCategoryFilters: boolean;
+  defaultCategory: 'ALL' | 'THREE PIECE' | 'SAREE';
+  productSelectionMode: 'all_instock' | 'selected_only';
+  selectedProductCodes?: string[];
+  buyNowButtonText: string;
+  showStockBadge: boolean;
+  showDiscountBadge: boolean;
+
+  // Delivery & Policies
+  showPolicies: boolean;
+  dhakaDeliveryCharge: string;
+  outsideDhakaDeliveryCharge: string;
+  deliveryTimeDhaka: string;
+  deliveryTimeOutside: string;
+  returnPolicyText: string;
+  returnPolicyDescription: string;
+  paymentPolicyText: string;
+  paymentPolicyDescription: string;
+
+  // FAQ
+  showFaq: boolean;
+  faqTitle: string;
+  faqSubtitle: string;
+  faqItems: LandingPageFaqItem[];
+
+  // Consultation & WhatsApp
+  showConsultation: boolean;
+  consultationTitle: string;
+  consultationSubtitle: string;
+  whatsappMessagePreset: string;
+  whatsappButtonText: string;
+  callButtonText: string;
+
+  // Mobile Sticky Bar
+  showStickyMobileBar: boolean;
+  stickyBarText: string;
+
+  // Section Ordering & Structural Layout
+  sectionOrder: LandingPageSectionId[];
 }
 
 export interface ProductView {

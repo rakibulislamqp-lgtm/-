@@ -970,6 +970,12 @@ Rules:
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>${baseUrl}/offer</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
 </urlset>`;
 
     res.setHeader('Content-Type', 'application/xml');

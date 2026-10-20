@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   RotateCcw, Crown, User, ShieldCheck, Sparkles, 
-  MoreVertical, Layers, ChevronRight, Check, X, Box, Tag
+  MoreVertical, Layers, ChevronRight, Check, X, Box, Tag, Flame
 } from 'lucide-react';
 import { CustomerUser, ProductCategoryItem } from '../types';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
@@ -237,7 +237,6 @@ export default function TopLuxuryBar({
 
         {/* Right Side: ONLY Icons with Modern Luxury Interactive Styling */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          
           {/* 1. Return Policy Icon (রিটার্ন পলিসি) */}
           <div className="relative group">
             <motion.button

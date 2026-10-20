@@ -44,12 +44,13 @@ import StickyMobileBuyBar from './components/StickyMobileBuyBar';
 import ExitIntentModal from './components/ExitIntentModal';
 import { Truck, Search, Crown } from 'lucide-react';
 import { addLoyaltyPointsFromOrder } from './services/loyaltyService';
+import OfferLandingPage from './components/OfferLandingPage';
 
 export default function App() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedOrder, setSubmittedOrder] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [view, setView] = useState<'form' | 'admin'>('form');
+  const [view, setView] = useState<'form' | 'admin' | 'offer'>('form');
   const [showReturnPolicy, setShowReturnPolicy] = useState(false);
   const [showTrackingModal, setShowTrackingModal] = useState(false);
   const [showLoyaltyModal, setShowLoyaltyModal] = useState(false);
@@ -129,33 +130,57 @@ export default function App() {
       console.error("Failed to start tracking session:", err);
     });
 
-    // Check for track query param or admin route in URL
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const trackParam = params.get('track') || params.get('orderId') || params.get('id');
-      if (trackParam && trackParam.trim()) {
-        setTrackingOrderId(trackParam.trim());
-        setShowTrackingModal(true);
-      }
-      if (
-        params.has('admin') || 
-        params.get('view') === 'admin' ||
-        window.location.hash === '#admin' || 
-        window.location.pathname.endsWith('/admin')
-      ) {
-        setView('admin');
-      }
-    } catch (e) {
-      console.warn("Failed to parse tracking URL params:", e);
-    }
+    // Check for track query param, admin route, or /offer landing page route in URL
+    const checkCurrentRoute = () => {
+      try {
+        const path = window.location.pathname.toLowerCase();
+        const hash = window.location.hash.toLowerCase();
+        const params = new URLSearchParams(window.location.search);
 
-    const handleHashRoute = () => {
-      if (window.location.hash === '#admin' || window.location.search.includes('admin')) {
-        setView('admin');
+        const trackParam = params.get('track') || params.get('orderId') || params.get('id');
+        if (trackParam && trackParam.trim()) {
+          setTrackingOrderId(trackParam.trim());
+          setShowTrackingModal(true);
+        }
+
+        if (
+          params.has('admin') || 
+          params.get('view') === 'admin' ||
+          hash === '#admin' || 
+          path.endsWith('/admin')
+        ) {
+          setView('admin');
+        } else if (
+          path === '/offer' ||
+          path.startsWith('/offer/') ||
+          path === '/campaign/featured' ||
+          path.startsWith('/campaign') ||
+          hash === '#offer' ||
+          hash === '#/offer' ||
+          hash === '#campaign' ||
+          params.get('view') === 'offer' ||
+          params.has('offer')
+        ) {
+          setView('offer');
+        } else {
+          // If URL is base '/', revert to form view unless currently on admin
+          if (path === '/' && (hash === '' || hash === '#') && !params.has('admin') && !params.has('offer')) {
+            setView(prev => prev === 'admin' ? prev : 'form');
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse route URL params:", e);
       }
     };
-    window.addEventListener('hashchange', handleHashRoute);
-    return () => window.removeEventListener('hashchange', handleHashRoute);
+
+    checkCurrentRoute();
+
+    window.addEventListener('hashchange', checkCurrentRoute);
+    window.addEventListener('popstate', checkCurrentRoute);
+    return () => {
+      window.removeEventListener('hashchange', checkCurrentRoute);
+      window.removeEventListener('popstate', checkCurrentRoute);
+    };
   }, []);
 
   // Listen to customer auth changes across components
@@ -572,6 +597,31 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOfferBuyNow = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
+    handleShowcaseOrder(product, orderQuantity, orderSize);
+    setView('form');
+    try {
+      if (window.location.pathname === '/offer' || window.location.hash.includes('offer') || window.location.search.includes('offer')) {
+        window.history.pushState({}, '', '/');
+      }
+    } catch {}
+  };
+
+  const handleOfferAddToCart = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
+    handleAddToCart(product, orderQuantity, orderSize);
+    setShowAddSuccess(true);
+  };
+
+  const handleGoToStore = () => {
+    setView('form');
+    try {
+      if (window.location.pathname === '/offer' || window.location.hash.includes('offer') || window.location.search.includes('offer')) {
+        window.history.pushState({}, '', '/');
+      }
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAddToCart = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
     // Record view activity
     trackProductView(product).catch(err => {
@@ -785,6 +835,23 @@ export default function App() {
           </button>
         </div>
       </AdminErrorBoundary>
+    );
+  }
+
+  if (view === 'offer') {
+    return (
+      <OfferLandingPage
+        onBuyNow={(product, quantity, size) => {
+          handleOfferBuyNow(product, quantity, size);
+        }}
+        onAddToCart={(product, quantity, size) => {
+          handleOfferAddToCart(product, quantity, size);
+        }}
+        onGoToStore={handleGoToStore}
+        brandSettings={brandSettingsObj}
+        logoUrl={logoUrl}
+        facebookUrl={facebookUrl}
+      />
     );
   }
 
@@ -1201,14 +1268,15 @@ export default function App() {
               <span>ফেসবুকে কথা বলুন</span>
             </a>
 
-            {/* Concentric expanding vibration shockwaves (কম্পন তরঙ্গ) */}
-            <span className="absolute inset-0 rounded-full bg-[#1877F2]/45 animate-fb-ripple pointer-events-none" />
-            <span className="absolute inset-0 rounded-full bg-[#1877F2]/30 animate-fb-ripple-delayed pointer-events-none" />
+            {/* Gentle Slow-Motion Breeze Waves from behind/inside the icon (বাতাস ও নরম ঢেউ) */}
+            <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/35 via-sky-400/25 to-[#1877F2]/15 animate-fb-wave-1 pointer-events-none" />
+            <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/25 via-sky-400/20 to-[#1877F2]/10 animate-fb-wave-2 pointer-events-none" />
+            <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/18 via-sky-400/15 to-[#1877F2]/5 animate-fb-wave-3 pointer-events-none" />
 
             <a 
               href={facebookUrl}
               onClick={handleOpenFacebook}
-              className="relative z-10 w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center shadow-[0_8px_25px_rgba(24,119,242,0.6)] border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-110 active:scale-90 transition-all duration-150 group touch-manipulation animate-fb-vibrate"
+              className="relative z-10 w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-105 active:scale-95 transition-all duration-300 group touch-manipulation animate-fb-glow"
               title="SERA FASHION ফেসবুক পেজ - সরাসরি মেসেজ দিন"
               aria-label="SERA FASHION Facebook Page"
             >

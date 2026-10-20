@@ -65,109 +65,74 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
-/* High-Attraction Vibration & Sonar Wave Motion for Facebook Icon */
-@keyframes fb-vibration {
-  0%, 100% {
-    transform: scale(1) translate(0, 0) rotate(0deg);
-  }
-  3% {
-    transform: scale(1.08) translate(-2px, 1.5px) rotate(-8deg);
-  }
-  6% {
-    transform: scale(1.08) translate(2px, -1.5px) rotate(8deg);
-  }
-  9% {
-    transform: scale(1.1) translate(-2.5px, 2px) rotate(-9deg);
-  }
-  12% {
-    transform: scale(1.1) translate(2.5px, -2px) rotate(9deg);
-  }
-  15% {
-    transform: scale(1.08) translate(-2px, 1px) rotate(-7deg);
-  }
-  18% {
-    transform: scale(1.08) translate(2px, -1px) rotate(7deg);
-  }
-  21% {
-    transform: scale(1.05) translate(-1px, 0.5px) rotate(-4deg);
-  }
-  24% {
-    transform: scale(1.04) translate(1px, -0.5px) rotate(4deg);
-  }
-  27% {
-    transform: scale(1.02) translate(-0.5px, 0.5px) rotate(-2deg);
-  }
-  30% {
-    transform: scale(1) translate(0, 0) rotate(0deg);
-  }
-  /* Second micro-buzz burst */
-  50% {
-    transform: scale(1) translate(0, 0) rotate(0deg);
-  }
-  53% {
-    transform: scale(1.07) translate(-1.5px, 1px) rotate(-6deg);
-  }
-  56% {
-    transform: scale(1.07) translate(1.5px, -1px) rotate(6deg);
-  }
-  59% {
-    transform: scale(1.08) translate(-2px, 1.5px) rotate(-7deg);
-  }
-  62% {
-    transform: scale(1.08) translate(2px, -1.5px) rotate(7deg);
-  }
-  65% {
-    transform: scale(1.04) translate(-1px, 0.5px) rotate(-3deg);
-  }
-  68% {
-    transform: scale(1.02) translate(1px, -0.5px) rotate(3deg);
-  }
-  71%, 99% {
-    transform: scale(1) translate(0, 0) rotate(0deg);
-  }
-}
-
-@keyframes fb-ripple {
+/* Gentle Slow-Motion Breeze Wave & Aura (বাতাস ও নরম ঢেউয়ের স্লো-মোশন তরঙ্গ) */
+@keyframes fb-wind-wave-1 {
   0% {
-    transform: scale(0.9);
-    opacity: 0.95;
+    transform: scale(0.96);
+    opacity: 0.6;
   }
-  45% {
-    opacity: 0.55;
+  50% {
+    opacity: 0.32;
   }
   100% {
-    transform: scale(2.1);
+    transform: scale(2.0);
     opacity: 0;
   }
 }
 
-@keyframes fb-ripple-delayed {
+@keyframes fb-wind-wave-2 {
   0% {
-    transform: scale(0.85);
-    opacity: 0.85;
+    transform: scale(0.92);
+    opacity: 0.5;
   }
   50% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: scale(2.45);
+    opacity: 0;
+  }
+}
+
+@keyframes fb-wind-wave-3 {
+  0% {
+    transform: scale(0.88);
     opacity: 0.4;
   }
+  50% {
+    opacity: 0.15;
+  }
   100% {
-    transform: scale(2.6);
+    transform: scale(2.9);
     opacity: 0;
   }
 }
 
-.animate-fb-vibrate {
-  animation: fb-vibration 2.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
-  transform-origin: center center;
-  will-change: transform;
+@keyframes fb-breeze-glow {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(24, 119, 242, 0.45), 0 0 0 0 rgba(24, 119, 242, 0.25);
+  }
+  50% {
+    box-shadow: 0 10px 30px rgba(24, 119, 242, 0.65), 0 0 18px 4px rgba(56, 189, 248, 0.35);
+  }
 }
 
-.animate-fb-ripple {
-  animation: fb-ripple 2.8s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+.animate-fb-wave-1 {
+  animation: fb-wind-wave-1 4.5s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
   will-change: transform, opacity;
 }
 
-.animate-fb-ripple-delayed {
-  animation: fb-ripple-delayed 2.8s cubic-bezier(0.1, 0.8, 0.3, 1) 0.5s infinite;
+.animate-fb-wave-2 {
+  animation: fb-wind-wave-2 4.5s cubic-bezier(0.2, 0.8, 0.4, 1) 1.5s infinite;
   will-change: transform, opacity;
+}
+
+.animate-fb-wave-3 {
+  animation: fb-wind-wave-3 4.5s cubic-bezier(0.2, 0.8, 0.4, 1) 3.0s infinite;
+  will-change: transform, opacity;
+}
+
+.animate-fb-glow {
+  animation: fb-breeze-glow 4.5s ease-in-out infinite;
 }
 

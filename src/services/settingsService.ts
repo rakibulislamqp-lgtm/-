@@ -39,13 +39,22 @@ export const getBrandSettings = async (): Promise<BrandSettings | null> => {
         const { db } = await initializeFirebase();
         if (db) {
           const docRef = doc(db, 'settings', SETTING_DOC_ID);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            remoteData = docSnap.data() as BrandSettings;
+          const docSnap = await Promise.race([
+            getDoc(docRef),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          ]);
+          if (docSnap && (docSnap as any).exists && (docSnap as any).exists()) {
+            remoteData = (docSnap as any).data() as BrandSettings;
           }
         }
-      } catch (error) {
-        console.warn('Error fetching brand settings in background:', error);
+      } catch (error: any) {
+        // Silently yield to local cache or cPanel without noisy console errors
+        const isSilent = error?.message?.includes('offline') || 
+                         error?.code === 'unavailable' || 
+                         error?.message === 'timeout';
+        if (!isSilent) {
+          console.warn('Background brand settings fetch notice:', error?.message || error);
+        }
       }
     }
 

@@ -1,6 +1,12 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { initializeFirestore, getFirestore, doc, getDocFromServer, disableNetwork } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  doc, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
@@ -126,32 +132,6 @@ export const checkFirestoreHealth = async (): Promise<FirestoreHealthStatus> => 
   }
 };
 
-const testConnection = async (database: any) => {
-  if (!database || checkIsQuotaExhausted()) return;
-  try {
-    // Attempt to read a non-existent doc to trigger connection check
-    await getDocFromServer(doc(database, '_test_connection_', 'check'));
-    console.log('Firebase connection test: SUCCESS (Backend reachable)');
-  } catch (error: any) {
-    const errMsg = String(error.message || '').toLowerCase();
-    const errCode = String(error.code || '').toLowerCase();
-    if (
-      errCode === 'resource-exhausted' ||
-      errCode === 'quota-exceeded' ||
-      errMsg.includes('quota') ||
-      errMsg.includes('limit exceeded') ||
-      errMsg.includes('exhausted')
-    ) {
-      markQuotaExhausted();
-    } else if (error.code === 'unavailable' || error.message?.includes('offline') || error.message?.includes('backend')) {
-      console.log("Firebase connection: operating in persistent offline cache mode.");
-    } else {
-      // Permission denied or other responses indicate the backend is reached
-      console.log('Firebase connection test: SUCCESS (Backend reached, result:', error.code || 'connected', ')');
-    }
-  }
-};
-
 const initializeFirebase = async () => {
   if (initPromise) return initPromise;
 
@@ -188,7 +168,10 @@ const initializeFirebase = async () => {
 
       try {
         db = initializeFirestore(app, {
-          experimentalForceLongPolling: true,
+          experimentalAutoDetectLongPolling: true,
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+          })
         });
       } catch (e) {
         try {
@@ -203,8 +186,6 @@ const initializeFirebase = async () => {
       } catch (e) {
         console.warn('Storage init warning:', e);
       }
-
-      testConnection(db);
 
       return { app, db, auth, storage, analytics };
     } catch (error) {
