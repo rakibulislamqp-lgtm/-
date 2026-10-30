@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, X, CheckCircle, Copy, AlertCircle, ShoppingCart } from 'lucide-react';
+import { 
+  Gift, X, CheckCircle, Copy, AlertCircle, ShoppingCart, 
+  Sparkles, Trophy, CheckCircle2, ArrowRight, Tag, Award 
+} from 'lucide-react';
 import { updateVisitorSpinInfo, logVisitorEvent } from '../services/trackingService';
+import { BrandSettings, SpinWheelItem } from '../types';
+import { DEFAULT_SPIN_WHEEL_ITEMS } from '../constants/spinWheelDefaults';
 
 interface SpinWheelModalProps {
   setValue: (name: string, value: any) => void;
@@ -9,6 +14,7 @@ interface SpinWheelModalProps {
   cartLength?: number;
   onOpenCheckout?: () => void;
   onOpenChange?: (isOpen: boolean) => void;
+  brandSettings?: BrandSettings | null;
 }
 
 // Sparkle particle class representing the firecracker bursts
@@ -209,26 +215,151 @@ function CelebrationFireworks() {
   );
 }
 
-const SECTORS = [
-  { label: '৫% ডিসকাউন্ট', labelBn: '৫% অফ', code: 'SERA5', discount: 5, discountType: 'percentage', color: '#e2136e', text: '#ffffff' }, // Sera Rose
-  { label: '১০০৳ কুপন', labelBn: '১০০৳ অফ', code: 'SERA100', discount: 100, discountType: 'flat', color: '#D4AF37', text: '#1C1917' }, // Luxe Gold
-  { label: '১০% ডিসকাউন্ট', labelBn: '১০% অফ', code: 'SERA10', discount: 10, discountType: 'percentage', color: '#1C1917', text: '#ffffff' }, // charcoal
-  { label: 'বিশেষ উপহার', labelBn: 'ফ্রি গিফ্ট', code: 'SERAGIFT', discount: 12, discountType: 'percentage', color: '#10b981', text: '#ffffff' }, // emerald
-  { label: '১৫% ডিসকাউন্ট', labelBn: '১৫% অফ', code: 'SERA15', discount: 15, discountType: 'percentage', color: '#e2136e', text: '#ffffff' }, // Rose
-  { label: '২০০৳ কুপন', labelBn: '২০০৳ অফ', code: 'SERA200', discount: 200, discountType: 'flat', color: '#D4AF37', text: '#1C1917' }, // Luxe Gold
-  { label: '২০% ডিসকাউন্ট', labelBn: '২০% অফ', code: 'SERA20', discount: 20, discountType: 'percentage', color: '#1C1917', text: '#ffffff' }, // charcoal
-  { label: 'ফ্রি ডেলিভারি', labelBn: 'ফ্রি শিপিং', code: 'SERAFREE', discount: 10, discountType: 'percentage', color: '#ca8a04', text: '#ffffff' }, // special
-];
+// Static fallback if needed
+const DEFAULT_FALLBACK_SECTORS = DEFAULT_SPIN_WHEEL_ITEMS;
 
-export default function SpinWheelModal({ setValue, getValues, cartLength = 0, onOpenCheckout, onOpenChange }: SpinWheelModalProps) {
+export default function SpinWheelModal({ 
+  setValue, 
+  getValues, 
+  cartLength = 0, 
+  onOpenCheckout, 
+  onOpenChange, 
+  brandSettings 
+}: SpinWheelModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [hasSpun, setHasSpun] = useState(false);
-  const [wonCoupon, setWonCoupon] = useState<{ code: string; label: string; labelBn: string; discount: number; discountType?: string; name: string; phone: string } | null>(null);
+  const [wonCoupon, setWonCoupon] = useState<{ 
+    code: string; 
+    label: string; 
+    labelBn: string; 
+    discount: number; 
+    discountType?: string; 
+    color?: string;
+    text?: string;
+    name: string; 
+    phone: string; 
+  } | null>(null);
   const [rotationAngle, setRotationAngle] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showActivePromoCard, setShowActivePromoCard] = useState(false);
+
+  // Dynamic offers / sectors state
+  const [sectors, setSectors] = useState<SpinWheelItem[]>(() => {
+    if (brandSettings && Array.isArray(brandSettings.spinWheelItems) && brandSettings.spinWheelItems.length >= 2) {
+      return brandSettings.spinWheelItems;
+    }
+    try {
+      const stored = localStorage.getItem('brand_settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed.spinWheelItems) && parsed.spinWheelItems.length >= 2) {
+          return parsed.spinWheelItems;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_FALLBACK_SECTORS;
+  });
+
+  // Check if spin wheel is enabled from props or cached brand_settings (default: true)
+  const [isEnabled, setIsEnabled] = useState<boolean>(() => {
+    if (brandSettings && typeof brandSettings.spinWheelEnabled === 'boolean') {
+      return brandSettings.spinWheelEnabled;
+    }
+    try {
+      const stored = localStorage.getItem('brand_settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.spinWheelEnabled === 'boolean') {
+          return parsed.spinWheelEnabled;
+        }
+      }
+    } catch (e) {}
+    return true;
+  });
+
+  const [delaySeconds, setDelaySeconds] = useState<number>(() => {
+    if (brandSettings && typeof brandSettings.spinWheelDelaySeconds === 'number') {
+      return brandSettings.spinWheelDelaySeconds;
+    }
+    try {
+      const stored = localStorage.getItem('brand_settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.spinWheelDelaySeconds === 'number') {
+          return parsed.spinWheelDelaySeconds;
+        }
+      }
+    } catch (e) {}
+    return 5;
+  });
+
+  const [showFloatingButton, setShowFloatingButton] = useState<boolean>(() => {
+    if (brandSettings && typeof brandSettings.spinWheelShowFloatingButton === 'boolean') {
+      return brandSettings.spinWheelShowFloatingButton;
+    }
+    try {
+      const stored = localStorage.getItem('brand_settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.spinWheelShowFloatingButton === 'boolean') {
+          return parsed.spinWheelShowFloatingButton;
+        }
+      }
+    } catch (e) {}
+    return true;
+  });
+
+  // Listen to prop changes
+  useEffect(() => {
+    if (brandSettings) {
+      if (typeof brandSettings.spinWheelEnabled === 'boolean') {
+        setIsEnabled(brandSettings.spinWheelEnabled);
+      }
+      if (typeof brandSettings.spinWheelDelaySeconds === 'number') {
+        setDelaySeconds(brandSettings.spinWheelDelaySeconds);
+      }
+      if (typeof brandSettings.spinWheelShowFloatingButton === 'boolean') {
+        setShowFloatingButton(brandSettings.spinWheelShowFloatingButton);
+      }
+      if (Array.isArray(brandSettings.spinWheelItems) && brandSettings.spinWheelItems.length >= 2) {
+        setSectors(brandSettings.spinWheelItems);
+      }
+    }
+  }, [brandSettings?.spinWheelEnabled, brandSettings?.spinWheelDelaySeconds, brandSettings?.spinWheelShowFloatingButton, brandSettings?.spinWheelItems]);
+
+  // Listen to global brand_settings_updated event and preview event
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      const detail = e.detail;
+      if (detail) {
+        if (typeof detail.spinWheelEnabled === 'boolean') {
+          setIsEnabled(detail.spinWheelEnabled);
+        }
+        if (typeof detail.spinWheelDelaySeconds === 'number') {
+          setDelaySeconds(detail.spinWheelDelaySeconds);
+        }
+        if (typeof detail.spinWheelShowFloatingButton === 'boolean') {
+          setShowFloatingButton(detail.spinWheelShowFloatingButton);
+        }
+        if (Array.isArray(detail.spinWheelItems) && detail.spinWheelItems.length >= 2) {
+          setSectors(detail.spinWheelItems);
+        }
+      }
+    };
+
+    const handlePreview = () => {
+      setIsOpen(true);
+    };
+
+    window.addEventListener('brand_settings_updated', handleUpdate);
+    window.addEventListener('open_spin_wheel_preview', handlePreview);
+    return () => {
+      window.removeEventListener('brand_settings_updated', handleUpdate);
+      window.removeEventListener('open_spin_wheel_preview', handlePreview);
+    };
+  }, []);
 
   useEffect(() => {
     onOpenChange?.(isOpen);
@@ -247,6 +378,12 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
   const parentMobileNumber = getValues('mobileNumber') || '';
 
   useEffect(() => {
+    // If spin wheel is disabled, ensure modal is closed and skip timer
+    if (!isEnabled) {
+      setIsOpen(false);
+      return;
+    }
+
     // Read persisted coupon and spinning state from localStorage
     const savedSpun = localStorage.getItem('sera_wheel_has_spun');
     const savedCoupon = localStorage.getItem('sera_wheel_won_coupon');
@@ -283,6 +420,17 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
           coupon.labelBn = '২০% অফ';
         }
         
+        // Ensure full offer label and sector colors are loaded
+        if (!coupon.label || !coupon.color) {
+          const matched = sectors.find(s => s.code === coupon.code || s.labelBn === coupon.labelBn);
+          if (matched) {
+            if (!coupon.label) coupon.label = matched.label;
+            if (!coupon.color) coupon.color = matched.color;
+            if (!coupon.text) coupon.text = matched.text;
+            if (!coupon.discountType && matched.discountType) coupon.discountType = matched.discountType;
+          }
+        }
+        
         // Save corrected coupon back
         localStorage.setItem('sera_wheel_won_coupon', JSON.stringify(coupon));
 
@@ -295,13 +443,16 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
         console.error('Error parsing saved coupon:', err);
       }
     } else {
-      // Show automatic entrance popup after a small delay if they haven't spun yet
+      // If delaySeconds is 0, do not auto popup (only opens if button is clicked)
+      if (delaySeconds <= 0) return;
+
+      // Show automatic entrance popup after admin-configured delay
       const timer = setTimeout(() => {
         setIsOpen(true);
-      }, 5000);
+      }, delaySeconds * 1000);
       return () => clearTimeout(timer);
     }
-  }, [setValue]);
+  }, [setValue, isEnabled, delaySeconds, sectors]);
 
   // Sync details from parent when modal opens
   useEffect(() => {
@@ -317,6 +468,19 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
   const handleClose = () => {
     setIsOpen(false);
     setValidationError('');
+  };
+
+  // Proceed to order action
+  const handleProceedToOrder = () => {
+    handleClose();
+    if (onOpenCheckout) {
+      onOpenCheckout();
+    } else {
+      const target = document.getElementById('order-form') || document.getElementById('product-section') || document.querySelector('form');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   };
 
   // Generate confetti burst
@@ -352,18 +516,36 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
     setValue('customerName', spinName);
     setValue('mobileNumber', spinPhone);
 
-    // Decide winning sector.
-    // Let's bias toward beautiful larger discounts like 15%, 20%, 200৳ or Special Gift to maximize joy!
-    const biasedIndices = [1, 3, 4, 5, 6, 7]; // high-value sectors
-    const winningIndex = biasedIndices[Math.floor(Math.random() * biasedIndices.length)];
-    const chosenSector = SECTORS[winningIndex];
+    // Decide winning sector dynamically from active sectors
+    const eligibleIndices = sectors
+      .map((s, idx) => ({ ...s, idx }))
+      .filter(s => s.isWinningEligible !== false);
+
+    const pool = eligibleIndices.length > 0 ? eligibleIndices : sectors.map((s, idx) => ({ ...s, idx }));
+
+    // Weighted random selection based on probabilityWeight
+    const totalWeight = pool.reduce((acc, it) => acc + Math.max(1, it.probabilityWeight || 10), 0);
+    let rand = Math.random() * totalWeight;
+    let chosenEntry = pool[0];
+    for (const item of pool) {
+      const weight = Math.max(1, item.probabilityWeight || 10);
+      if (rand < weight) {
+        chosenEntry = item;
+        break;
+      }
+      rand -= weight;
+    }
+
+    const winningIndex = chosenEntry.idx;
+    const chosenSector = sectors[winningIndex];
 
     const spins = 7; // multiple full spins
-    const sectorAngle = 360 / SECTORS.length;
-    // Align sector center perfectly inside the segment with the top pointer, adjusting for SVG's initial 22.5deg rotation
-    // Add a safe randomized offset (-12 to +12 degrees) so it stops dynamically and realistically inside the segment, never on a divider line!
-    const randomOffset = (Math.random() * 24) - 12;
-    const finalAngle = spins * 360 + (360 - (winningIndex * sectorAngle + sectorAngle / 2 + 22.5)) + randomOffset;
+    const sectorAngle = 360 / sectors.length;
+    const middleDeg = winningIndex * sectorAngle + sectorAngle / 2;
+    // Align sector center with top needle (12 o'clock), plus a safe randomized offset
+    const maxOffset = (sectorAngle / 2) * 0.65;
+    const randomOffset = (Math.random() * 2 * maxOffset) - maxOffset;
+    const finalAngle = spins * 360 + (360 - middleDeg) + randomOffset;
 
     setRotationAngle(finalAngle);
 
@@ -371,10 +553,12 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
     setTimeout(() => {
       const wonObject = {
         code: chosenSector.code,
-        label: chosenSector.label,
+        label: chosenSector.label || chosenSector.labelBn,
         labelBn: chosenSector.labelBn,
         discount: chosenSector.discount,
-        discountType: chosenSector.discountType,
+        discountType: chosenSector.discountType || 'percentage',
+        color: chosenSector.color,
+        text: chosenSector.text,
         name: spinName,
         phone: spinPhone,
       };
@@ -417,66 +601,70 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
   const CX = 170;
   const CY = 170;
   const R = 160;
-  const sectorAngle = 360 / SECTORS.length;
+  const sectorAngle = 360 / sectors.length;
 
   return (
     <>
       {/* 🚀 Launcher floating button with notification badge */}
-      <div className={`fixed left-4 sm:left-6 z-40 flex items-center gap-2.5 sm:gap-3 transition-all duration-300 ${
-        (cartLength || 0) > 0 ? 'bottom-[76px] sm:bottom-[80px]' : 'bottom-4 sm:bottom-6'
-      }`}>
-        {/* 1. Circular Round Checkout Icon Button */}
-        {(cartLength || 0) > 0 && onOpenCheckout && (
-          <motion.button
-            type="button"
-            onClick={onOpenCheckout}
-            className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-[#438a1a] hover:bg-[#387515] text-white flex items-center justify-center shadow-2xl border-2 border-white/60 active:scale-95 transition-all cursor-pointer relative shrink-0 ring-4 ring-green-500/20 group"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            title="অর্ডার সম্পূর্ণ করুন (Checkout)"
-          >
-            <div className="relative flex items-center justify-center">
-              <ShoppingCart size={20} className="group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-bounce">
-                {cartLength}
-              </span>
-            </div>
-          </motion.button>
-        )}
-
-        {/* 2. Coupon / Spin Wheel Launcher Button */}
-        <motion.button
-          id="gift-spin-launcher"
-          onClick={() => {
-            if (wonCoupon) {
-              setShowActivePromoCard(!showActivePromoCard);
-            } else {
-              setIsOpen(true);
-            }
-          }}
-          className={`flex items-center gap-2.5 px-5 py-3.5 sm:py-4 rounded-full shadow-2xl font-sans text-xs font-black tracking-wide uppercase transition-all relative ${
-            wonCoupon 
-              ? 'bg-emerald-600 border-2 border-emerald-400 text-white shadow-emerald-200 cursor-pointer' 
-              : 'bg-[#e2136e] border-2 border-rose-400 text-white cursor-pointer shadow-rose-200'
-          }`}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          animate={!wonCoupon ? { y: [0, -4, 0] } : {}}
-          transition={!wonCoupon ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}}
-        >
-          <Gift size={18} className="animate-spin-slow shrink-0" />
-          <span className="whitespace-nowrap">{wonCoupon ? `🎁 কুপন: ${wonCoupon.code}` : 'লাকি স্পিন ও গিফট'}</span>
-          {!hasSpun && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-yellow-400 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-rose-700 animate-pulse">
-              1
-            </span>
+      {(((cartLength || 0) > 0 && onOpenCheckout) || (isEnabled && showFloatingButton)) && (
+        <div className={`fixed left-4 sm:left-6 z-40 flex items-center gap-2.5 sm:gap-3 transition-all duration-300 ${
+          (cartLength || 0) > 0 ? 'bottom-[76px] sm:bottom-[80px]' : 'bottom-4 sm:bottom-6'
+        }`}>
+          {/* 1. Circular Round Checkout Icon Button */}
+          {(cartLength || 0) > 0 && onOpenCheckout && (
+            <motion.button
+              type="button"
+              onClick={onOpenCheckout}
+              className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-[#438a1a] hover:bg-[#387515] text-white flex items-center justify-center shadow-2xl border-2 border-white/60 active:scale-95 transition-all cursor-pointer relative shrink-0 ring-4 ring-green-500/20 group"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              title="অর্ডার সম্পূর্ণ করুন (Checkout)"
+            >
+              <div className="relative flex items-center justify-center">
+                <ShoppingCart size={20} className="group-hover:scale-110 transition-transform" />
+                <span className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-bounce">
+                  {cartLength}
+                </span>
+              </div>
+            </motion.button>
           )}
-        </motion.button>
-      </div>
+
+          {/* 2. Coupon / Spin Wheel Launcher Button (Only when enabled & configured to show) */}
+          {isEnabled && showFloatingButton && (
+            <motion.button
+              id="gift-spin-launcher"
+              onClick={() => {
+                if (wonCoupon) {
+                  setShowActivePromoCard(!showActivePromoCard);
+                } else {
+                  setIsOpen(true);
+                }
+              }}
+              className={`flex items-center gap-2.5 px-5 py-3.5 sm:py-4 rounded-full shadow-2xl font-sans text-xs font-black tracking-wide uppercase transition-all relative ${
+                wonCoupon 
+                  ? 'bg-emerald-600 border-2 border-emerald-400 text-white shadow-emerald-200 cursor-pointer' 
+                  : 'bg-[#e2136e] border-2 border-rose-400 text-white cursor-pointer shadow-rose-200'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              animate={!wonCoupon ? { y: [0, -4, 0] } : {}}
+              transition={!wonCoupon ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}}
+            >
+              <Gift size={18} className="animate-spin-slow shrink-0" />
+              <span className="whitespace-nowrap">{wonCoupon ? `🎁 কুপন: ${wonCoupon.code}` : 'লাকি স্পিন ও গিফট'}</span>
+              {!hasSpun && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-yellow-400 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-rose-700 animate-pulse">
+                  1
+                </span>
+              )}
+            </motion.button>
+          )}
+        </div>
+      )}
 
       {/* 🔮 Active Coupon quick hover panel shown on screen when toggled */}
       <AnimatePresence>
-        {wonCoupon && showActivePromoCard && !isOpen && (
+        {isEnabled && wonCoupon && showActivePromoCard && !isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.85 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -501,17 +689,31 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
             </div>
 
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-inner space-y-3 relative overflow-hidden">
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-3 shadow-md shadow-emerald-950/50 shrink-0">
-                  <Gift size={22} className="animate-bounce" />
+              <div className="flex items-center gap-3.5">
+                <div className="bg-gradient-to-br from-amber-500 to-rose-600 text-white rounded-2xl p-3 shadow-md shadow-rose-950/50 shrink-0">
+                  <Trophy size={22} className="animate-bounce" />
                 </div>
-                <div className="space-y-0.5">
-                  <h4 className="text-sm md:text-base font-serif font-black text-yellow-300 tracking-tight text-left">
-                    {wonCoupon.labelBn}
+                <div className="space-y-0.5 text-left">
+                  <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                    আপনার বিজয়ী অফার 🏆
+                  </span>
+                  <h4 className="text-sm md:text-base font-serif font-black text-white tracking-tight leading-snug">
+                    {wonCoupon.label || wonCoupon.labelBn}
                   </h4>
-                  <p className="text-[11px] font-bold text-emerald-400 text-left">
-                    অর্ডার করতে কুপনটি ব্যবহার করুন
-                  </p>
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span 
+                      className="px-2 py-0.5 rounded text-[10px] font-black"
+                      style={{ 
+                        backgroundColor: wonCoupon.color || '#e2136e', 
+                        color: wonCoupon.text || '#ffffff' 
+                      }}
+                    >
+                      {wonCoupon.labelBn}
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-400">
+                      {wonCoupon.discountType === 'flat' ? `${wonCoupon.discount}৳ নগদ ছাড়` : `${wonCoupon.discount}% ডিসকাউন্ট ছাড়`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -534,10 +736,22 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
             </div>
 
             <div className="flex items-start gap-2 bg-[#e2136e]/10 p-3.5 rounded-xl border border-[#e2136e]/20">
+              <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
               <p className="text-[11px] text-left leading-relaxed font-bold text-stone-200">
-                অর্ডার ফর্মে <strong className="text-[#e2136e] font-black">{wonCoupon.discountType === 'flat' ? `${wonCoupon.discount}৳` : `${wonCoupon.discount}%`} ডিসকাউন্ট</strong> স্বয়ংক্রিয়ভাবে যোগ করা হয়েছে। অভিনন্দন! ❤️
+                অর্ডার ফর্মে <strong className="text-amber-300 font-black">{wonCoupon.discountType === 'flat' ? `${wonCoupon.discount}৳` : `${wonCoupon.discount}%`} ডিসকাউন্ট</strong> স্বয়ংক্রিয়ভাবে সক্রিয় রয়েছে।
               </p>
             </div>
+
+            <button
+              onClick={() => {
+                setShowActivePromoCard(false);
+                handleProceedToOrder();
+              }}
+              className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition"
+            >
+              <ShoppingCart size={14} />
+              <span>এই অফারে এখনি অর্ডার করুন</span>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -615,8 +829,8 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                             transition: isSpinning ? 'transform 4.5s cubic-bezier(0.18, 0.89, 0.32, 1.02)' : 'none'
                           }}
                         >
-                          <svg viewBox="0 0 340 340" className="w-full h-full transform rotate-[22.5deg]">
-                            {SECTORS.map((sector, index) => {
+                          <svg viewBox="0 0 340 340" className="w-full h-full">
+                            {sectors.map((sector, index) => {
                               const startDeg = index * sectorAngle;
                               const endDeg = (index + 1) * sectorAngle;
                               const startRad = ((startDeg - 90) * Math.PI) / 180;
@@ -636,8 +850,10 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                               const textX = CX + textDistance * Math.cos(middleRad);
                               const textY = CY + textDistance * Math.sin(middleRad);
 
+                              const fontSize = sectors.length > 10 ? '7.5px' : sectors.length > 8 ? '8.5px' : '10px';
+
                               return (
-                                <g key={index}>
+                                <g key={sector.id || index}>
                                   {/* Sector Slice */}
                                   <path d={d} fill={sector.color} stroke="#ffffff" strokeWidth="2.5" />
                                   
@@ -645,8 +861,8 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                                   <text
                                     x={textX}
                                     y={textY}
-                                    fill={sector.text}
-                                    fontSize="10px"
+                                    fill={sector.text || '#ffffff'}
+                                    fontSize={fontSize}
                                     fontWeight="bolder"
                                     textAnchor="middle"
                                     dominantBaseline="central"
@@ -660,8 +876,8 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                             })}
 
                             {/* Render responsive decorative pin dots INSIDE the SVG so they rescale 100% perfectly with container resizing */}
-                            {Array.from({ length: 8 }).map((_, i) => {
-                              const dotAngle = (i * 45 * Math.PI) / 180;
+                            {Array.from({ length: sectors.length }).map((_, i) => {
+                              const dotAngle = ((i * sectorAngle - 90) * Math.PI) / 180;
                               const dotX = CX + 148 * Math.cos(dotAngle);
                               const dotY = CY + 148 * Math.sin(dotAngle);
                               return (
@@ -734,8 +950,8 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                     </div>
                   </>
                 ) : (
-                  /* 🎉 SUCCESS STATUS PANEL - optimized for mobile heights */
-                  <div className="w-full text-center space-y-4 sm:space-y-6 pt-2 sm:pt-4 relative">
+                  /* 🎉 SUCCESS STATUS PANEL - GRAND WINNING OFFER PRESENTATION */
+                  <div className="w-full text-center space-y-3 sm:space-y-4 pt-1 sm:pt-2 relative">
                     {/* Confetti Explosion Shower */}
                     {particles.map((p) => (
                       <motion.div
@@ -752,64 +968,140 @@ export default function SpinWheelModal({ setValue, getValues, cartLength = 0, on
                       />
                     ))}
 
-                    <div className="inline-flex items-center justify-center bg-emerald-50 border border-emerald-100 p-3 sm:p-4 rounded-full shadow-inner mx-auto mb-1">
-                      <Gift className="text-emerald-500 animate-bounce" size={32} />
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <h3 className="text-xl sm:text-2xl font-serif font-black text-emerald-600">অভিনন্দন!</h3>
-                      <p className="text-[11px] sm:text-[12px] font-bold text-gray-500">
-                        <span className="text-[#1C1917]">{wonCoupon?.name}</span>, আপনি জিতেছেন!
-                      </p>
-                    </div>
-
-                    <div className="bg-brand-cream/60 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border-2 border-emerald-100 shadow-sm flex flex-col items-center gap-3 sm:gap-4">
-                      <div className="text-base sm:text-lg font-serif font-black text-[#1C1917] tracking-tight bg-white px-4 py-1.5 sm:px-5 sm:py-2 rounded-full border border-gray-100 shadow-sm">
-                        {wonCoupon?.labelBn}
-                      </div>
-
-                      <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 max-w-xs leading-snug">
-                        যেকোনো প্রোডাক্ট অর্ডার করে ফ্রি বা ডিসকাউন্ট কুপনটি বুঝে নিন!
-                      </p>
-
-                      {/* Dashed Coupon Card */}
-                      <div className="w-full border-2 border-dashed border-emerald-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 bg-emerald-50/20 relative overflow-hidden">
-                        <span className="text-[8px] sm:text-[9px] uppercase font-black text-gray-400 tracking-wider">কুপন কোড (Coupon Code)</span>
-                        <p className="text-2xl sm:text-3xl font-serif font-black text-emerald-700 tracking-widest my-1 sm:my-2 select-all drop-shadow-sm uppercase">
-                          {wonCoupon?.code}
-                        </p>
-                        <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 leading-normal">
-                          অর্ডারে এই ডিসকাউন্ট কোডটি স্বয়ংক্রিয়ভাবে প্রবেশ করানো হয়েছে!
-                        </p>
-
-                        <div className="mt-3 pt-2 sm:mt-4 sm:pt-3 border-t border-dashed border-emerald-100 flex flex-col gap-0.5 items-center">
-                          <p className="text-[8px] sm:text-[9px] font-black text-[#1C1917] uppercase tracking-wider">ভেরিফাইড ফোন নম্বর</p>
-                          <p className="text-xs font-mono font-black text-emerald-800 tracking-widest">{wonCoupon?.phone}</p>
+                    {/* Grand Trophy & Sparkles Header */}
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="relative mb-2">
+                        <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 p-1 shadow-xl shadow-amber-500/30 flex items-center justify-center">
+                          <div className="w-full h-full rounded-full bg-stone-900 flex items-center justify-center text-amber-300 shadow-inner">
+                            <Trophy size={30} className="sm:w-8 sm:h-8 text-amber-400 animate-bounce" />
+                          </div>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md">
+                          <Sparkles size={13} className="animate-spin-slow" />
                         </div>
                       </div>
+
+                      <h3 className="text-xl sm:text-2xl font-serif font-black text-stone-900 tracking-tight">
+                        🎉 অভিনন্দন! আপনি বিজয়ী!
+                      </h3>
+                      <p className="text-[11px] sm:text-xs font-semibold text-gray-500 mt-0.5 leading-snug">
+                        {wonCoupon?.name ? (
+                          <span><strong className="text-stone-900 font-bold">{wonCoupon.name}</strong>, আপনি লাকি স্পিন থেকে নিচের আকর্ষণীয় অফারটি জিতেছেন:</span>
+                        ) : (
+                          <span>আপনি লাকি স্পিন থেকে নিচের আকর্ষণীয় অফারটি জিতেছেন:</span>
+                        )}
+                      </p>
                     </div>
 
-                    <div className="space-y-2 sm:space-y-3">
+                    {/* 🏆 THE WINNING OFFER PRESENTATION CARD (বিজয়ী অফার কার্ড) */}
+                    <div className="relative rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 bg-gradient-to-br from-amber-50/90 via-rose-50/50 to-emerald-50/90 border-2 border-amber-300/90 shadow-md text-center space-y-2.5 sm:space-y-3">
+                      {/* Top Gold Badge */}
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 text-white shadow-sm">
+                        <Award size={13} className="animate-pulse" />
+                        <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
+                          আপনার বিজয়ী অফার (WON OFFER)
+                        </span>
+                      </div>
+
+                      {/* Prominent Offer Title */}
+                      <div className="space-y-1">
+                        <h2 className="text-lg sm:text-2xl font-serif font-black text-stone-950 tracking-tight leading-snug">
+                          {wonCoupon?.label || wonCoupon?.labelBn}
+                        </h2>
+                        <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-rose-700 flex-wrap">
+                          <span>🎁 ছাড়ের পরিমাণ:</span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-rose-600 text-white font-black shadow-xs">
+                            {wonCoupon?.discountType === 'flat' 
+                              ? `${wonCoupon?.discount} ৳ সরাসরি নগদ ছাড়` 
+                              : `${wonCoupon?.discount}% বিশেষ ডিসকাউন্ট ছাড়`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Wheel Slice Pill Tag */}
+                      {wonCoupon?.labelBn && (
+                        <div className="flex items-center justify-center gap-2 pt-0.5">
+                          <span className="text-[11px] text-gray-500 font-medium">হুইলের স্লাইস:</span>
+                          <span 
+                            className="px-2.5 py-0.5 rounded-md text-[11px] font-black shadow-2xs border border-white"
+                            style={{ 
+                              backgroundColor: wonCoupon.color || '#e2136e', 
+                              color: wonCoupon.text || '#ffffff' 
+                            }}
+                          >
+                            {wonCoupon.labelBn}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Explanatory Benefit Note */}
+                      <p className="text-[11px] sm:text-xs text-gray-600 leading-relaxed font-medium bg-white/80 py-1.5 px-3 rounded-xl border border-amber-200/60">
+                        💡 যেকোনো পোশাক অর্ডারে এই বিশেষ ছাড় প্রযোজ্য হবে। আপনার মোট বিল থেকে এই টাকা স্বয়ংক্রিয়ভাবে কমে যাবে!
+                      </p>
+
+                      {/* 🎟️ TICKET-STYLE COUPON VOUCHER BOX */}
+                      <div className="relative mt-2 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border-2 border-dashed border-emerald-400 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-black text-gray-500 uppercase tracking-wider flex items-center gap-1 font-sans">
+                            <Tag size={12} className="text-emerald-600" />
+                            <span>কুপন কোড (PROMO CODE)</span>
+                          </span>
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ অটো-অ্যাপ্লাইড
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 bg-emerald-50/60 p-2 sm:p-2.5 rounded-xl border border-emerald-200">
+                          <p className="text-xl sm:text-2xl font-serif font-black text-emerald-800 tracking-widest uppercase font-mono select-all">
+                            {wonCoupon?.code}
+                          </p>
+                          <button 
+                            onClick={copyCouponCode}
+                            className="px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                            title="কুপন কোড কপি করুন"
+                          >
+                            <Copy size={13} />
+                            <span>{copied ? 'কপি হয়েছে!' : 'কপি করুন'}</span>
+                          </button>
+                        </div>
+
+                        {/* Auto Applied Green confirmation banner */}
+                        <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-100/70 py-1.5 px-2.5 rounded-lg">
+                          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                          <span>অর্ডার ফর্মে ডিসকাউন্টটি ইতিমধ্যে সক্রিয় করা হয়েছে!</span>
+                        </div>
+
+                        {wonCoupon?.phone && (
+                          <p className="text-[10px] text-gray-400 font-mono text-center pt-0.5">
+                            ভেরিফাইড ফোন: {wonCoupon.phone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="space-y-2 sm:space-y-2.5 pt-1">
                       <button
-                        onClick={copyCouponCode}
-                        className="w-full py-3.5 sm:py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 cursor-pointer"
+                        onClick={handleProceedToOrder}
+                        className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-[0.98] cursor-pointer"
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
-                        <Copy size={14} />
-                        <span>{copied ? 'কোড কপি করা হয়েছে!' : 'কুপন কোড কপি করুন'}</span>
+                        <ShoppingCart size={16} />
+                        <span>অর্ডার করতে এগিয়ে যান</span>
+                        <ArrowRight size={16} />
                       </button>
 
                       <button
                         onClick={handleClose}
-                        className="w-full py-2.5 sm:py-3 bg-gray-100 hover:bg-gray-200 text-[#1C1917] rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all cursor-pointer"
+                        className="w-full py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-stone-700 rounded-xl font-bold text-xs transition-all cursor-pointer"
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
-                        বন্ধ করুন
+                        অন্যান্য পোশাক দেখুন (বন্ধ করুন)
                       </button>
                     </div>
 
-                    <p className="text-[9px] sm:text-[10px] font-black text-gray-400 tracking-wide">
-                      পছন্দের যে কোনো প্রোডাক্ট অর্ডার করুন এবং অফারটি লুফে নিন।  ❤️
+                    <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 tracking-wide">
+                      পছন্দের পোশাক অর্ডার করুন এবং বিশেষ এই অফারটি উপভোগ করুন! ❤️
                     </p>
                   </div>
                 )}

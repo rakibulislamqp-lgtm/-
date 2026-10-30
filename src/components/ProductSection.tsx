@@ -234,42 +234,42 @@ export default function ProductSection({ register, errors, control, setValue, ca
   };
 
   return (
-    <div className="premium-card p-4 md:p-8 rounded-[1.5rem] md:rounded-[2rem] space-y-6 md:space-y-8">
-      <div className="bg-brand-cream/50 p-5 md:p-8 rounded-[2rem] border-2 border-gold-200 shadow-xl overflow-hidden">
-        <div className="space-y-4">
-          <label className="text-sm font-serif font-bold text-gray-800 tracking-tight">Delivery Area</label>
-          <div className="grid grid-cols-1 gap-3">
-            <label className={`flex items-center justify-between p-5 bg-white border-2 rounded-2xl cursor-pointer group hover:border-brand-gold focus-within:ring-4 focus-within:ring-brand-gold/10 transition-all shadow-sm ${deliveryArea === 'Inside Dhaka' ? 'border-brand-gold bg-brand-gold/5' : 'border-gray-100'}`}>
-              <div className="flex items-center gap-4">
+    <div className="premium-card p-3 sm:p-5 md:p-8 rounded-2xl md:rounded-[2rem] space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="bg-brand-cream/50 p-3 sm:p-5 md:p-8 rounded-2xl md:rounded-[2rem] border-2 border-gold-200 shadow-xl">
+        <div className="space-y-3">
+          <label className="text-xs sm:text-sm font-serif font-bold text-gray-800 tracking-tight">Delivery Area / ডেলিভারি এরিয়া নির্বাচন করুন</label>
+          <div className="grid grid-cols-1 gap-2.5">
+            <label className={`flex items-center justify-between p-3.5 sm:p-5 bg-white border-2 rounded-2xl cursor-pointer group hover:border-brand-gold focus-within:ring-4 focus-within:ring-brand-gold/10 transition-all shadow-sm ${deliveryArea === 'Inside Dhaka' ? 'border-brand-gold bg-brand-gold/5' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-3 sm:gap-4">
                 <div className="relative flex items-center justify-center">
                   <input 
                     type="radio" 
                     value="Inside Dhaka" 
                     {...register('deliveryArea', { required: 'ডেলিভারি এরিয়া সিলেক্ট করুন' })}
-                    className="w-6 h-6 accent-brand-gold cursor-pointer"
+                    className="w-5 h-5 sm:w-6 sm:h-6 accent-brand-gold cursor-pointer"
                   />
                 </div>
-                <span className="text-xs md:text-sm font-serif font-black group-hover:text-brand-gold transition-colors">Inside Dhaka</span>
+                <span className="text-xs sm:text-sm font-serif font-black group-hover:text-brand-gold transition-colors">Inside Dhaka</span>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-base md:text-lg font-serif font-black text-brand-gold">80</span>
+                <span className="text-base sm:text-lg font-serif font-black text-brand-gold">80</span>
                 <span className="text-[10px] font-serif font-black text-brand-gold">৳</span>
               </div>
             </label>
-            <label className={`flex items-center justify-between p-5 bg-white border-2 rounded-2xl cursor-pointer group hover:border-brand-gold focus-within:ring-4 focus-within:ring-brand-gold/10 transition-all shadow-sm ${deliveryArea === 'Outside Dhaka' ? 'border-brand-gold bg-brand-gold/5' : 'border-gray-100'}`}>
-              <div className="flex items-center gap-4">
+            <label className={`flex items-center justify-between p-3.5 sm:p-5 bg-white border-2 rounded-2xl cursor-pointer group hover:border-brand-gold focus-within:ring-4 focus-within:ring-brand-gold/10 transition-all shadow-sm ${deliveryArea === 'Outside Dhaka' ? 'border-brand-gold bg-brand-gold/5' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-3 sm:gap-4">
                 <div className="relative flex items-center justify-center">
                   <input 
                     type="radio" 
                     value="Outside Dhaka" 
                     {...register('deliveryArea', { required: 'ডেলিভারি এরিয়া সিলেক্ট করুন' })}
-                    className="w-6 h-6 accent-brand-gold cursor-pointer"
+                    className="w-5 h-5 sm:w-6 sm:h-6 accent-brand-gold cursor-pointer"
                   />
                 </div>
-                <span className="text-xs md:text-sm font-serif font-black group-hover:text-brand-gold transition-colors">Outside Dhaka</span>
+                <span className="text-xs sm:text-sm font-serif font-black group-hover:text-brand-gold transition-colors">Outside Dhaka</span>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-base md:text-lg font-serif font-black text-brand-gold">130</span>
+                <span className="text-base sm:text-lg font-serif font-black text-brand-gold">130</span>
                 <span className="text-[10px] font-serif font-black text-brand-gold">৳</span>
               </div>
             </label>
@@ -278,44 +278,46 @@ export default function ProductSection({ register, errors, control, setValue, ca
         </div>
 
         {/* 🎫 LUXURY COUPON & PROMO CARDS AREA */}
-        <div className="pt-6 border-t-2 border-gold-200 mt-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-serif font-black uppercase text-brand-charcoal tracking-wider flex items-center gap-2">
-              <Ticket size={16} className="text-[#e2136e] animate-pulse" />
-              <span>কুপন কোড (Discount Coupon)</span>
+        <div className="pt-5 border-t-2 border-gold-200 mt-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <h4 className="text-xs sm:text-sm font-bold text-gray-800 tracking-tight flex items-center gap-1.5">
+              <Ticket size={16} className="text-[#e2136e] shrink-0" />
+              <span>কুপন কোড (Coupon Code)</span>
             </h4>
             {appliedCodeLabel && (
-              <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-                <Sparkles size={11} className="text-emerald-500" />
-                <span>{appliedCodeLabel} সক্রিয়</span>
+              <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                <Sparkles size={11} className="text-emerald-500 shrink-0" />
+                <span>{appliedCodeLabel} সক্রিয়</span>
               </span>
             )}
           </div>
 
-          <div className="relative flex items-stretch gap-2.5">
-            <input
-              type="text"
-              placeholder="কুপন কোড লিখুন (যেমন: SERA20)"
-              value={couponInput}
-              onChange={(e) => setCouponInput(e.target.value)}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-xs font-bold font-sans uppercase tracking-widest bg-white text-brand-charcoal focus:ring-2 focus:ring-[#e2136e]/20 focus:border-[#e2136e] outline-none transition-all placeholder:text-gray-300"
-            />
+          <div className="flex items-stretch gap-1.5 sm:gap-2">
+            <div className="relative flex-1 min-w-0">
+              <input
+                type="text"
+                placeholder="কুপন কোড লিখুন"
+                value={couponInput}
+                onChange={(e) => setCouponInput(e.target.value)}
+                className="w-full h-11 px-3 sm:px-4 border border-gray-300 rounded-xl text-xs font-bold font-sans uppercase tracking-wider bg-white text-brand-charcoal focus:ring-2 focus:ring-[#e2136e]/20 focus:border-[#e2136e] outline-none transition-all placeholder:text-gray-400 placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-[11px] sm:placeholder:text-xs min-w-0"
+              />
+            </div>
             {appliedCodeLabel ? (
               <button
                 type="button"
                 onClick={handleRemoveCoupon}
-                className="px-4 py-3 bg-rose-50 border border-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="h-11 px-3 sm:px-4 bg-rose-50 border border-rose-200 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center gap-1 shrink-0 whitespace-nowrap cursor-pointer shadow-2xs"
               >
-                <X size={15} />
+                <X size={14} />
                 <span>রিমুভ</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleApplyCoupon(couponInput)}
-                className="px-5 py-3 bg-[#1C1917] hover:bg-[#e2136e] active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
+                className="h-11 px-3.5 sm:px-5 bg-[#1C1917] hover:bg-[#e2136e] active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-md shrink-0 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1"
               >
-                প্রয়োগ করুন
+                <span>প্রয়োগ করুন</span>
               </button>
             )}
           </div>

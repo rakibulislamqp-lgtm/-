@@ -58,21 +58,21 @@ export default function PaymentSection({ register, errors, control }: PaymentSec
   const brand = getBrandColors(paymentMethod);
 
   return (
-    <div className="premium-card p-4 md:p-8 rounded-[1.5rem] md:rounded-[2rem] space-y-6 md:space-y-8">
-      <div className="flex items-center gap-3 border-b border-gold-200 pb-4 mb-6">
-        <CreditCard className="text-brand-gold" size={24} />
-        <h2 className="text-lg font-serif font-black tracking-tight italic">Payment <span className="text-brand-gold">Details</span></h2>
+    <div className="premium-card p-3 sm:p-5 md:p-8 rounded-2xl md:rounded-[2rem] space-y-4 sm:space-y-6 md:space-y-8">
+      <div className="flex items-center gap-2.5 sm:gap-3 border-b border-gold-200 pb-3 sm:pb-4 mb-4 sm:mb-6">
+        <CreditCard className="text-brand-gold" size={22} />
+        <h2 className="text-base sm:text-lg font-serif font-black tracking-tight italic">Payment <span className="text-brand-gold">Details</span></h2>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <label className="text-xs font-bold text-gray-800 tracking-tight block">Select Payment Method / পেমেন্ট মাধ্যম নির্বাচন করুন *</label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
           {['Cash On Delivery', 'bKash', 'Nagad', 'Rocket'].map((method) => {
             const mBrand = getBrandColors(method);
             return (
               <label 
                 key={method}
-                className={`flex flex-col items-center justify-center p-4 border-2 rounded-2xl cursor-pointer transition-all duration-300 shadow-sm ${
+                className={`flex flex-col items-center justify-center p-3 sm:p-4 border-2 rounded-xl sm:rounded-2xl cursor-pointer transition-all duration-300 shadow-sm ${
                   paymentMethod === method 
                     ? `${mBrand.border} ${mBrand.bg} ring-4 ring-brand-gold/5` 
                     : 'border-gray-100 hover:border-gold-200 bg-white'
@@ -84,7 +84,7 @@ export default function PaymentSection({ register, errors, control }: PaymentSec
                   {...register('paymentMethod', { required: 'Please select a payment method' })}
                   className="hidden"
                 />
-                <span className={`text-xs font-black text-center uppercase tracking-wider ${paymentMethod === method ? mBrand.text : 'text-gray-400'}`}>{method}</span>
+                <span className={`text-[11px] sm:text-xs font-black text-center uppercase tracking-wider ${paymentMethod === method ? mBrand.text : 'text-gray-400'}`}>{method}</span>
               </label>
             );
           })}
@@ -92,22 +92,22 @@ export default function PaymentSection({ register, errors, control }: PaymentSec
         {errors.paymentMethod && <p className="text-red-500 text-xs font-bold">{errors.paymentMethod.message}</p>}
 
         {paymentMethod && paymentMethod !== 'Cash On Delivery' && (
-          <div className={`p-8 ${brand.bg} rounded-[2rem] border-2 ${brand.border} space-y-6 animate-in fade-in slide-in-from-top-4 transition-all duration-500 shadow-xl`}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 bg-white rounded-2xl border border-gray-100 shadow-lg">
+          <div className={`p-4 sm:p-8 ${brand.bg} rounded-2xl md:rounded-[2rem] border-2 ${brand.border} space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-top-4 transition-all duration-500 shadow-xl`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-lg">
               <div>
-                <p className={`text-[10px] uppercase tracking-[0.3em] font-black mb-2 ${brand.text}`}>
+                <p className={`text-[10px] uppercase tracking-[0.2em] font-black mb-1.5 ${brand.text}`}>
                   Official Recipient Method: {paymentMethod}
                 </p>
-                <p className="text-base font-sans tracking-tight">
+                <p className="text-sm sm:text-base font-sans tracking-tight">
                   এই নম্বরে টাকা পাঠান: <span className={`${brand.text} font-black underline decoration-2 underline-offset-4`}>01724628453</span>
                 </p>
               </div>
-              <div className={`text-xs font-black uppercase tracking-widest px-6 py-2 rounded-full border-2 ${brand.border} ${brand.bg} ${brand.text}`}>
+              <div className={`text-xs font-black uppercase tracking-widest px-4 py-1.5 sm:px-6 sm:py-2 rounded-full border-2 ${brand.border} ${brand.bg} ${brand.text} self-start md:self-auto`}>
                 পার্সোনাল / Personal
               </div>
             </div>
 
-            <div className="space-y-4 bg-white/60 p-6 rounded-2xl border border-white/40 shadow-inner">
+            <div className="space-y-4 bg-white/60 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/40 shadow-inner">
               <h3 className="font-black text-brand-charcoal text-xs uppercase tracking-widest flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${brand.border} border-4`}></div>
                 কিভাবে পেমেন্ট করবেন? (Instructions)

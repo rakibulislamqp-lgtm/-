@@ -2,12 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Gift, Phone, User, Clock, ArrowRight, Search, CheckCircle2, 
   AlertCircle, MessageCircle, Copy, Check, Users, ShoppingBag, 
-  TrendingUp, RefreshCw, Smartphone
+  TrendingUp, RefreshCw, Smartphone, Sparkles, Power, Eye, 
+  Settings2, Sliders, ShieldCheck, Zap
 } from 'lucide-react';
 import { subscribeToVisitorSessions } from '../services/trackingService';
 import { getAllOrders } from '../services/orderService';
-import { VisitorSession, Order } from '../types';
+import { getBrandSettings, updateBrandSettings } from '../services/settingsService';
+import { VisitorSession, Order, BrandSettings } from '../types';
 import SMSSenderModal from './SMSSenderModal';
+import SpinWheelOffersManager from './SpinWheelOffersManager';
 
 interface SpinWheelLeadsListProps {
   orders: Order[];
@@ -25,6 +28,106 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
   // Custom SMS Modals state variables
   const [smsModalOpen, setSmsModalOpen] = useState(false);
   const [selectedSmsLead, setSelectedSmsLead] = useState<any>(null);
+
+  // Lucky Spin Wheel Storefront Settings
+  const [spinEnabled, setSpinEnabled] = useState<boolean>(true);
+  const [spinDelay, setSpinDelay] = useState<number>(5);
+  const [spinFloatingBtn, setSpinFloatingBtn] = useState<boolean>(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testNotification, setTestNotification] = useState(false);
+
+  // Load brand settings on mount & subscribe to real-time updates
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const s = await getBrandSettings();
+        if (s) {
+          if (typeof s.spinWheelEnabled === 'boolean') setSpinEnabled(s.spinWheelEnabled);
+          if (typeof s.spinWheelDelaySeconds === 'number') setSpinDelay(s.spinWheelDelaySeconds);
+          if (typeof s.spinWheelShowFloatingButton === 'boolean') setSpinFloatingBtn(s.spinWheelShowFloatingButton);
+        }
+      } catch (err) {
+        console.warn("Failed to load spin wheel settings", err);
+      }
+    };
+    loadSettings();
+
+    const handleUpdate = (e: any) => {
+      const detail = e.detail;
+      if (detail) {
+        if (typeof detail.spinWheelEnabled === 'boolean') setSpinEnabled(detail.spinWheelEnabled);
+        if (typeof detail.spinWheelDelaySeconds === 'number') setSpinDelay(detail.spinWheelDelaySeconds);
+        if (typeof detail.spinWheelShowFloatingButton === 'boolean') setSpinFloatingBtn(detail.spinWheelShowFloatingButton);
+      }
+    };
+    window.addEventListener('brand_settings_updated', handleUpdate);
+    return () => window.removeEventListener('brand_settings_updated', handleUpdate);
+  }, []);
+
+  // Handle master toggle on/off
+  const handleToggleSpinWheel = async (newVal: boolean) => {
+    setSpinEnabled(newVal);
+    setIsSavingSettings(true);
+    try {
+      await updateBrandSettings({
+        spinWheelEnabled: newVal,
+        spinWheelDelaySeconds: spinDelay,
+        spinWheelShowFloatingButton: spinFloatingBtn,
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (e) {
+      console.error("Failed to update spin wheel settings:", e);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Handle delay change
+  const handleChangeDelay = async (delaySec: number) => {
+    setSpinDelay(delaySec);
+    setIsSavingSettings(true);
+    try {
+      await updateBrandSettings({
+        spinWheelEnabled: spinEnabled,
+        spinWheelDelaySeconds: delaySec,
+        spinWheelShowFloatingButton: spinFloatingBtn,
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (e) {
+      console.error("Failed to update spin delay:", e);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Handle floating button toggle
+  const handleToggleFloatingBtn = async (showBtn: boolean) => {
+    setSpinFloatingBtn(showBtn);
+    setIsSavingSettings(true);
+    try {
+      await updateBrandSettings({
+        spinWheelEnabled: spinEnabled,
+        spinWheelDelaySeconds: spinDelay,
+        spinWheelShowFloatingButton: showBtn,
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (e) {
+      console.error("Failed to update floating button setting:", e);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Test Wheel Trigger
+  const handleTestWheel = () => {
+    window.dispatchEvent(new CustomEvent('open_spin_wheel_preview'));
+    setTestNotification(true);
+    setTimeout(() => setTestNotification(false), 3500);
+  };
 
   // Load real-time visitor sessions
   useEffect(() => {
@@ -180,6 +283,194 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
 
   return (
     <div className="space-y-6">
+      {/* 🎰 LUCKY SPIN WHEEL MASTER CONTROLS & SETTINGS CARD */}
+      <div className={`p-6 rounded-3xl border-2 transition-all duration-300 shadow-sm ${
+        spinEnabled 
+          ? 'bg-gradient-to-br from-purple-950 via-slate-900 to-[#120826] text-white border-purple-500/40 shadow-purple-950/20' 
+          : 'bg-white text-gray-900 border-gray-200'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ${
+              spinEnabled ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white' : 'bg-gray-100 text-gray-400'
+            }`}>
+              <Gift size={24} className={spinEnabled ? 'animate-bounce' : ''} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black tracking-tight font-sans">
+                  স্পিন হুইল অন/অফ ও লাইভ ডিসকাউন্ট কন্ট্রোল
+                </h3>
+                {spinEnabled ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>সক্রিয় (Active)</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-600 border border-rose-500/30">
+                    🔴 বন্ধ (Disabled)
+                  </span>
+                )}
+              </div>
+              <p className={`text-xs mt-0.5 font-medium ${spinEnabled ? 'text-gray-300' : 'text-gray-500'}`}>
+                {spinEnabled 
+                  ? 'ওয়েবসাইটে কাস্টমাররা প্রবেশ করলে আকর্ষণীয় ডিসকাউন্ট স্পিন হুইল ও গিফট আইকন দেখতে পাচ্ছেন।'
+                  : 'ওয়েবসাইটে বর্তমানে স্পিন হুইল ও গিফট আইকন সম্পূর্ণ বন্ধ রয়েছে। কাস্টমাররা কোনো স্পিন দেখতে পাবেন না।'}
+              </p>
+            </div>
+          </div>
+
+          {/* Master Toggle Button */}
+          <div className="flex items-center gap-3 self-start md:self-center">
+            <button
+              type="button"
+              onClick={() => handleToggleSpinWheel(!spinEnabled)}
+              disabled={isSavingSettings}
+              className={`relative flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg cursor-pointer active:scale-95 disabled:opacity-50 ${
+                spinEnabled 
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-950/40' 
+                  : 'bg-rose-600 text-white hover:bg-rose-500 shadow-rose-950/20'
+              }`}
+            >
+              <Power size={16} />
+              <span>{spinEnabled ? 'স্পিন হুইল চালু আছে' : 'স্পিন হুইল বন্ধ আছে'}</span>
+              <div className={`w-8 h-4.5 rounded-full p-0.5 flex items-center transition-colors ${spinEnabled ? 'bg-emerald-900 justify-end' : 'bg-rose-900 justify-start'}`}>
+                <div className="w-3.5 h-3.5 rounded-full bg-white shadow-xs" />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Configuration Options (Visible and interactive) */}
+        <div className="pt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Option 1: Auto-popup delay */}
+          <div className={`p-4 rounded-2xl border transition-all ${
+            spinEnabled ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100 opacity-60'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Clock size={15} className={spinEnabled ? 'text-amber-400' : 'text-gray-400'} />
+              <label className="text-[11px] font-black uppercase tracking-wider">
+                স্বয়ংক্রিয় পপ-আপ সময় (Entrance Delay)
+              </label>
+            </div>
+            <p className="text-[10px] mb-3 opacity-75">
+              কাস্টমার ওয়েবসাইটে প্রবেশের কত সেকেন্ড পর স্পিন মোডালটি স্বয়ংক্রিয়ভাবে ভেসে উঠবে
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { sec: 3, label: '৩ সেকেন্ড (দ্রুত)' },
+                { sec: 5, label: '৫ সেকেন্ড (ডিফল্ট)' },
+                { sec: 10, label: '১০ সেকেন্ড' },
+                { sec: 0, label: 'অটো পপ-আপ বন্ধ' }
+              ].map(opt => (
+                <button
+                  key={opt.sec}
+                  type="button"
+                  disabled={!spinEnabled || isSavingSettings}
+                  onClick={() => handleChangeDelay(opt.sec)}
+                  className={`py-2 px-2.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer ${
+                    spinDelay === opt.sec
+                      ? (spinEnabled ? 'bg-amber-400 text-slate-950 font-black shadow-sm ring-1 ring-amber-300' : 'bg-gray-300 text-gray-800 font-black')
+                      : (spinEnabled ? 'bg-white/10 hover:bg-white/20 text-gray-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200')
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Option 2: Floating Gift Button on Screen */}
+          <div className={`p-4 rounded-2xl border transition-all ${
+            spinEnabled ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100 opacity-60'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={15} className={spinEnabled ? 'text-pink-400' : 'text-gray-400'} />
+              <label className="text-[11px] font-black uppercase tracking-wider">
+                ভাসমান গিফট বাটন (Floating Button)
+              </label>
+            </div>
+            <p className="text-[10px] mb-3 opacity-75">
+              ওয়েবসাইটের নিচে বাম পাশে '🎁 লাকি স্পিন ও গিফট' ভাসমান আইকনটি দৃশ্যমান রাখবেন কিনা
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                disabled={!spinEnabled || isSavingSettings}
+                onClick={() => handleToggleFloatingBtn(true)}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                  spinFloatingBtn
+                    ? (spinEnabled ? 'bg-emerald-500 text-white font-black shadow-sm' : 'bg-gray-300 text-gray-800 font-black')
+                    : (spinEnabled ? 'bg-white/10 hover:bg-white/20 text-gray-300' : 'bg-gray-100 text-gray-400')
+                }`}
+              >
+                ✓ বাটন দৃশ্যমান রাখুন
+              </button>
+              <button
+                type="button"
+                disabled={!spinEnabled || isSavingSettings}
+                onClick={() => handleToggleFloatingBtn(false)}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                  !spinFloatingBtn
+                    ? (spinEnabled ? 'bg-rose-500 text-white font-black shadow-sm' : 'bg-gray-300 text-gray-800 font-black')
+                    : (spinEnabled ? 'bg-white/10 hover:bg-white/20 text-gray-300' : 'bg-gray-100 text-gray-400')
+                }`}
+              >
+                ✕ বাটন লুকিয়ে রাখুন
+              </button>
+            </div>
+          </div>
+
+          {/* Option 3: Actions & Quick Live Test */}
+          <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+            spinEnabled ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'
+          }`}>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Eye size={15} className={spinEnabled ? 'text-blue-400' : 'text-gray-400'} />
+                <label className="text-[11px] font-black uppercase tracking-wider">
+                  লাইভ প্রিভিউ ও টেস্ট (Test Wheel)
+                </label>
+              </div>
+              <p className="text-[10px] mb-3 opacity-75">
+                কাস্টমাররা আপনার ওয়েবসাইটে স্পিন হুইলটি ঠিক কীভাবে দেখতে পাচ্ছেন তা পরীক্ষা করুন
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleTestWheel}
+                className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                  spinEnabled 
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white' 
+                    : 'bg-gray-800 hover:bg-gray-900 text-white'
+                }`}
+              >
+                <Gift size={14} />
+                <span>স্পিন হুইল প্রিভিউ দেখুন</span>
+              </button>
+
+              {saveSuccess && (
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 text-[10px] font-bold text-center border border-emerald-500/30 animate-fade-in flex items-center justify-center gap-1.5">
+                  <Check size={12} />
+                  <span>ক্লাউড ও লোকাল মেমোরিতে সফলভাবে সংরক্ষিত হয়েছে!</span>
+                </div>
+              )}
+
+              {testNotification && (
+                <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300 text-[10px] font-bold text-center border border-purple-500/30 animate-fade-in">
+                  🎉 প্রিভিউ উইন্ডো চালু হয়েছে!
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 🎁 DYNAMIC OFFERS & PRIZES MANAGER */}
+      <SpinWheelOffersManager />
+
       {/* Header and Live stats */}
       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

@@ -247,8 +247,26 @@ export interface BrandSettings {
   repeatCustomer2ndOrderDiscount?: number; // ৳ discount on 2nd purchase (default ৳50)
   repeatCustomer3rdOrderDiscount?: number; // ৳ discount on 3rd+ purchase (default ৳100)
   repeatCustomerOfferBannerText?: string;
+  // Lucky Spin Wheel Offer Controls
+  spinWheelEnabled?: boolean; // Master switch: true = active for visitors, false = totally disabled/hidden
+  spinWheelDelaySeconds?: number; // Auto-popup entrance delay in seconds (default 5s)
+  spinWheelShowFloatingButton?: boolean; // Show floating gift badge on storefront when modal is closed (default true)
+  spinWheelItems?: SpinWheelItem[]; // Dynamic wheel prize items & sector offers
   // Landing Page Full Management & Structural Controls
   landingPage?: LandingPageConfig;
+}
+
+export interface SpinWheelItem {
+  id: string;
+  label: string; // Full title e.g. "৫% ডিসকাউন্ট"
+  labelBn: string; // Short badge label on wheel slice e.g. "৫% অফ"
+  code: string; // Promo coupon code e.g. "SERA5"
+  discount: number; // Discount value e.g. 5, 100
+  discountType: 'percentage' | 'flat'; // 'percentage' (%) or 'flat' (৳)
+  color: string; // Slice background color
+  text?: string; // Slice text color (default #ffffff or #1C1917)
+  probabilityWeight?: number; // Relative winning weight (1 to 100, default 10)
+  isWinningEligible?: boolean; // Can visitor win this? (default true)
 }
 
 export interface LandingPageFaqItem {

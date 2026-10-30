@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Settings, Upload, Image as ImageIcon, Check, RefreshCw, AlertCircle, Trash2, Bell, BellRing, Volume2, Send, Shield, ShieldAlert, ShieldCheck, BadgeHelp, Truck, Key, Lock, Building, Cpu, Target, Sparkles, Globe, Search, Copy, CheckCircle2, BarChart2, Video, Database, Share2, Eye, EyeOff, Flame, Layers } from 'lucide-react';
+import { Settings, Upload, Image as ImageIcon, Check, RefreshCw, AlertCircle, Trash2, Bell, BellRing, Volume2, Send, Shield, ShieldAlert, ShieldCheck, BadgeHelp, Truck, Key, Lock, Building, Cpu, Target, Sparkles, Globe, Search, Copy, CheckCircle2, BarChart2, Video, Database, Share2, Eye, EyeOff, Flame, Layers, Gift } from 'lucide-react';
 import { 
   getBrandSettings, 
   updateBrandSettings, 
@@ -16,6 +16,7 @@ import { playNotificationSound, requestBrowserNotificationPermission, sendBrowse
 import { getPixelLogs, clearPixelLogs, subscribePixelLogs, testPixelEvent, syncPixelFromSettings, PixelLogEntry } from '../services/pixelService';
 import defaultLogo from '../assets/images/sfh_logo_1779435027377.png';
 import { BrandSettings } from '../types';
+import SpinWheelOffersManager from './SpinWheelOffersManager';
 
 // Modern Promise-based helper to read files safely
 const readFileAsDataURL = (file: File): Promise<string> => {
@@ -133,6 +134,7 @@ export default function SettingsManager() {
   const [slotProgress, setSlotProgress] = useState<number>(0);
   const [activeLogoTab, setActiveLogoTab] = useState<'all' | LogoSlot>('all');
   const slotInputRefs = useRef<{ [key in LogoSlot]?: HTMLInputElement | null }>({});
+  const [showOffersInSettings, setShowOffersInSettings] = useState(false);
 
   // Notification states
   const [settings, setSettings] = useState<BrandSettings>({
@@ -148,6 +150,9 @@ export default function SettingsManager() {
     orderNotificationDuration: 5,
     orderNotificationInterval: 20,
     orderNotificationSize: 'compact',
+    spinWheelEnabled: true,
+    spinWheelDelaySeconds: 5,
+    spinWheelShowFloatingButton: true,
     steadfastApiKey: '',
     steadfastSecretKey: '',
     steadfastMerchantId: '',
@@ -295,6 +300,9 @@ export default function SettingsManager() {
             orderNotificationDuration: fullSettings.orderNotificationDuration || 5,
             orderNotificationInterval: fullSettings.orderNotificationInterval || 20,
             orderNotificationSize: fullSettings.orderNotificationSize || 'compact',
+            spinWheelEnabled: fullSettings.spinWheelEnabled !== false,
+            spinWheelDelaySeconds: typeof fullSettings.spinWheelDelaySeconds === 'number' ? fullSettings.spinWheelDelaySeconds : 5,
+            spinWheelShowFloatingButton: fullSettings.spinWheelShowFloatingButton !== false,
           });
           setLogoUrl(fullSettings.logoUrl || defaultLogo);
           syncPixelFromSettings(fullSettings);
@@ -602,6 +610,10 @@ export default function SettingsManager() {
         orderNotificationDuration: settings.orderNotificationDuration,
         orderNotificationInterval: settings.orderNotificationInterval,
         orderNotificationSize: settings.orderNotificationSize || 'compact',
+        spinWheelEnabled: settings.spinWheelEnabled,
+        spinWheelDelaySeconds: settings.spinWheelDelaySeconds,
+        spinWheelShowFloatingButton: settings.spinWheelShowFloatingButton,
+        spinWheelItems: settings.spinWheelItems,
         steadfastApiKey: settings.steadfastApiKey,
         steadfastSecretKey: settings.steadfastSecretKey,
         steadfastMerchantId: settings.steadfastMerchantId,
@@ -1317,6 +1329,136 @@ export default function SettingsManager() {
                 ) : (
                   <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-center text-gray-500 text-xs font-semibold">
                     🚫 গ্রাহক লাইভ অর্ডার নোটিফিকেশন সিস্টেম সম্পূর্ণ বন্ধ রয়েছে। চালু করতে উপরের সুইচ অন করুন।
+                  </div>
+                )}
+              </div>
+
+              {/* Lucky Spin Wheel On/Off Settings Card */}
+              <div className="bg-gradient-to-tr from-amber-500/5 via-white to-amber-500/10 p-5 rounded-3xl border border-amber-200/60 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-tr from-amber-500 to-yellow-400 text-white rounded-2xl shadow-md shrink-0">
+                      <Gift size={20} className="animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider">লাকি স্পিন হুইল সেটিংস (Lucky Spin Wheel)</h4>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          settings.spinWheelEnabled !== false
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {settings.spinWheelEnabled !== false ? '● সচল (ON)' : '○ বন্ধ (OFF)'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                        গ্রাহক ওয়েবসাইটে প্রবেশ করলে ডিসকাউন্ট স্পিন হুইল ও ভাসমান গিফট আইকন দেখানো হবে কিনা
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Master Toggle */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSettings(prev => ({ ...prev, spinWheelEnabled: !(prev.spinWheelEnabled !== false) }))}
+                      className={`relative inline-flex h-7 w-13 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        settings.spinWheelEnabled !== false ? 'bg-amber-500' : 'bg-gray-300'
+                      }`}
+                      role="switch"
+                      aria-checked={settings.spinWheelEnabled !== false}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          settings.spinWheelEnabled !== false ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-xs font-bold text-gray-700">
+                      {settings.spinWheelEnabled !== false ? 'চালু আছে' : 'বন্ধ আছে'}
+                    </span>
+                  </div>
+                </div>
+
+                {settings.spinWheelEnabled !== false ? (
+                  <div className="p-4 bg-white/90 rounded-2xl border border-amber-100 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Auto-popup Entrance Delay */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          ⏱️ সাইটে ঢোকার কতক্ষণ পর পপআপ আসবে:
+                        </label>
+                        <select
+                          value={settings.spinWheelDelaySeconds ?? 5}
+                          onChange={(e) => setSettings(prev => ({ ...prev, spinWheelDelaySeconds: Number(e.target.value) }))}
+                          className="w-full text-xs font-semibold px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-400 focus:outline-none text-gray-800"
+                        >
+                          <option value={3}>৩ সেকেন্ড পর (দ্রুত পপআপ)</option>
+                          <option value={5}>৫ সেকেন্ড পর (প্রস্তাবিত ডিফল্ট)</option>
+                          <option value={10}>১০ সেকেন্ড পর (বিলম্বিত)</option>
+                          <option value={0}>স্বয়ংক্রিয় পপআপ বন্ধ (শুধু ভাসমান আইকনে ক্লিক করলে খুলবে)</option>
+                        </select>
+                        <p className="text-[10px] text-gray-400 mt-1">০ নির্বাচন করলে স্বয়ংক্রিয় পপআপ বন্ধ থাকবে, শুধু গিফট আইকন দৃশ্যমান থাকবে।</p>
+                      </div>
+
+                      {/* Floating Gift Icon Visibility */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          🎁 স্ক্রিনের কোণায় ভাসমান গিফট বাটন:
+                        </label>
+                        <div className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                          <span className="text-xs font-semibold text-gray-700">ভাসমান লাকি গিফট আইকন</span>
+                          <button
+                            type="button"
+                            onClick={() => setSettings(prev => ({ ...prev, spinWheelShowFloatingButton: !(prev.spinWheelShowFloatingButton !== false) }))}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                              settings.spinWheelShowFloatingButton !== false
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {settings.spinWheelShowFloatingButton !== false ? 'দৃশ্যমান' : 'লুকানো'}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">কাস্টমার যেকোনো সময় এই বাটনে চাপ দিয়ে স্পিন হুইল খুলতে পারে।</p>
+                      </div>
+                    </div>
+
+                    {/* Preview & Offers Manager Actions */}
+                    <div className="pt-3 border-t border-amber-100 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] text-gray-500 font-medium">অফার কাস্টমাইজেশন ও প্রিভিউ:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowOffersInSettings(!showOffersInSettings)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        >
+                          <Sparkles size={13} />
+                          <span>{showOffersInSettings ? 'অফার ম্যানেজার লুকান' : '🎁 অফার পরিবর্তন ও যোগ করুন'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open_spin_wheel_preview'));
+                          }}
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        >
+                          <Gift size={13} />
+                          লাইভ টেস্ট / প্রিভিউ
+                        </button>
+                      </div>
+                    </div>
+
+                    {showOffersInSettings && (
+                      <div className="pt-3 border-t border-amber-100">
+                        <SpinWheelOffersManager onUpdated={(newItems) => setSettings(prev => ({ ...prev, spinWheelItems: newItems }))} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-rose-50/70 border border-rose-200/60 rounded-2xl text-rose-700 text-xs font-semibold flex items-center gap-2">
+                    <span>🚫</span>
+                    <span>লাকি স্পিন হুইল অফ করা আছে। কাস্টমাররা ওয়েবসাইটে কোনো স্পিন হুইল পপআপ বা ভাসমান আইকন দেখতে পাবেন না।</span>
                   </div>
                 )}
               </div>

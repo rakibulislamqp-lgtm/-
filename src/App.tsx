@@ -1010,23 +1010,23 @@ export default function App() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
-                    className="max-w-4xl mx-auto px-4 md:px-6 space-y-8 pb-10 mt-8"
+                    className="max-w-4xl mx-auto px-2.5 sm:px-4 md:px-6 space-y-6 sm:space-y-8 pb-10 mt-4 sm:mt-8"
                   >
-                    <div className="flex items-center justify-between py-6">
+                    <div className="flex items-center justify-between py-4 sm:py-6">
                       <button 
                         onClick={() => setCheckoutMode(false)}
-                        className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-gray-100 rounded-2xl text-gray-600 font-black uppercase tracking-widest text-[10px] hover:border-brand-gold hover:text-brand-gold transition-all shadow-sm group"
+                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-6 py-2.5 sm:py-3 bg-white border-2 border-gray-100 rounded-xl sm:rounded-2xl text-gray-600 font-black uppercase tracking-wider sm:tracking-widest text-[9px] sm:text-[10px] hover:border-brand-gold hover:text-brand-gold transition-all shadow-sm group"
                       >
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                        আগের পেজে ফিরুন (BACK)
+                        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                        আগের পেজে ফিরুন
                       </button>
                       <div className="text-right">
-                        <h2 className="text-2xl font-black text-gray-900 leading-tight">অর্ডার সম্পন্ন করুন</h2>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Complete Your Professional Order</p>
+                        <h2 className="text-lg sm:text-2xl font-black text-gray-900 leading-tight">অর্ডার সম্পন্ন করুন</h2>
+                        <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider sm:tracking-widest">Complete Your Order</p>
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl shadow-gray-200/50 overflow-hidden">
+                    <div className="bg-white rounded-2xl sm:rounded-[2rem] border border-gray-100 shadow-2xl shadow-gray-200/50 overflow-hidden">
                       <div className="h-2 luxury-gradient w-full" />
                       
                       <form 
@@ -1039,7 +1039,7 @@ export default function App() {
                           }
                           showToast("অনুগ্রহ করে আপনার নাম, মোবাইল নম্বর এবং সম্পূর্ণ ঠিকানা সঠিক ভাবে লিখুন।", "error");
                         })} 
-                        className="p-6 md:p-10 space-y-12"
+                        className="p-3 sm:p-6 md:p-10 space-y-6 sm:space-y-12"
                       >
                         <section id="customer-info">
                           <CustomerInfo register={register} errors={errors} getValues={getValues} setValue={setValue} />
@@ -1304,6 +1304,7 @@ export default function App() {
           cartLength={cart.length} 
           onOpenCheckout={() => setCheckoutMode(true)} 
           onOpenChange={setIsSpinModalOpen}
+          brandSettings={brandSettingsObj}
         />
       )}
 
