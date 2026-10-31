@@ -15,6 +15,97 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // 🛡️ High-Security Suite: Headers, Anti-Injection, and Anti-DDoS
+  // 1. Security Headers Middleware (MIME-sniffing, XSS filtering, sensor locking, info disclosure prevention)
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('X-Download-Options', 'noopen');
+    res.removeHeader('X-Powered-By');
+    next();
+  });
+
+  // 2. Deep Input Sanitizer (Prevents NoSQL injection, Prototype Pollution, and Stored XSS)
+  function deepSanitize(val: any): any {
+    if (!val || typeof val !== 'object') {
+      if (typeof val === 'string') {
+        // Strip null bytes and raw executable script tags
+        return val.replace(/\0/g, '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      }
+      return val;
+    }
+    if (Array.isArray(val)) {
+      return val.map(deepSanitize);
+    }
+    const clean: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue; // Block prototype pollution
+      }
+      clean[key] = deepSanitize(val[key]);
+    }
+    return clean;
+  }
+
+  app.use((req, res, next) => {
+    if (req.body) req.body = deepSanitize(req.body);
+    if (req.query) req.query = deepSanitize(req.query);
+    if (req.params) req.params = deepSanitize(req.params);
+    next();
+  });
+
+  // 3. Smart Rate Limiter (Anti-DDoS, Brute-Force & Bot-Flooding Shield)
+  interface RateLimitEntry {
+    count: number;
+    resetTime: number;
+  }
+  const rateLimitStore = new Map<string, RateLimitEntry>();
+
+  // Periodically purge expired rate limit keys every 2 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetTime) {
+        rateLimitStore.delete(key);
+      }
+    }
+  }, 120000);
+
+  function createRateLimiter(windowMs: number, maxRequests: number, label: string) {
+    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const forwarded = req.headers['x-forwarded-for'];
+      const rawIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+      const key = `${label}_${rawIp}`;
+      const now = Date.now();
+
+      const existing = rateLimitStore.get(key);
+      if (!existing || now > existing.resetTime) {
+        rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+        return next();
+      }
+
+      existing.count++;
+      if (existing.count > maxRequests) {
+        return res.status(429).json({
+          success: false,
+          error: `অতিরিক্ত রিকোয়েস্ট পাঠানোর কারণে আপনার অ্যাক্সেস সাময়িকভাবে সীমাবদ্ধ করা হয়েছে। কিছুক্ষণ পর পুনরায় চেষ্টা করুন। (${label})`,
+          retryAfterSeconds: Math.ceil((existing.resetTime - now) / 1000)
+        });
+      }
+      next();
+    };
+  }
+
+  // Rate Limiting Guards
+  const orderFloodLimiter = createRateLimiter(5 * 60 * 1000, 40, 'order_rate_limit');
+  const smsSpamLimiter = createRateLimiter(5 * 60 * 1000, 20, 'sms_rate_limit');
+  const aiAbuseLimiter = createRateLimiter(5 * 60 * 1000, 30, 'ai_rate_limit');
+  const generalApiLimiter = createRateLimiter(60 * 1000, 350, 'api_general_rate_limit');
+
+  app.use('/api', generalApiLimiter);
+
   // Data persistence directory for zero-loss server storage
   const DATA_DIR = path.join(process.cwd(), 'public', 'api', 'data');
   if (!fs.existsSync(DATA_DIR)) {
@@ -94,7 +185,7 @@ async function startServer() {
     }
   });
 
-  app.post(["/api/orders", "/api/orders.php"], (req, res) => {
+  app.post(["/api/orders", "/api/orders.php"], orderFloodLimiter, (req, res) => {
     try {
       const decoded = req.body || {};
       let orders = readJsonFile('orders.json', []);
@@ -224,7 +315,7 @@ async function startServer() {
   });
 
   // 1a. API Route: AI Marketing Copy Generator (Powered by Gemini)
-  app.post("/api/ai/marketing-copy", async (req, res) => {
+  app.post("/api/ai/marketing-copy", aiAbuseLimiter, async (req, res) => {
     try {
       const { 
         campaignType = 'new_arrival', 

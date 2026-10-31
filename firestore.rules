@@ -1,58 +1,126 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global safety net
+    // 🛡️ Global Safety Net - Default Deny all unauthorized access
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // 🔒 Security Verification Primitives
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // High-Security Admin Authentication Guard (Prevents Privilege Escalation & Hijacking)
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "rakibulislamqp@gmail.com" ||
+        request.auth.token.email == "rakib@serafashion.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Anti-Poisoning & Injection Guards for Orders
     function isValidOrder(data) {
-      return data.customerName is string && data.customerName.size() <= 100 &&
-             data.mobileNumber is string && data.mobileNumber.size() <= 20 &&
-             data.address is string && data.address.size() <= 500 &&
-             data.status in ['Pending', 'Confirmed', 'Processing', 'Delivered', 'Cancelled'];
+      return data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 120 &&
+             data.mobileNumber is string && data.mobileNumber.size() >= 10 && data.mobileNumber.size() <= 20 &&
+             data.address is string && data.address.size() > 0 && data.address.size() <= 600 &&
+             (!('quantity' in data) || (data.quantity is number && data.quantity >= 1 && data.quantity <= 100)) &&
+             (!('totalAmount' in data) || (data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 1000000)) &&
+             (!('status' in data) || data.status in ['Pending', 'Confirmed', 'Processing', 'Delivered', 'Cancelled']);
     }
 
+    // Anti-Poisoning Guard for Reviews
     function isValidReview(data) {
       return data.productId is string && data.productId.size() <= 128 &&
-             data.customerName is string && data.customerName.size() <= 200 &&
-             data.rating is number &&
-             data.comment is string && data.comment.size() <= 2000;
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 120 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() <= 1500;
     }
 
+    // Anti-Poisoning Guard for Tracking Sessions
+    function isValidSession(data) {
+      return data.sessionId is string && data.sessionId.size() <= 128 &&
+             (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 120)) &&
+             (!('mobileNumber' in data) || (data.mobileNumber is string && data.mobileNumber.size() <= 25));
+    }
+
+    // PII Guard for Registered Customers
+    function isValidCustomer(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+             data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 20;
+    }
+
+    // 1. PRODUCTS COLLECTION
+    // Public can view catalog; ONLY verified Admin can create, modify, or delete products.
+    // Hackers CANNOT alter pricing, delete inventory, or inject malicious products!
     match /products/{productId} {
       allow read: if true;
-      allow write: if true; // For demo/initial setup. Ideally restricted to Admin.
+      allow write: if isAdmin();
     }
 
+    // 2. SETTINGS COLLECTION
+    // Public can read general store configuration (logo, banner, active promo).
+    // ONLY verified Admin can modify settings. Hackers cannot change payment numbers or brand assets!
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin() || (isSignedIn() && settingId == '_health_check_');
     }
 
-    match /reviews/{reviewId} {
-      allow read, create, update, delete: if true;
-    }
-
+    // 3. ORDERS COLLECTION
+    // Customers can submit valid orders; Customer can track specific order if they have the exact orderId.
+    // Bulk list queries, updates, and order deletions are RESTRICTED TO ADMIN ONLY.
+    // Hackers CANNOT scrape customer database or delete order history!
     match /orders/{orderId} {
-      allow read, create, update, delete: if true;
+      allow create: if isValidOrder(incoming());
+      allow get: if true;
+      allow list, update, delete: if isAdmin();
     }
 
-    match /visitor_sessions/{sessionId} {
-      allow read, create, update, delete: if true;
-    }
-
+    // 4. CUSTOMERS COLLECTION (PII Isolation)
+    // Registered customers can manage their own profile; Admins have full oversight.
+    // Public users cannot scrape phone numbers, passwords, or addresses!
     match /customers/{customerId} {
-      allow read, create, update, delete: if true;
+      allow create: if isValidCustomer(incoming());
+      allow read, update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == customerId);
     }
 
+    // 5. VISITOR SESSIONS & LEADS
+    // Anonymous visitors can record valid session tracking; Only Admin can list or purge leads.
+    match /visitor_sessions/{sessionId} {
+      allow create, update: if isValidSession(incoming());
+      allow get: if true;
+      allow list, delete: if isAdmin();
+    }
+
+    // 6. CUSTOMER REVIEWS
+    // Public can read reviews and submit valid feedback.
+    // Moderation, edits, and deletions are strictly restricted to Admin.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isValidReview(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. CUSTOMER ANNOUNCEMENTS
+    // Public read-only; writes restricted to Admin.
     match /customer_announcements/{announcementId} {
-      allow read, create, update, delete: if true;
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 8. ADMINS REGISTRY
+    // Strictly restricted to authorized admins.
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
     }
   }
 }
