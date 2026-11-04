@@ -226,9 +226,15 @@ const signInWithGoogle = async () => {
   }
 };
 
+const getFirebaseDb = async () => {
+  const { db } = await initializeFirebase();
+  return db;
+};
+
 export { 
   initializeFirebase, 
   getFirebaseAuth, 
+  getFirebaseDb,
   signInWithGoogle, 
   db, 
   auth, 

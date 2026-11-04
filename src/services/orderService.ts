@@ -4,6 +4,13 @@ import { Order, OrderStatus } from '../types';
 import { addLoyaltyPointsFromOrder } from './loyaltyService';
 import { dispatchOrderSMSNotification } from './smsService';
 import { detectCPanelStorage, cpanelFetchOrders, cpanelSaveOrder, cpanelUpdateOrderStatus, cpanelDeleteOrder } from './cpanelStorageService';
+import { 
+  supabaseFetchOrders, 
+  supabaseSaveOrder, 
+  supabaseUpdateOrderStatus, 
+  supabaseDeleteOrder, 
+  subscribeSupabaseOrders 
+} from './supabaseService';
 
 export const LOCAL_DELETED_ORDERS_KEY = 'sera_deleted_orders';
 
@@ -213,8 +220,9 @@ export const createOrder = async (orderData: Partial<Order>) => {
     return newOrder;
   };
 
-  // 1. Immediately persist to server storage (works on both Node.js Express and cPanel PHP)
+  // 1. Immediately persist to Supabase & Server storage
   try {
+    supabaseSaveOrder({ id: orderId, ...fullOrder }).catch(() => {});
     cpanelSaveOrder({ id: orderId, ...fullOrder }).catch(() => {});
   } catch (e) {}
 
@@ -236,8 +244,9 @@ export const createOrder = async (orderData: Partial<Order>) => {
       localStorage.setItem('sera_orders', JSON.stringify(updated));
     } catch (e) {}
     
-    // Update server storage with the exact doc id
+    // Update Supabase and server storage with the exact doc id
     try {
+      supabaseSaveOrder(result).catch(() => {});
       cpanelSaveOrder(result).catch(() => {});
     } catch (e) {}
 
@@ -247,6 +256,7 @@ export const createOrder = async (orderData: Partial<Order>) => {
     return result;
   } catch (error: any) {
     console.warn("⚠️ [Firestore Cloud] Failed to save to cloud database (Check Firebase Security Rules):", error?.code || error?.message || error);
+    supabaseSaveOrder({ id: orderId, ...fullOrder }).catch(() => {});
     return saveLocally();
   }
 };
@@ -306,7 +316,16 @@ export const getAllOrders = async (forceRefresh = false): Promise<Order[]> => {
     console.warn("Failed to retrieve cached orders:", e);
   }
 
-  // 1. Fetch from Server Storage (Node Express / cPanel PHP)
+  // 1. Fetch from Supabase Cloud Database
+  let supabaseOrders: Order[] = [];
+  try {
+    const spOrders = await supabaseFetchOrders();
+    if (spOrders && Array.isArray(spOrders) && spOrders.length > 0) {
+      supabaseOrders = spOrders;
+    }
+  } catch (e) {}
+
+  // 2. Fetch from Server Storage (Node Express / cPanel PHP)
   let serverOrders: Order[] = [];
   try {
     const sOrders = await cpanelFetchOrders();
@@ -315,7 +334,7 @@ export const getAllOrders = async (forceRefresh = false): Promise<Order[]> => {
     }
   } catch (e) {}
 
-  // 2. Fetch from Firestore
+  // 3. Fetch from Firestore
   let firestoreOrders: Order[] = [];
   try {
     const { db } = await initializeFirebase();
@@ -334,8 +353,8 @@ export const getAllOrders = async (forceRefresh = false): Promise<Order[]> => {
     console.warn("Could not retrieve orders from Firestore:", error);
   }
 
-  // 3. Merge all order sources deduplicating by ID
-  const allMerged = mergeOrderLists(serverOrders, firestoreOrders, cachedOrders);
+  // 4. Merge all order sources deduplicating by ID (Supabase has top priority)
+  const allMerged = mergeOrderLists(supabaseOrders, serverOrders, firestoreOrders, cachedOrders);
 
   try {
     localStorage.setItem('cached_orders', JSON.stringify(allMerged));
@@ -378,6 +397,11 @@ export const updateOrderStatus = async (id: string, status: string) => {
       if (targetOrder) {
         dispatchOrderSMSNotification(targetOrder, status as any).catch(e => console.warn("SMS status trigger error:", e));
       }
+
+      // Sync status with Supabase
+      try {
+        supabaseUpdateOrderStatus(id, status).catch(() => {});
+      } catch (e) {}
     } catch (e) {
       console.warn("Failed to update status locally:", e);
     }
@@ -416,6 +440,14 @@ export const updateOrder = async (id: string, data: Partial<Order>) => {
       localStorage.setItem('cached_orders', JSON.stringify(updatedCached));
 
       window.dispatchEvent(new Event('local_orders_updated'));
+
+      // Sync with Supabase
+      try {
+        const orderToSave = updated.find((o: any) => o.id === id || o.orderId === id);
+        if (orderToSave) {
+          supabaseSaveOrder(orderToSave).catch(() => {});
+        }
+      } catch (e) {}
     } catch (e) {
       console.warn("Failed to update order locally:", e);
     }
@@ -470,7 +502,16 @@ export const deleteOrder = async (id: string, altOrderId?: string) => {
 
   saveLocally();
 
-  // 1. Delete from Server Storage (cPanel / Node Express)
+  // 1. Delete from Supabase Cloud
+  try {
+    for (const tId of targetIds) {
+      supabaseDeleteOrder(tId).catch(() => {});
+    }
+  } catch (spErr) {
+    console.warn("Supabase order delete error:", spErr);
+  }
+
+  // 2. Delete from Server Storage (cPanel / Node Express)
   try {
     for (const tId of targetIds) {
       await cpanelDeleteOrder(tId);
@@ -479,7 +520,7 @@ export const deleteOrder = async (id: string, altOrderId?: string) => {
     console.warn("Server order delete error:", serverErr);
   }
 
-  // 2. Delete from Firestore
+  // 3. Delete from Firestore
   try {
     const { db } = await initializeFirebase();
     if (db) {
@@ -555,24 +596,40 @@ export const subscribeOrders = async (callback: (orders: Order[]) => void) => {
   };
   window.addEventListener('local_orders_updated', triggerLocalOrders);
 
-  // 2. Fetch from server API immediately
+  // 2. Fetch from Supabase Cloud immediately
+  supabaseFetchOrders().then(spList => {
+    if (spList && Array.isArray(spList) && spList.length > 0) {
+      updateAndNotify(spList);
+    }
+  }).catch(() => {});
+
+  // 3. Set up Supabase Realtime channel subscription
+  let supabaseUnsub: (() => void) | null = null;
+  try {
+    supabaseUnsub = subscribeSupabaseOrders(() => {
+      supabaseFetchOrders().then(spList => {
+        if (spList && Array.isArray(spList)) updateAndNotify(spList);
+      });
+    });
+  } catch (e) {}
+
+  // 4. Fetch from server API immediately
   cpanelFetchOrders().then(serverList => {
     if (serverList && Array.isArray(serverList)) {
       updateAndNotify(serverList);
     }
   }).catch(() => {});
 
-  // 3. Set up active server sync polling interval (every 6 seconds)
-  // Ensures any order submitted by customers reflects immediately without resurrecting deleted items
+  // 5. Active server sync polling interval (every 8 seconds)
   const pollInterval = setInterval(() => {
     cpanelFetchOrders().then(serverList => {
       if (serverList && Array.isArray(serverList)) {
         updateAndNotify(serverList);
       }
     }).catch(() => {});
-  }, 6000);
+  }, 8000);
 
-  // 4. Set up Firestore onSnapshot listener if db is configured
+  // 6. Set up Firestore onSnapshot listener if db is configured
   let firestoreUnsub: (() => void) | null = null;
   initializeFirebase().then(({ db }) => {
     if (!db) return;
@@ -599,6 +656,9 @@ export const subscribeOrders = async (callback: (orders: Order[]) => void) => {
   return () => {
     window.removeEventListener('local_orders_updated', triggerLocalOrders);
     clearInterval(pollInterval);
+    if (supabaseUnsub) {
+      supabaseUnsub();
+    }
     if (firestoreUnsub) {
       firestoreUnsub();
     }

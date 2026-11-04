@@ -1,6 +1,7 @@
 import { doc, setDoc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
 import { initializeFirebase, checkIsQuotaExhausted, markQuotaExhausted } from '../lib/firebase';
 import { VisitorSession, ProductView, VisitorStage, Product, TrackingEvent } from '../types';
+import { supabaseSaveVisitorSession } from './supabaseService';
 
 let currentSessionId: string | null = null;
 let currentSessionData: VisitorSession | null = null;
@@ -36,6 +37,9 @@ const saveAndBroadcastSession = (session: VisitorSession) => {
     if (trackingChannel) {
       trackingChannel.postMessage({ type: 'SESSION_UPDATE', session });
     }
+
+    // Sync to Supabase
+    supabaseSaveVisitorSession(session).catch(() => {});
   } catch {
     // Silently continue locally
   }

@@ -2,6 +2,7 @@ import { collection, doc, setDoc, getDocs, query, where, updateDoc, deleteDoc, o
 import { initializeFirebase } from '../lib/firebase';
 import { CustomerUser, CustomerAnnouncement, Order } from '../types';
 import { getAllOrders, getMyCustomerOrdersLocally, deleteOrder } from './orderService';
+import { supabaseSaveCustomer, supabaseFetchCustomers } from './supabaseService';
 
 const LOGGED_IN_KEY = 'sera_logged_in_customer';
 const LOCAL_CUSTOMERS_KEY = 'sera_customers_db';
@@ -145,6 +146,11 @@ export async function registerCustomer(data: {
     // Save to local storage first (reliable offline fallback)
     saveLocalCustomer(newCustomer);
     setLoggedInCustomer(newCustomer);
+
+    // Save to Supabase Cloud
+    try {
+      supabaseSaveCustomer(newCustomer).catch(() => {});
+    } catch (e) {}
 
     // Try saving to Firestore
     try {
@@ -337,7 +343,21 @@ export async function getAllRegisteredCustomers(): Promise<CustomerUser[]> {
     }
   });
 
-  // 2. Fetch from Firestore
+  // 2. Fetch from Supabase Cloud
+  try {
+    const spCustomers = await supabaseFetchCustomers();
+    if (spCustomers && Array.isArray(spCustomers)) {
+      spCustomers.forEach(c => {
+        const cleanPhone = normalizeBanglaPhone(c.phone);
+        if (cleanPhone && !isDeleted(c.id, cleanPhone)) {
+          const existing = customerMap.get(cleanPhone);
+          customerMap.set(cleanPhone, { ...existing, ...c, phone: cleanPhone });
+        }
+      });
+    }
+  } catch (e) {}
+
+  // 3. Fetch from Firestore
   try {
     const { db } = await initializeFirebase();
     if (db) {

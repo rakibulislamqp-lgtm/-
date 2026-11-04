@@ -3,6 +3,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase, markQuotaExhausted } from '../lib/firebase';
 import { Product } from '../types';
 import { detectCPanelStorage, cpanelFetchProducts, cpanelSaveProducts } from './cpanelStorageService';
+import { supabaseFetchProducts, supabaseSaveProduct, supabaseDeleteProduct } from './supabaseService';
 
 enum OperationType {
   CREATE = 'create',
@@ -116,10 +117,13 @@ export const createProduct = async (productData: Partial<Product>) => {
       }
       
       window.dispatchEvent(new Event('local_products_updated'));
+      supabaseSaveProduct(newProduct).catch(() => {});
       return newProduct;
     } catch (e) {
       console.warn("Failed to create product locally:", e);
-      return { id: `prod-${Date.now()}`, ...fullProduct } as Product;
+      const fallbackProd = { id: `prod-${Date.now()}`, ...fullProduct } as Product;
+      supabaseSaveProduct(fallbackProd).catch(() => {});
+      return fallbackProd;
     }
   };
 
@@ -141,6 +145,7 @@ export const createProduct = async (productData: Partial<Product>) => {
       }
       window.dispatchEvent(new Event('local_products_updated'));
     } catch (e) {}
+    supabaseSaveProduct(newProduct).catch(() => {});
     return newProduct;
   } catch (error) {
     return saveLocally();
@@ -375,9 +380,25 @@ export const getAllProducts = async (onlyActive = false, forceRefresh = false): 
     console.warn("Failed to retrieve cached products:", e);
   }
 
-  // Live background synchronization function (Supports cPanel Host Storage & Firebase Cloud)
+  // Live background synchronization function (Supports Supabase Cloud, cPanel Host Storage & Firebase)
   const fetchLiveProducts = async (): Promise<Product[] | null> => {
-    // 1. Check cPanel Server Storage first if running on cPanel hosting
+    // 1. Check Supabase Cloud Database first
+    try {
+      const supabaseProducts = await supabaseFetchProducts();
+      if (supabaseProducts && Array.isArray(supabaseProducts) && supabaseProducts.length > 0) {
+        const activeOnly = supabaseProducts.filter(p => p.isActive !== false);
+        try {
+          localStorage.setItem('cached_products_all', JSON.stringify(supabaseProducts));
+          localStorage.setItem('cached_products_active', JSON.stringify(activeOnly));
+        } catch (e) {}
+        window.dispatchEvent(new Event('local_products_updated'));
+        return onlyActive ? activeOnly : supabaseProducts;
+      }
+    } catch (e) {
+      console.warn("Supabase product fetch check error:", e);
+    }
+
+    // 2. Check cPanel Server Storage if running on cPanel hosting
     try {
       const cpanelHealth = await detectCPanelStorage();
       if (cpanelHealth.isAvailable) {
@@ -396,7 +417,7 @@ export const getAllProducts = async (onlyActive = false, forceRefresh = false): 
       console.warn("cPanel product fetch check error:", e);
     }
 
-    // 2. Fallback to Firebase Cloud (Netlify / Google Cloud)
+    // 3. Fallback to Firebase Cloud (Netlify / Google Cloud)
     try {
       const { db } = await initializeFirebase();
       if (!db) return null;
@@ -532,7 +553,12 @@ export const updateProduct = async (id: string, data: Partial<Product>) => {
   // 1. Always update locally first for instant zero-latency UI response
   saveLocally();
 
-  // 2. Persist to Firestore Cloud if initialized
+  // 2. Persist to Supabase Cloud
+  try {
+    supabaseSaveProduct({ id, ...data }).catch(() => {});
+  } catch (e) {}
+
+  // 3. Persist to Firestore Cloud if initialized
   try {
     const { db } = await initializeFirebase();
     if (db) {
@@ -574,7 +600,12 @@ export const deleteProduct = async (id: string) => {
   // 1. Delete locally first
   saveLocally();
 
-  // 2. Delete from Cloud Firestore if available
+  // 2. Delete from Supabase Cloud
+  try {
+    supabaseDeleteProduct(id).catch(() => {});
+  } catch (e) {}
+
+  // 3. Delete from Cloud Firestore if available
   try {
     const { db } = await initializeFirebase();
     if (db) {

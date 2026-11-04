@@ -2537,6 +2537,41 @@ export default function SettingsManager() {
 
           </div>
 
+          {/* Supabase Cloud Database Integration Banner */}
+          <div className="lg:col-span-12 p-5 bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-3xl text-white shadow-lg space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Database size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black text-white">
+                      Supabase Cloud Backend (PostgreSQL)
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      কানেক্টেড ও লাইভ
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    প্রজেক্ট: <span className="text-emerald-300 font-bold">Sera fashion house</span> • প্রজেক্ট আইডি: <span className="font-mono text-slate-300">ysczioswkniyiauftoqc</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 truncate max-w-[260px]">
+                  https://ysczioswkniyiauftoqc.supabase.co
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed pl-1">
+              সকল প্রোডাক্ট, অর্ডার, সেটিংস এবং কাস্টমার ডাটা স্বয়ংক্রিয়ভাবে Supabase ক্লাউডে সিঙ্ক হচ্ছে। বিস্তারিত স্ট্যাটাস, হেলথ চেক ও টেবিল স্কিমার জন্য এডমিন মেন্যু থেকে <strong>১৬. সুপাবেস ক্লাউড ডাটাবেজ</strong> ট্যাবে যান।
+            </p>
+          </div>
+
           <div className="lg:col-span-12 p-4 bg-brand-gold/10 border border-brand-gold/20 rounded-2xl space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-brand-gold">
               <ShieldAlert size={14} />

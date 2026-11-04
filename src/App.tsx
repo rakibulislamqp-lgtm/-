@@ -45,6 +45,7 @@ import ExitIntentModal from './components/ExitIntentModal';
 import { Truck, Search, Crown } from 'lucide-react';
 import { addLoyaltyPointsFromOrder } from './services/loyaltyService';
 import OfferLandingPage from './components/OfferLandingPage';
+import PushNotificationOptIn from './components/PushNotificationOptIn';
 
 export default function App() {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -1391,6 +1392,9 @@ export default function App() {
           setCheckoutMode(true);
         }}
       />
+
+      {/* Gentle & Non-intrusive Push Notification Consent for Customers */}
+      <PushNotificationOptIn />
 
       {/* Modern Professional Non-blocking Toast Notification */}
       <AnimatePresence>

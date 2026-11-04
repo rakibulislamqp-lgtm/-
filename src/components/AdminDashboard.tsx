@@ -32,6 +32,8 @@ import FooterManager from './FooterManager';
 import CustomerManager from './CustomerManager';
 import ReferralLoyaltyManager from './ReferralLoyaltyManager';
 import LandingPageManager from './LandingPageManager';
+import PushNotificationManager from './PushNotificationManager';
+import SupabaseManager from './SupabaseManager';
 import { Activity, MessageSquare, Target, Image as ImageIcon, BarChart3, LayoutTemplate, Users, Flame } from 'lucide-react';
 
 export interface CourierStat {
@@ -286,7 +288,7 @@ export const getCustomerTrust = (
 
 export default function AdminDashboard() {
   const [visitorSessions, setVisitorSessions] = useState<VisitorSession[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub'>('orders');
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
     orders: true,
     products: true,
@@ -302,9 +304,11 @@ export default function AdminDashboard() {
     registered_customers: true,
     loyalty_referrals: true,
     landing_page: true,
+    push_notifications: true,
+    supabase_hub: true,
   });
 
-  const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page') => {
+  const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub') => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
   };
@@ -1568,6 +1572,54 @@ export default function AdminDashboard() {
                     </span>
                   </button>
 
+                  {/* Option 15: Mobile Push Notification Studio */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('push_notifications');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-xl text-xs font-extrabold transition-all group cursor-pointer ${
+                      activeTab === 'push_notifications'
+                        ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 text-white shadow-lg shadow-rose-900/30'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <BellRing size={16} className={activeTab === 'push_notifications' ? 'text-white' : 'text-rose-400 group-hover:scale-110 transition-transform shrink-0'} />
+                      <div className="text-left">
+                        <span className="block font-sans text-xs">১৫. মোবাইল পুশ নোটিফিকেশন</span>
+                        <span className="block text-[8px] opacity-80 font-semibold tracking-wide">কাস্টমারের ফোনে ব্যানার ও অফার মেসেজ ব্রডকাস্ট</span>
+                      </div>
+                    </div>
+                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-black text-[9px] rounded uppercase tracking-tighter shrink-0 animate-pulse">
+                      RICH PUSH 📲
+                    </span>
+                  </button>
+
+                  {/* Option 16: Supabase Cloud Database & Backend Hub */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('supabase_hub');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-xl text-xs font-extrabold transition-all group cursor-pointer ${
+                      activeTab === 'supabase_hub'
+                        ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-900/40'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Database size={16} className={activeTab === 'supabase_hub' ? 'text-white' : 'text-emerald-400 group-hover:scale-110 transition-transform shrink-0'} />
+                      <div className="text-left">
+                        <span className="block font-sans text-xs">১৬. সুপাবেস ক্লাউড ডাটাবেজ (Supabase Hub)</span>
+                        <span className="block text-[8px] opacity-80 font-semibold tracking-wide">PostgreSQL লাইভ কানেকশন, হেলথ চেক ও ১-ক্লিক সিঙ্ক</span>
+                      </div>
+                    </div>
+                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black text-[9px] rounded uppercase tracking-tighter shrink-0 animate-pulse">
+                      POSTGRES ⚡
+                    </span>
+                  </button>
+
                   <div className="h-px bg-slate-800/80 my-3" />
 
                   <p className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider px-3.5 mb-1.5 text-left">অ্যাকশন ও কাস্টমার টুলস / Actions</p>
@@ -1748,6 +1800,13 @@ export default function AdminDashboard() {
             >
               <Flame size={13} className="text-amber-400" />
               Landing Page /offer 🎯
+            </button>
+            <button 
+              onClick={() => setActiveTab('push_notifications')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'push_notifications' ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 text-white font-black shadow-lg shadow-rose-900/30' : 'text-rose-400 hover:text-white'}`}
+            >
+              <BellRing size={13} className="animate-pulse" />
+              Push Notifications 📲
             </button>
           </div>
 
@@ -2494,6 +2553,20 @@ export default function AdminDashboard() {
                 setBrandSettings(fresh);
               }}
             />
+          </div>
+        )}
+
+        {/* Tab 15: Push Notification Studio */}
+        {visitedTabs.push_notifications && (
+          <div className={activeTab === 'push_notifications' ? 'block' : 'hidden'}>
+            <PushNotificationManager />
+          </div>
+        )}
+
+        {/* Tab 16: Supabase Cloud Database & Backend Hub */}
+        {visitedTabs.supabase_hub && (
+          <div className={activeTab === 'supabase_hub' ? 'block' : 'hidden'}>
+            <SupabaseManager onRefreshAll={fetchOrders} />
           </div>
         )}
       </main>

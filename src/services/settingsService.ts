@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '../lib/firebase';
 import { BrandSettings } from '../types';
 import { detectCPanelStorage, cpanelFetchSettings, cpanelSaveSettings } from './cpanelStorageService';
+import { supabaseFetchSettings, supabaseSaveSettings } from './supabaseService';
 
 const SETTING_DOC_ID = 'brand';
 
@@ -20,20 +21,32 @@ export const getBrandSettings = async (): Promise<BrandSettings | null> => {
   const fetchPromise = (async () => {
     let remoteData: BrandSettings | null = null;
 
-    // 1. Check cPanel host storage first
+    // 1. Check Supabase Cloud Database first
     try {
-      const cpanelHealth = await detectCPanelStorage();
-      if (cpanelHealth.isAvailable) {
-        const cData = await cpanelFetchSettings();
-        if (cData && typeof cData === 'object' && Object.keys(cData).length > 0) {
-          remoteData = cData as BrandSettings;
-        }
+      const spData = await supabaseFetchSettings();
+      if (spData && typeof spData === 'object' && Object.keys(spData).length > 0) {
+        remoteData = spData;
       }
     } catch (e) {
-      console.warn('cPanel settings fetch error:', e);
+      console.warn('Supabase settings fetch error:', e);
     }
 
-    // 2. Fallback to Firebase Cloud if not found in cPanel
+    // 2. Check cPanel host storage if not found in Supabase
+    if (!remoteData) {
+      try {
+        const cpanelHealth = await detectCPanelStorage();
+        if (cpanelHealth.isAvailable) {
+          const cData = await cpanelFetchSettings();
+          if (cData && typeof cData === 'object' && Object.keys(cData).length > 0) {
+            remoteData = cData as BrandSettings;
+          }
+        }
+      } catch (e) {
+        console.warn('cPanel settings fetch error:', e);
+      }
+    }
+
+    // 3. Fallback to Firebase Cloud if not found in Supabase or cPanel
     if (!remoteData) {
       try {
         const { db } = await initializeFirebase();
@@ -118,6 +131,11 @@ export const updateBrandSettings = async (
   };
 
   const locallySaved = saveLocally();
+
+  // 1. Immediately persist to Supabase Cloud
+  try {
+    supabaseSaveSettings(locallySaved).catch((e) => console.warn('Supabase settings save warning:', e));
+  } catch (e) {}
 
   try {
     const { db } = await initializeFirebase();

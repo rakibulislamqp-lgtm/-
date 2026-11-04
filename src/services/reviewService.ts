@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, orderBy, where, doc, deleteDoc } from 'firebase/firestore';
 import { initializeFirebase, markQuotaExhausted } from '../lib/firebase';
+import { supabaseFetchReviews, supabaseSaveReview, supabaseDeleteReview } from './supabaseService';
 
 function detectQuotaError(error: any): boolean {
   if (!error) return false;
@@ -173,6 +174,7 @@ export const createReview = async (
       localStorage.setItem(localKey, JSON.stringify([reviewWithId, ...existingProduct]));
     }
     triggerReviewsUpdated();
+    supabaseSaveReview(reviewWithId).catch(() => {});
     return reviewWithId;
   }
 
@@ -186,6 +188,7 @@ export const createReview = async (
       localStorage.setItem(localKey, JSON.stringify([reviewWithId, ...existingProduct]));
     }
     triggerReviewsUpdated();
+    supabaseSaveReview(reviewWithId).catch(() => {});
     return reviewWithId;
   } catch (error) {
     if (detectQuotaError(error)) {
@@ -250,6 +253,21 @@ export const getAllReviews = async (): Promise<ProductReview[]> => {
   // Read local storage global cache first
   const localGlobal: ProductReview[] = JSON.parse(localStorage.getItem('all_app_reviews') || '[]');
   allReviews = [...localGlobal];
+
+  // 1. Fetch from Supabase Cloud Database first
+  try {
+    const spReviews = await supabaseFetchReviews();
+    if (spReviews && Array.isArray(spReviews) && spReviews.length > 0) {
+      const existingIds = new Set(allReviews.map(r => r.id));
+      spReviews.forEach(sr => {
+        if (!existingIds.has(sr.id)) {
+          allReviews.push(sr);
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Supabase reviews fetch error:", e);
+  }
 
   if (db) {
     try {
@@ -380,7 +398,12 @@ export const deleteReview = async (reviewId: string, productId?: string): Promis
     localStorage.setItem(localKey, JSON.stringify(filteredLocal));
   }
 
-  // 3. Remove from Firestore if online and valid doc ID
+  // 3. Remove from Supabase Cloud
+  try {
+    supabaseDeleteReview(reviewId).catch(() => {});
+  } catch (e) {}
+
+  // 4. Remove from Firestore if online and valid doc ID
   if (db && reviewId && !reviewId.startsWith('local-') && !reviewId.startsWith('seed-')) {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, reviewId));
