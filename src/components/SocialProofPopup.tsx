@@ -22,6 +22,18 @@ const FALLBACK_NAMES = [
   'রুকসানা পারভীন', 'সুমাইয়া রহমান', 'ফারজানা হক', 'মেহজাবিন আলম'
 ];
 
+export const formatSafePrice = (price?: any): string => {
+  if (typeof price === 'number' && !isNaN(price)) {
+    return price.toLocaleString('en-US');
+  }
+  if (typeof price === 'string' && price.trim()) {
+    const num = parseFloat(price.replace(/[^0-9.]/g, ''));
+    if (!isNaN(num)) return num.toLocaleString('en-US');
+    return price;
+  }
+  return '১,৯৫০';
+};
+
 interface NotificationData {
   id: string;
   customerName: string;
@@ -38,7 +50,7 @@ interface SocialProofPopupProps {
   brandSettings?: BrandSettings | null;
 }
 
-export default function SocialProofPopup({ 
+function SocialProofPopupInternal({ 
   onSelectProduct, 
   cartLength = 0, 
   enabled = true,
@@ -128,21 +140,40 @@ export default function SocialProofPopup({
 
   // Helper to construct a NotificationData from a real Order
   const buildNotificationFromOrder = (order: Order, prods: Product[]): NotificationData | null => {
-    if (!order || !order.customerName) return null;
+    if (!order) return null;
     
-    // Find matching product
+    // Find matching product safely
+    const safeProds = Array.isArray(prods) ? prods : [];
     let matchedProduct: Product | undefined;
-    if (order.productId) {
-      matchedProduct = prods.find(p => p.id === order.productId);
+    if (order.productId && safeProds.length > 0) {
+      matchedProduct = safeProds.find(p => p && p.id === order.productId);
     }
-    if (!matchedProduct && order.items && order.items.length > 0) {
+    if (!matchedProduct && order.items && order.items.length > 0 && safeProds.length > 0) {
       const firstItem = order.items[0];
-      matchedProduct = prods.find(p => p.id === firstItem.productId);
+      if (firstItem && firstItem.productId) {
+        matchedProduct = safeProds.find(p => p && p.id === firstItem.productId);
+      }
     }
-    if (!matchedProduct && prods.length > 0) {
-      matchedProduct = prods[0];
+    if (!matchedProduct && safeProds.length > 0) {
+      matchedProduct = safeProds[0];
     }
-    if (!matchedProduct) return null;
+    
+    // Reliable fallback product if not found in catalog or catalog is loading
+    if (!matchedProduct) {
+      matchedProduct = {
+        id: order.productId || `prod_${Date.now()}`,
+        title: (order as any).productName || 'এক্সক্লুসিভ ফ্যাশন ড্রেস',
+        price: typeof order.totalAmount === 'number' && order.totalAmount > 0 ? order.totalAmount : 1950,
+        regularPrice: 2450,
+        imageUrl: (order as any).productImage || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300',
+        description: 'প্রিমিয়াম কোয়ালিটি',
+        category: 'ALL',
+        productCode: order.productCode || 'SFH-PROD',
+        stock: 50,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+    }
 
     // Clean location
     let location = 'ঢাকা';
@@ -154,8 +185,8 @@ export default function SocialProofPopup({
     }
 
     return {
-      id: order.id || `order-${Date.now()}`,
-      customerName: order.customerName,
+      id: order.id || `order-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      customerName: order.customerName || 'সম্মানিত ক্রেতা',
       location,
       timeAgo: 'এইমাত্র',
       product: matchedProduct,
@@ -423,9 +454,12 @@ export default function SocialProofPopup({
                     notificationSize === 'compact' ? 'w-7 h-7 sm:w-8 sm:h-8' : 'w-9 h-9 sm:w-10 sm:h-10'
                   }`}>
                     <img 
-                      src={currentNotification.product.imageUrl} 
-                      alt={currentNotification.product.title}
+                      src={currentNotification.product?.imageUrl || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300'} 
+                      alt={currentNotification.product?.title || 'পণ্য'}
                       className="w-full h-full object-cover rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300';
+                      }}
                     />
                   </div>
 
@@ -435,20 +469,20 @@ export default function SocialProofPopup({
                     <div className="flex items-center gap-1 leading-none truncate">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                       <span className={`font-black text-amber-300 truncate ${notificationSize === 'compact' ? 'text-[9.5px]' : 'text-[11px]'}`}>
-                        {currentNotification.customerName}
+                        {currentNotification.customerName || 'সম্মানিত ক্রেতা'}
                       </span>
                       <span className={`text-slate-400 font-normal truncate ${notificationSize === 'compact' ? 'text-[8.5px]' : 'text-[9px]'}`}>
-                        ({currentNotification.location})
+                        ({currentNotification.location || 'বাংলাদেশ'})
                       </span>
                     </div>
 
                     {/* Row 2: Product Name + Price */}
                     <div className="flex items-center justify-between gap-1 mt-1 leading-none">
                       <span className={`text-slate-200 font-medium truncate ${notificationSize === 'compact' ? 'text-[9px] max-w-[85px] sm:max-w-[110px]' : 'text-[10px] max-w-[105px] sm:max-w-[130px]'}`}>
-                        {currentNotification.product.title}
+                        {currentNotification.product?.title || 'এক্সক্লুসিভ ড্রেস'}
                       </span>
                       <span className={`font-black text-amber-400 font-mono shrink-0 ${notificationSize === 'compact' ? 'text-[9.5px]' : 'text-[10.5px]'}`}>
-                        ৳{currentNotification.product.price.toLocaleString('en-US')}
+                        ৳{formatSafePrice(currentNotification.product?.price)}
                       </span>
                     </div>
                   </div>
@@ -624,32 +658,35 @@ export default function SocialProofPopup({
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 border-2 border-amber-400/40">
                           <img 
-                            src={item.product.imageUrl} 
-                            alt={item.product.title} 
+                            src={item.product?.imageUrl || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300'} 
+                            alt={item.product?.title || 'পণ্য'} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300';
+                            }}
                           />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-bold text-white truncate">
-                              {item.customerName}
+                              {item.customerName || 'সম্মানিত ক্রেতা'}
                             </span>
                             <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-bold shrink-0">
                               {item.isRealOrder !== false ? 'Verified Real' : 'Verified'}
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                            <MapPin size={9} className="text-rose-400 shrink-0" /> {item.location} • <Clock size={9} className="text-amber-400 shrink-0" /> {item.timeAgo}
+                            <MapPin size={9} className="text-rose-400 shrink-0" /> {item.location || 'বাংলাদেশ'} • <Clock size={9} className="text-amber-400 shrink-0" /> {item.timeAgo || 'এইমাত্র'}
                           </p>
                           <p className="text-[11px] text-amber-200/90 font-medium truncate mt-0.5">
-                            {item.product.title} • ৳{item.product.price.toLocaleString('en-US')}
+                            {item.product?.title || 'স্পেশাল কালেকশন'} • ৳{formatSafePrice(item.product?.price)}
                           </p>
                         </div>
                       </div>
 
                       <button
                         onClick={() => {
-                          if (onSelectProduct) {
+                          if (onSelectProduct && item.product) {
                             onSelectProduct(item.product);
                             setIsFeedOpen(false);
                             handleDismissCard();
@@ -678,5 +715,30 @@ export default function SocialProofPopup({
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+class SocialProofErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any) {
+    console.warn('SocialProofPopup error boundary caught:', error);
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+export default function SocialProofPopup(props: SocialProofPopupProps) {
+  return (
+    <SocialProofErrorBoundary>
+      <SocialProofPopupInternal {...props} />
+    </SocialProofErrorBoundary>
   );
 }

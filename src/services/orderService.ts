@@ -261,47 +261,100 @@ export const createOrder = async (orderData: Partial<Order>) => {
   }
 };
 
-export const getOrderForTracking = async (queryInput: string): Promise<Order | null> => {
-  if (!queryInput || !queryInput.trim()) return null;
+export const isMyDeviceOrder = (orderId: string): boolean => {
+  try {
+    if (!orderId) return false;
+    const clean = orderId.toLowerCase().trim();
+    const local = getMyCustomerOrdersLocally();
+    if (local.some(o => (o.orderId || o.id || '').toLowerCase().trim() === clean)) {
+      return true;
+    }
+    const lastId = localStorage.getItem('sera_my_last_order_id');
+    if (lastId && lastId.toLowerCase().trim() === clean) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+export const getSecureOrderForTracking = async (
+  queryInput: string,
+  userMobile?: string,
+  isDeviceOwner: boolean = false
+): Promise<{ order: Order | null; error?: 'requires_phone' | 'not_found' | 'phone_mismatch' }> => {
+  if (!queryInput || !queryInput.trim()) return { order: null, error: 'not_found' };
 
   let raw = queryInput.trim();
-
   // If input is a URL or query string, extract parameter value
   if (raw.includes('http://') || raw.includes('https://') || raw.includes('?')) {
     try {
       const urlObj = new URL(raw.startsWith('http') ? raw : `http://localhost${raw.startsWith('?') ? '' : '/'}${raw}`);
       const trackVal = urlObj.searchParams.get('track') || urlObj.searchParams.get('orderId') || urlObj.searchParams.get('id');
-      if (trackVal) {
-        raw = trackVal.trim();
-      }
+      if (trackVal) raw = trackVal.trim();
     } catch (e) {
-      // Fallback regex extraction
       const match = raw.match(/(?:track|orderId|id)=([^&]+)/i);
-      if (match && match[1]) {
-        raw = decodeURIComponent(match[1]).trim();
-      }
+      if (match && match[1]) raw = decodeURIComponent(match[1]).trim();
     }
   }
 
-  const cleanQuery = raw.toLowerCase();
-  const cleanDigits = raw.replace(/\D/g, '');
-
+  const cleanQuery = raw.toLowerCase().trim();
   const orders = await getAllOrders(true);
-  
-  const found = orders.find(o => {
-    const oId = (o.orderId || '').toLowerCase();
-    const docId = (o.id || '').toLowerCase();
-    const phone = (o.mobileNumber || '').replace(/\D/g, '');
-    const courierCode = (o.courierTrackingCode || '').toLowerCase();
 
-    if (oId === cleanQuery || docId === cleanQuery) return true;
-    if (courierCode && courierCode === cleanQuery) return true;
-    if (cleanDigits.length >= 10 && phone.endsWith(cleanDigits.slice(-10))) return true;
-    if (oId.includes(cleanQuery) || docId.includes(cleanQuery)) return true;
-    return false;
+  // 1. If this device placed/owns this order, allow direct access
+  if (isDeviceOwner || isMyDeviceOrder(cleanQuery)) {
+    const found = orders.find(o => {
+      const oId = (o.orderId || '').toLowerCase().trim();
+      const docId = (o.id || '').toLowerCase().trim();
+      return oId === cleanQuery || docId === cleanQuery;
+    });
+    if (found) return { order: found };
+  }
+
+  // 2. If mobile number is provided, verify BOTH Order ID AND matching Mobile Number
+  if (userMobile && userMobile.trim()) {
+    const cleanDigits = userMobile.replace(/\D/g, '');
+    if (cleanDigits.length < 10) {
+      return { order: null, error: 'phone_mismatch' };
+    }
+    const last10 = cleanDigits.slice(-10);
+
+    const found = orders.find(o => {
+      const oId = (o.orderId || '').toLowerCase().trim();
+      const docId = (o.id || '').toLowerCase().trim();
+      const courierCode = (o.courierTrackingCode || '').toLowerCase().trim();
+      const idMatches = (oId === cleanQuery || docId === cleanQuery || (courierCode && courierCode === cleanQuery));
+      const phoneDigits = (o.mobileNumber || '').replace(/\D/g, '');
+      const phoneMatches = phoneDigits.endsWith(last10);
+      return idMatches && phoneMatches;
+    });
+
+    if (found) {
+      saveCustomerOrderLocally(found);
+      return { order: found };
+    } else {
+      return { order: null, error: 'phone_mismatch' };
+    }
+  }
+
+  // 3. If order exists in database but this device is unverified, require phone verification
+  const orderExists = orders.some(o => {
+    const oId = (o.orderId || '').toLowerCase().trim();
+    const docId = (o.id || '').toLowerCase().trim();
+    return oId === cleanQuery || docId === cleanQuery;
   });
 
-  return found || null;
+  if (orderExists) {
+    return { order: null, error: 'requires_phone' };
+  }
+
+  return { order: null, error: 'not_found' };
+};
+
+export const getOrderForTracking = async (queryInput: string, mobileNumber?: string): Promise<Order | null> => {
+  const result = await getSecureOrderForTracking(queryInput, mobileNumber, false);
+  return result.order;
 };
 
 export const getAllOrders = async (forceRefresh = false): Promise<Order[]> => {

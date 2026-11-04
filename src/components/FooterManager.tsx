@@ -159,7 +159,9 @@ export default function FooterManager({ onRefreshSettings }: FooterManagerProps)
 
     try {
       await updateBrandSettings({
-        footer: footer
+        footer: footer,
+        helplinePhone: footer.phone,
+        whatsappNumber: footer.whatsappNumber,
       });
       setSavedSuccess(true);
       if (onRefreshSettings) {

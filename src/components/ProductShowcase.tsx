@@ -639,30 +639,18 @@ export default function ProductShowcase({
                   </div>
                 </div>
 
-                <div className="pt-1 md:pt-2 flex items-center gap-1.5 md:gap-2">
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOrderNow(product, 1, '38');
-                    }}
-                    className="flex-1 py-2.5 md:py-3.5 bg-[#438a1a] text-white rounded-lg md:rounded-xl text-[9px] md:text-xs font-black uppercase tracking-wider transition-all hover:bg-[#346b14] active:scale-95 shadow-md flex items-center justify-center gap-1 md:gap-1.5"
-                    title="সরাসরি অর্ডার পেজে যান"
-                  >
-                    <ShoppingCart size={12} className="md:w-3.5 md:h-3.5" />
-                    এখনই অর্ডার করুন
-                  </button>
+                <div className="pt-1 md:pt-2">
                   <button 
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleOpenProductModal(product);
                     }}
-                    className="px-2.5 md:px-3 py-2.5 md:py-3.5 bg-brand-charcoal text-white hover:bg-black rounded-lg md:rounded-xl text-[9px] md:text-xs font-bold transition-all active:scale-95 shadow-md flex items-center justify-center gap-1 shrink-0"
-                    title="বিস্তারিত ও সাইজ দেখুন"
+                    className="w-full py-2.5 md:py-3.5 bg-[#438a1a] hover:bg-[#346b14] text-white rounded-lg md:rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-emerald-950/20 flex items-center justify-center gap-1.5 md:gap-2 cursor-pointer group/btn"
+                    title="প্রোডাক্টের ছবি, সাইজ ও বিবরণ দেখে অর্ডার করুন"
                   >
-                    <Eye size={12} className="md:w-3.5 md:h-3.5" />
-                    <span className="hidden sm:inline">বিস্তারিত</span>
+                    <ShoppingCart size={13} className="md:w-4 md:h-4 transition-transform group-hover/btn:scale-110" />
+                    <span>এখন অর্ডার করুন</span>
                   </button>
                 </div>
               </div>
@@ -920,48 +908,91 @@ export default function ProductShowcase({
 
 
 
-                <div className="flex flex-col gap-4 pt-4">
+                <div className="flex flex-col gap-4 pt-2">
+                  {/* Size Selection */}
+                  {selectedProduct.category !== 'SAREE' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-gray-700">
+                          সাইজ নির্বাচন করুন:
+                        </span>
+                        <span className="text-xs font-bold text-[#438a1a] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          সিলেক্টেড: {selectedSize}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(selectedProduct.sizes && selectedProduct.sizes.length > 0 
+                          ? selectedProduct.sizes 
+                          : ['36', '38', '40', '42', '44', 'Free Size']
+                        ).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setSelectedSize(s)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                              selectedSize === s
+                                ? 'bg-brand-charcoal text-brand-gold border-2 border-brand-gold shadow-md scale-105'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Quantity */}
-                  <div className="flex items-center gap-4">
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-700 block">
+                      পরিমাণ (Quantity):
+                    </span>
                     <div className="inline-flex items-center border-2 border-gray-200 rounded-xl bg-gray-50 p-1">
                       <button 
+                        type="button"
                         onClick={() => {
                           const newQty = Math.max(1, quantity - 1);
                           setQuantity(newQty);
                           logVisitorEvent('click', 'change_quantity', `প্রোডাক্টের পরিমাণ কমিয়েছেন: ${newQty} টি 🔢`, 'product_details');
                         }}
-                        className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors"
+                        className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
                       >
                         -
                       </button>
                       <span className="w-12 text-center font-black text-lg text-gray-900">{quantity}</span>
                       <button 
+                        type="button"
                         onClick={() => {
                           const newQty = quantity + 1;
                           setQuantity(newQty);
                           logVisitorEvent('click', 'change_quantity', `প্রোডাক্টের পরিমাণ বাড়িয়েছেন: ${newQty} টি 🔢`, 'product_details');
                         }}
-                        className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors"
+                        className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
                       >
                         +
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 pt-2">
+                  {/* Modal Action Buttons: Add to Cart & Confirm Order */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
                     <button 
+                      type="button"
                       onClick={() => {
                         onAddToCart?.(selectedProduct, quantity, selectedSize);
                         setSelectedProduct(null);
                       }}
-                      className="w-full py-4 bg-[#438a1a] text-white rounded-xl font-black uppercase tracking-widest text-[11px] hover:bg-[#346b14] transition-all shadow-lg active:scale-95"
+                      className="w-full py-3.5 bg-brand-charcoal hover:bg-black text-white rounded-xl font-black uppercase tracking-wider text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
+                      <ShoppingBag size={15} className="text-brand-gold" />
                       কার্টে যোগ করুন
                     </button>
                     <button 
+                      type="button"
                       onClick={handleOrder}
-                      className="w-full py-4 bg-[#ffc300] text-gray-900 rounded-xl font-black uppercase tracking-widest text-[11px] hover:bg-[#e6b000] transition-all shadow-lg active:scale-95"
+                      className="w-full py-3.5 bg-[#438a1a] hover:bg-[#346b14] text-white rounded-xl font-black uppercase tracking-wider text-xs transition-all shadow-lg shadow-emerald-950/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
+                      <ShoppingCart size={15} />
                       অর্ডার করুন
                     </button>
                   </div>

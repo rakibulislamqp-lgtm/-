@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Settings, Upload, Image as ImageIcon, Check, RefreshCw, AlertCircle, Trash2, Bell, BellRing, Volume2, Send, Shield, ShieldAlert, ShieldCheck, BadgeHelp, Truck, Key, Lock, Building, Cpu, Target, Sparkles, Globe, Search, Copy, CheckCircle2, BarChart2, Video, Database, Share2, Eye, EyeOff, Flame, Layers, Gift } from 'lucide-react';
+import { Settings, Upload, Image as ImageIcon, Check, RefreshCw, AlertCircle, Trash2, Bell, BellRing, Volume2, Send, Shield, ShieldAlert, ShieldCheck, BadgeHelp, Truck, Key, Lock, Building, Cpu, Target, Sparkles, Globe, Search, Copy, CheckCircle2, BarChart2, Video, Database, Share2, Eye, EyeOff, Flame, Layers, Gift, Phone, MessageCircle } from 'lucide-react';
 import { 
   getBrandSettings, 
   updateBrandSettings, 
@@ -140,6 +140,9 @@ export default function SettingsManager() {
   const [settings, setSettings] = useState<BrandSettings>({
     logoUrl: '',
     facebookUrl: 'https://www.facebook.com/share/1aiFNcrxJm/',
+    helplinePhone: '01724628453',
+    whatsappNumber: '01724628453',
+    whatsappMessage: 'হ্যালো সেরা ফ্যাশন, আমি রিটার্ন পলিসি ও সহায়তা সংক্রান্ত বিষয়ে কথা বলতে চাই।',
     telegramToken: '',
     telegramChatId: '',
     soundEnabled: true,
@@ -294,6 +297,9 @@ export default function SettingsManager() {
           setSettings({
             ...fullSettings,
             facebookUrl: fullSettings.facebookUrl || 'https://www.facebook.com/share/1aiFNcrxJm/',
+            helplinePhone: fullSettings.helplinePhone || fullSettings.footer?.phone || '01724628453',
+            whatsappNumber: fullSettings.whatsappNumber || fullSettings.footer?.whatsappNumber || '01724628453',
+            whatsappMessage: fullSettings.whatsappMessage || 'হ্যালো সেরা ফ্যাশন, আমি রিটার্ন পলিসি ও সহায়তা সংক্রান্ত বিষয়ে কথা বলতে চাই।',
             orderNotificationEnabled: fullSettings.orderNotificationEnabled !== false,
             orderNotificationDisplayMode: fullSettings.orderNotificationDisplayMode || 'popup_and_circle',
             orderNotificationDataSource: fullSettings.orderNotificationDataSource || 'only_real',
@@ -1461,6 +1467,126 @@ export default function SettingsManager() {
                     <span>লাকি স্পিন হুইল অফ করা আছে। কাস্টমাররা ওয়েবসাইটে কোনো স্পিন হুইল পপআপ বা ভাসমান আইকন দেখতে পাবেন না।</span>
                   </div>
                 )}
+              </div>
+
+              {/* Customer Support Helpline & WhatsApp Settings (Return Policy & Live Contact) */}
+              <div className="bg-gradient-to-tr from-emerald-500/10 via-white to-green-500/5 p-5 rounded-3xl border border-emerald-300/80 space-y-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-gradient-to-tr from-emerald-600 to-green-500 text-white rounded-2xl shadow-md shrink-0">
+                    <Phone size={20} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                      <span>কাস্টমার হেল্পলাইন ও হোয়াটসঅ্যাপ সেটিংস</span>
+                      <span className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">Return Policy & Support</span>
+                    </h4>
+                    <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                      রিটার্ন পলিসি দেখুন মডালের "WhatsApp" এবং "কল করুন (Call Now)" বাটনের নম্বর এখান থেকে সেট করুন
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Helpline Phone Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10.5px] font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <Phone size={13} className="text-amber-600" />
+                      <span>১. হেল্পলাইন ফোন নম্বর (Call Helpline):</span>
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="যেমন: 01724628453 বা 017XXXXXXXX"
+                      value={settings.helplinePhone || ''}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        helplinePhone: e.target.value,
+                        footer: {
+                          ...(prev.footer || {}),
+                          phone: e.target.value
+                        }
+                      }))}
+                      className="w-full px-4 py-3 bg-white text-gray-800 placeholder-gray-400 font-sans text-xs rounded-2xl border border-emerald-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all shadow-inner font-bold"
+                    />
+                    <p className="text-[10px] text-gray-400">
+                      রিটার্ন পলিসির "কল করুন" বাটনে ক্লিক করলে কাস্টমার সরাসরি এই নম্বরে কল দিতে পারবেন।
+                    </p>
+                  </div>
+
+                  {/* WhatsApp Number Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10.5px] font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <MessageCircle size={13} className="text-emerald-600" />
+                      <span>২. হোয়াটসঅ্যাপ নম্বর (WhatsApp Number):</span>
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="যেমন: 01724628453 বা 017XXXXXXXX"
+                      value={settings.whatsappNumber || ''}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        whatsappNumber: e.target.value,
+                        footer: {
+                          ...(prev.footer || {}),
+                          whatsappNumber: e.target.value
+                        }
+                      }))}
+                      className="w-full px-4 py-3 bg-white text-gray-800 placeholder-gray-400 font-sans text-xs rounded-2xl border border-emerald-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all shadow-inner font-bold"
+                    />
+                    <p className="text-[10px] text-gray-400">
+                      রিটার্ন পলিসির "WhatsApp" বাটনে ক্লিক করলে সরাসরি এই নম্বরে চ্যাট শুরু হবে।
+                    </p>
+                  </div>
+                </div>
+
+                {/* WhatsApp Pre-filled Message */}
+                <div className="space-y-1.5">
+                  <label className="text-[10.5px] font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-500" />
+                    <span>৩. হোয়াটসঅ্যাপের স্বয়ংক্রিয় প্রারম্ভিক বার্তা (Default Message):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: হ্যালো সেরা ফ্যাশন, আমি রিটার্ন পলিসি ও সহায়তা সংক্রান্ত বিষয়ে কথা বলতে চাই।"
+                    value={settings.whatsappMessage || ''}
+                    onChange={(e) => setSettings(prev => ({ ...prev, whatsappMessage: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-white text-gray-800 placeholder-gray-400 text-xs rounded-xl border border-emerald-200 focus:border-emerald-500 outline-none transition-all"
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    কাস্টমার হোয়াটসঅ্যাপ বাটনে চাপ দিলে মেসেজ বক্সে এই লেখাটি স্বয়ংক্রিয়ভাবে রেডি থাকবে।
+                  </p>
+                </div>
+
+                {/* Live Preview & Instant Test Action Row */}
+                <div className="pt-2 border-t border-emerald-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] text-slate-700 font-semibold flex items-center gap-2">
+                    <span>লাইভ টেস্ট:</span>
+                    <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      📞 {settings.helplinePhone || settings.footer?.phone || '01724628453'}
+                    </span>
+                    <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      💬 {settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://wa.me/${(settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453').replace(/\D/g, '').startsWith('880') ? (settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453').replace(/\D/g, '') : `88${(settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453').replace(/\D/g, '').startsWith('01') ? (settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453').replace(/\D/g, '') : `0${(settings.whatsappNumber || settings.footer?.whatsappNumber || '01724628453').replace(/\D/g, '')}`}`}?text=${encodeURIComponent(settings.whatsappMessage || 'হ্যালো সেরা ফ্যাশন, টেস্ট মেসেজ')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-1.5 bg-[#25D366] hover:bg-[#1ebe57] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <MessageCircle size={13} />
+                      <span>WhatsApp টেস্ট করুন</span>
+                    </a>
+                    <a
+                      href={`tel:${(settings.helplinePhone || settings.footer?.phone || '01724628453').replace(/[^\d+]/g, '')}`}
+                      className="px-3.5 py-1.5 bg-slate-900 hover:bg-black text-amber-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Phone size={13} />
+                      <span>কল টেস্ট করুন</span>
+                    </a>
+                  </div>
+                </div>
               </div>
 
               {/* Facebook Page Link Settings */}

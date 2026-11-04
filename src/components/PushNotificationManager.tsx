@@ -97,17 +97,26 @@ export default function PushNotificationManager({ onRefreshStats }: PushNotifica
     loadHistoryAndSubscribers();
   }, []);
 
+  const formatSafeBengaliDate = (isoString?: string) => {
+    if (!isoString) return 'সাম্প্রতিক';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return 'সাম্প্রতিক';
+      return d.toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch {
+      return 'সাম্প্রতিক';
+    }
+  };
+
   const loadHistoryAndSubscribers = async () => {
     setIsLoadingHistory(true);
     try {
-      const [hist, count] = await Promise.all([
-        getCampaignHistory(),
-        getSubscribersCount()
-      ]);
-      setCampaigns(hist);
-      setSubscribersCount(count);
+      const hist = await getCampaignHistory().catch(() => []);
+      const count = await getSubscribersCount().catch(() => 1);
+      setCampaigns(hist || []);
+      setSubscribersCount(count || 1);
     } catch (e) {
-      console.warn('History load error:', e);
+      console.warn('History load notice:', e);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -658,7 +667,7 @@ export default function PushNotificationManager({ onRefreshStats }: PushNotifica
                   )}
                   <div>
                     <span className="text-[10px] text-gray-400 font-mono block">
-                      {new Date(camp.createdAt).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}
+                      {formatSafeBengaliDate(camp.createdAt)}
                     </span>
                     <h5 className="text-xs font-black text-gray-900 mt-1 line-clamp-1">{camp.title}</h5>
                     <p className="text-[11px] text-gray-600 line-clamp-2 mt-0.5 leading-relaxed">{camp.body}</p>

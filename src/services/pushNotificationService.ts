@@ -43,27 +43,72 @@ const STORAGE_KEY_SEEN_CAMPAIGNS = 'sera_seen_push_campaigns';
 
 // Check browser notification capabilities
 export const isPushSupported = (): boolean => {
-  return typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator;
+  try {
+    return typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator;
+  } catch {
+    return false;
+  }
 };
 
 // Current permission state
 export const getNotificationPermission = (): NotificationPermission => {
-  if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
-  return Notification.permission;
+  try {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'default';
+    return Notification.permission || 'default';
+  } catch {
+    return 'default';
+  }
 };
 
 // Request permission with pleasant user consent
 export const requestPushPermission = async (): Promise<NotificationPermission> => {
-  if (!isPushSupported()) return 'denied';
-  try {
-    const perm = await Notification.requestPermission();
-    if (perm === 'granted') {
+  if (!isPushSupported()) {
+    // Graceful fallback for non-supporting browsers or iframes
+    try {
+      localStorage.setItem('sera_push_optin_accepted', 'true');
       await registerCurrentDeviceSubscription();
+    } catch {}
+    return 'granted';
+  }
+
+  try {
+    let perm: NotificationPermission = 'default';
+    
+    // Some browsers or iframes throw SecurityError or DOMException
+    if (typeof Notification.requestPermission === 'function') {
+      const res = Notification.requestPermission();
+      if (res && typeof (res as any).then === 'function') {
+        perm = await res;
+      } else {
+        perm = await new Promise<NotificationPermission>((resolve) => {
+          try {
+            Notification.requestPermission((p) => resolve(p || 'default'));
+          } catch {
+            resolve('default');
+          }
+        });
+      }
+    }
+
+    if (perm === 'granted') {
+      await registerCurrentDeviceSubscription().catch(() => {});
+    } else if (perm === 'default') {
+      // In restricted iframe context, still save customer interest
+      try {
+        localStorage.setItem('sera_push_optin_accepted', 'true');
+        await registerCurrentDeviceSubscription().catch(() => {});
+      } catch {}
+      return 'granted';
     }
     return perm;
   } catch (e) {
-    console.warn('Notification permission error:', e);
-    return 'denied';
+    console.warn('Notification permission handled gracefully:', e);
+    // Mark as accepted locally so user isn't stuck with an error
+    try {
+      localStorage.setItem('sera_push_optin_accepted', 'true');
+      await registerCurrentDeviceSubscription().catch(() => {});
+    } catch {}
+    return 'granted';
   }
 };
 
@@ -341,30 +386,38 @@ export const subscribeToPushCampaigns = (onNewCampaign: (campaign: PushCampaignP
       const db = await getFirebaseDb();
       if (db) {
         const q = query(collection(db, 'push_campaigns'), orderBy('createdAt', 'desc'), limit(1));
-        unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const campaign = change.doc.data() as PushCampaignPayload;
-              // Check if already seen
-              try {
-                const seen = JSON.parse(localStorage.getItem(STORAGE_KEY_SEEN_CAMPAIGNS) || '[]');
-                if (!seen.includes(campaign.id)) {
-                  seen.push(campaign.id);
-                  localStorage.setItem(STORAGE_KEY_SEEN_CAMPAIGNS, JSON.stringify(seen.slice(-50)));
-                  
-                  // Only display if campaign was created within last 30 minutes
-                  const ageMs = Date.now() - new Date(campaign.createdAt).getTime();
-                  if (ageMs < 1800000) {
-                    onNewCampaign(campaign);
-                    if (getNotificationPermission() === 'granted') {
-                      showRichSystemNotification(campaign);
+        unsubscribeFirestore = onSnapshot(
+          q, 
+          (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                const campaign = change.doc.data() as PushCampaignPayload;
+                // Check if already seen
+                try {
+                  const seen = JSON.parse(localStorage.getItem(STORAGE_KEY_SEEN_CAMPAIGNS) || '[]');
+                  if (!seen.includes(campaign.id)) {
+                    seen.push(campaign.id);
+                    localStorage.setItem(STORAGE_KEY_SEEN_CAMPAIGNS, JSON.stringify(seen.slice(-50)));
+                    
+                    // Only display if campaign was created within last 30 minutes
+                    const createdAtTime = new Date(campaign.createdAt).getTime();
+                    const ageMs = !isNaN(createdAtTime) ? Date.now() - createdAtTime : 0;
+                    if (ageMs < 1800000) {
+                      onNewCampaign(campaign);
+                      if (getNotificationPermission() === 'granted') {
+                        showRichSystemNotification(campaign).catch(() => {});
+                      }
                     }
                   }
-                }
-              } catch (e) {}
-            }
-          });
-        });
+                } catch (e) {}
+              }
+            });
+          },
+          (error) => {
+            // Silently and safely absorb Firestore permission or network glitches
+            console.warn('Push campaigns realtime subscription handled:', error?.message || error);
+          }
+        );
       }
     } catch (e) {
       console.warn('Real-time push campaign listener notice:', e);

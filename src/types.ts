@@ -177,6 +177,9 @@ export interface BrandSettings {
   socialLogoUrl?: string;
   faviconUrl?: string;
   facebookUrl?: string;
+  helplinePhone?: string;
+  whatsappNumber?: string;
+  whatsappMessage?: string;
   telegramToken?: string;
   telegramChatId?: string;
   soundEnabled?: boolean;

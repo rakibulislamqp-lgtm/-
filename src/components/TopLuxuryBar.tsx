@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   RotateCcw, Crown, User, ShieldCheck, Sparkles, 
-  MoreVertical, Layers, ChevronRight, Check, X, Box, Tag, Flame, BellRing
+  MoreVertical, Layers, ChevronRight, Check, X, Box, Tag, Flame
 } from 'lucide-react';
 import { CustomerUser, ProductCategoryItem } from '../types';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
@@ -286,31 +286,7 @@ export default function TopLuxuryBar({
             </div>
           </div>
 
-          {/* 3. Notifications & Special Offers (নতুন অফার ও নোটিফিকেশন হাব) */}
-          <div className="relative group">
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('open_notification_drawer'))}
-              aria-label="নোটিফিকেশন ও অফার"
-              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 hover:text-white border border-rose-400/40 hover:border-rose-300 ring-2 ring-rose-400/20 shadow-md backdrop-blur-sm transition-all duration-200 cursor-pointer"
-            >
-              <BellRing size={16} className="group-hover:rotate-12 transition-transform duration-300" />
-              {/* Micro badge: OFFER */}
-              <span className="absolute -top-1 -right-1 px-1 py-0.2 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[7.5px] font-black rounded-full border border-slate-950 leading-none shadow-xs animate-pulse">
-                NEW
-              </span>
-            </motion.button>
-            {/* Sleek Floating Tooltip */}
-            <div className="absolute top-full right-0 mt-2 px-2.5 py-1 bg-slate-900/95 backdrop-blur-md text-rose-300 text-[10.5px] font-bold rounded-xl border border-rose-500/30 shadow-2xl shadow-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover:translate-y-0">
-              <span className="flex items-center gap-1">
-                <Sparkles size={11} className="text-amber-400" />
-                <span>নতুন অফার ও নোটিফিকেশন</span>
-              </span>
-              <div className="absolute -top-1 right-3 w-2 h-2 bg-slate-900 rotate-45 border-l border-t border-rose-500/30" />
-            </div>
-          </div>
+
 
           {/* 4. Customer Login / Account Icon (কাস্টমার লগইন / রেজিস্ট্রেশন) */}
           <div className="relative group">

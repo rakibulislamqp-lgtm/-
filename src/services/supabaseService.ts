@@ -443,15 +443,23 @@ export const supabaseSaveVisitorSession = async (session: VisitorSession): Promi
 
 export const subscribeSupabaseOrders = (onUpdate: () => void) => {
   try {
+    const channelId = `orders_rt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const channel = supabase
-      .channel('public:orders')
+      .channel(channelId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         onUpdate();
-      })
-      .subscribe();
+      });
+
+    channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn('Supabase orders realtime channel status:', status);
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {}
     };
   } catch (err) {
     console.warn('Supabase orders realtime subscription error:', err);
@@ -461,15 +469,23 @@ export const subscribeSupabaseOrders = (onUpdate: () => void) => {
 
 export const subscribeSupabaseProducts = (onUpdate: () => void) => {
   try {
+    const channelId = `products_rt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const channel = supabase
-      .channel('public:products')
+      .channel(channelId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
         onUpdate();
-      })
-      .subscribe();
+      });
+
+    channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn('Supabase products realtime channel status:', status);
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {}
     };
   } catch (err) {
     console.warn('Supabase products realtime subscription error:', err);

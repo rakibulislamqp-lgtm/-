@@ -11,7 +11,6 @@ import CustomerInfo from './components/CustomerInfo';
 import ProductSection from './components/ProductSection';
 import PaymentSection from './components/PaymentSection';
 import ReturnPolicy from './components/ReturnPolicy';
-import FacebookFollow from './components/FacebookFollow';
 import ReviewSection from './components/ReviewSection';
 import SpinWheelModal from './components/SpinWheelModal';
 import SuccessView from './components/SuccessView';
@@ -945,11 +944,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    <FacebookFollow 
-                      facebookUrl={facebookUrl} 
-                      onOpenChange={setIsFbGateOpen}
-                      logoUrl={brandSettingsObj?.socialLogoUrl || logoUrl}
-                    />
 
                     <ProductShowcase 
                       selectedCategory={selectedCategory}
@@ -1250,16 +1244,20 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-4xl max-h-[90vh] overflow-y-auto"
             >
-              <ReturnPolicy onClose={() => setShowReturnPolicy(false)} />
+              <ReturnPolicy 
+                brandSettings={brandSettingsObj} 
+                onClose={() => setShowReturnPolicy(false)} 
+              />
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
       
+      {/* Floating Facebook Messenger / Page Button beside Notification Orb */}
       {view === 'form' && !isSubmitted && (
         <div className={`fixed right-3 sm:right-6 z-40 transition-all duration-300 ${cart.length > 0 ? 'bottom-[92px]' : 'bottom-4 sm:bottom-6'}`}>
           <div className="relative flex items-center justify-center group">
-            {/* Attractive Bengali Callout Badge (মেসেজ দিন) with subtle bounce */}
+            {/* Attractive Bengali Callout Badge (মেসেজ দিন) on larger screens */}
             <a
               href={facebookUrl}
               onClick={handleOpenFacebook}
@@ -1269,7 +1267,7 @@ export default function App() {
               <span>ফেসবুকে কথা বলুন</span>
             </a>
 
-            {/* Gentle Slow-Motion Breeze Waves from behind/inside the icon (বাতাস ও নরম ঢেউ) */}
+            {/* Gentle Slow-Motion Breeze Waves behind the icon */}
             <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/35 via-sky-400/25 to-[#1877F2]/15 animate-fb-wave-1 pointer-events-none" />
             <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/25 via-sky-400/20 to-[#1877F2]/10 animate-fb-wave-2 pointer-events-none" />
             <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1877F2]/18 via-sky-400/15 to-[#1877F2]/5 animate-fb-wave-3 pointer-events-none" />
@@ -1277,7 +1275,7 @@ export default function App() {
             <a 
               href={facebookUrl}
               onClick={handleOpenFacebook}
-              className="relative z-10 w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-105 active:scale-95 transition-all duration-300 group touch-manipulation animate-fb-glow"
+              className="relative z-10 w-13 h-13 sm:w-16 sm:h-16 bg-[#1877F2] rounded-full flex items-center justify-center border-4 border-white cursor-pointer hover:bg-[#1565C0] hover:scale-105 active:scale-95 transition-all duration-300 group touch-manipulation animate-fb-glow shadow-xl shadow-[#1877F2]/30"
               title="SERA FASHION ফেসবুক পেজ - সরাসরি মেসেজ দিন"
               aria-label="SERA FASHION Facebook Page"
             >
@@ -1297,6 +1295,8 @@ export default function App() {
           </div>
         </div>
       )}
+      
+
 
       {view === 'form' && !isSubmitted && (
         <SpinWheelModal 
@@ -1371,7 +1371,7 @@ export default function App() {
       {view === 'form' && !isSubmitted && (
         <SocialProofPopup 
           cartLength={cart.length}
-          enabled={!isFbGateOpen && !isSpinModalOpen && !showTrackingModal && !showLoyaltyModal}
+          enabled={!isSpinModalOpen && !showTrackingModal && !showLoyaltyModal}
           brandSettings={brandSettingsObj}
           onSelectProduct={(product) => {
             handleAddToCart(product, 1, 'Free Size');

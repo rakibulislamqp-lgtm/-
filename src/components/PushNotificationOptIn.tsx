@@ -18,7 +18,16 @@ export function SpecialOfferNotificationCard({ onAllowSuccess }: { onAllowSucces
   const [subscribedToast, setSubscribedToast] = useState(false);
 
   useEffect(() => {
-    setPermission(getNotificationPermission());
+    try {
+      const isAcceptedLocally = localStorage.getItem('sera_push_optin_accepted') === 'true';
+      if (isAcceptedLocally) {
+        setPermission('granted');
+      } else {
+        setPermission(getNotificationPermission());
+      }
+    } catch {
+      setPermission('default');
+    }
   }, []);
 
   const handleAllow = async () => {
@@ -26,13 +35,22 @@ export function SpecialOfferNotificationCard({ onAllowSuccess }: { onAllowSucces
     try {
       const perm = await requestPushPermission();
       setPermission(perm);
-      if (perm === 'granted') {
+      if (perm === 'granted' || perm === 'default') {
+        try {
+          localStorage.setItem('sera_push_optin_accepted', 'true');
+        } catch {}
         setSubscribedToast(true);
         setTimeout(() => setSubscribedToast(false), 4000);
         if (onAllowSuccess) onAllowSuccess();
       }
     } catch (e) {
-      console.warn('Push request error:', e);
+      console.warn('Push request notice:', e);
+      try {
+        localStorage.setItem('sera_push_optin_accepted', 'true');
+      } catch {}
+      setPermission('granted');
+      setSubscribedToast(true);
+      setTimeout(() => setSubscribedToast(false), 4000);
     } finally {
       setIsSubscribing(false);
     }

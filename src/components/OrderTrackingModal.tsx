@@ -4,11 +4,18 @@ import {
   Search, X, Copy, Check, Share2, Package, CheckCircle2, 
   MapPin, Phone, User, FileText, Download, 
   Sparkles, RefreshCw, AlertCircle, Tag, Gift,
-  Eye, Truck, Award, HeartHandshake, ShoppingBag
+  Eye, Truck, Award, HeartHandshake, ShoppingBag,
+  Lock, ShieldCheck, KeyRound, Plus, ShieldAlert
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { Order, OrderStatus } from '../types';
-import { getOrderForTracking, getMyCustomerOrdersLocally, saveCustomerOrderLocally } from '../services/orderService';
+import { 
+  getSecureOrderForTracking, 
+  getOrderForTracking, 
+  getMyCustomerOrdersLocally, 
+  saveCustomerOrderLocally,
+  isMyDeviceOrder 
+} from '../services/orderService';
 import { DigitalInvoice } from './DigitalInvoice';
 
 interface OrderTrackingModalProps {
@@ -18,104 +25,131 @@ interface OrderTrackingModalProps {
 }
 
 export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: OrderTrackingModalProps) {
-  const [searchQuery, setSearchQuery] = useState(initialOrderId || '');
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [myCustomerOrders, setMyCustomerOrders] = useState<Order[]>([]);
   const [copiedLink, setCopiedLink] = useState(false);
   const [downloadingPos, setDownloadingPos] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [manualSearchDone, setManualSearchDone] = useState(false);
+
+  // Secure 2-Factor Verification States
+  const [verifyOrderId, setVerifyOrderId] = useState('');
+  const [verifyMobile, setVerifyMobile] = useState('');
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [showAddOtherOrder, setShowAddOtherOrder] = useState(false);
+  const [pendingUnverifiedOrderId, setPendingUnverifiedOrderId] = useState<string | null>(null);
 
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      loadInitialOrder();
+      loadCustomerOrders();
     }
   }, [isOpen, initialOrderId]);
 
-  const loadInitialOrder = async () => {
-    setManualSearchDone(false);
+  const loadCustomerOrders = async () => {
+    setVerificationError(null);
     setLoading(true);
 
     try {
-      // 1. If explicit initialOrderId is passed (e.g. from Success View or link)
-      if (initialOrderId) {
-        setSearchQuery(initialOrderId);
-        const result = await getOrderForTracking(initialOrderId);
-        if (result) {
-          setOrder(result);
-          saveCustomerOrderLocally(result);
-          setMyCustomerOrders(getMyCustomerOrdersLocally());
+      // 1. First, load all orders securely saved on this customer's device
+      const localOrders = getMyCustomerOrdersLocally();
+      setMyCustomerOrders(localOrders);
+
+      // 2. If a specific order ID was requested (e.g. from Success View, Customer Portal, or shared link)
+      if (initialOrderId && initialOrderId.trim()) {
+        const cleanId = initialOrderId.trim();
+        
+        // If this device is the verified owner of this order (placed on this device)
+        if (isMyDeviceOrder(cleanId)) {
+          const res = await getSecureOrderForTracking(cleanId, undefined, true);
+          if (res.order) {
+            setOrder(res.order);
+            saveCustomerOrderLocally(res.order);
+            setMyCustomerOrders(getMyCustomerOrdersLocally());
+            setLoading(false);
+            return;
+          }
+        } else {
+          // If accessing an order from another device via link, prompt for mobile number verification
+          setPendingUnverifiedOrderId(cleanId);
+          setVerifyOrderId(cleanId);
+          setOrder(null);
           setLoading(false);
           return;
         }
       }
 
-      // 2. Load customer's own saved orders from local storage
-      const localMyOrders = getMyCustomerOrdersLocally();
-      setMyCustomerOrders(localMyOrders);
-
-      if (localMyOrders && localMyOrders.length > 0) {
-        const latestOrder = localMyOrders[0];
-        const targetId = latestOrder.orderId || latestOrder.id;
+      // 3. If customer has orders on this device, automatically open their latest order
+      if (localOrders && localOrders.length > 0) {
+        const latest = localOrders[0];
+        const targetId = latest.orderId || latest.id;
         if (targetId) {
-          setSearchQuery(targetId);
-          // Try fetching fresh database status so any admin status updates show real-time
-          const freshOrder = await getOrderForTracking(targetId);
-          if (freshOrder) {
-            setOrder(freshOrder);
-            saveCustomerOrderLocally(freshOrder);
+          // Try fetching fresh status from cloud so courier / dispatch updates appear live
+          const fresh = await getSecureOrderForTracking(targetId, undefined, true);
+          if (fresh.order) {
+            setOrder(fresh.order);
+            saveCustomerOrderLocally(fresh.order);
             setLoading(false);
             return;
           }
         }
-        setOrder(latestOrder);
+        setOrder(latest);
         setLoading(false);
         return;
       }
 
-      // 3. Check if phone number is saved
-      const savedMobile = localStorage.getItem('sera_my_last_mobile');
-      if (savedMobile) {
-        setSearchQuery(savedMobile);
-        const freshByMobile = await getOrderForTracking(savedMobile);
-        if (freshByMobile) {
-          setOrder(freshByMobile);
-          saveCustomerOrderLocally(freshByMobile);
-          setMyCustomerOrders(getMyCustomerOrdersLocally());
-          setLoading(false);
-          return;
-        }
-      }
-
-      // 4. No order found for this specific customer/device
+      // 4. No order found on this device
       setOrder(null);
     } catch (err) {
-      console.error("Failed to load customer order for tracking:", err);
+      console.error("Failed to load customer order securely:", err);
       setOrder(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleManualSearch = async () => {
-    if (!searchQuery.trim()) return;
+  // Secure 2-Factor Order Verification Handler (Requires BOTH matching Order ID & Mobile Number)
+  const handleVerifyOrder = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const idToVerify = (pendingUnverifiedOrderId || verifyOrderId).trim();
+    const mobileToVerify = verifyMobile.trim();
+
+    if (!idToVerify || !mobileToVerify) {
+      setVerificationError('অনুগ্রহ করে অর্ডার আইডি এবং অর্ডারে ব্যবহৃত মোবাইল নম্বর দুটিই প্রদান করুন।');
+      return;
+    }
+
+    if (mobileToVerify.replace(/\D/g, '').length < 10) {
+      setVerificationError('সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন (যেমন: 017XXXXXXXX)।');
+      return;
+    }
+
     setLoading(true);
-    setManualSearchDone(true);
+    setVerificationError(null);
+
     try {
-      const result = await getOrderForTracking(searchQuery);
-      if (result) {
-        setOrder(result);
-        saveCustomerOrderLocally(result);
+      const res = await getSecureOrderForTracking(idToVerify, mobileToVerify, false);
+
+      if (res.order) {
+        setOrder(res.order);
+        saveCustomerOrderLocally(res.order);
         setMyCustomerOrders(getMyCustomerOrdersLocally());
+        setVerificationError(null);
+        setPendingUnverifiedOrderId(null);
+        setShowAddOtherOrder(false);
+        setVerifyOrderId('');
+        setVerifyMobile('');
       } else {
-        setOrder(null);
+        if (res.error === 'phone_mismatch') {
+          setVerificationError('প্রদত্ত মোবাইল নম্বরটি এই অর্ডারের রেকর্ডের সাথে মিলছে না! নিরাপত্তার স্বার্থে শুধুমাত্র সঠিক তথ্যের মাধ্যমেই অর্ডার দেখা সম্ভব।');
+        } else {
+          setVerificationError('উক্ত অর্ডার আইডি এবং মোবাইল নম্বর দিয়ে কোনো অর্ডার পাওয়া যায়নি। অনুগ্রহ করে সঠিক তথ্য দিয়ে পুনরায় চেষ্টা করুন।');
+        }
       }
     } catch (err) {
-      console.error("Failed manual search:", err);
-      setOrder(null);
+      console.error("Secure verification failed:", err);
+      setVerificationError('ভেরিফিকেশন প্রক্রিয়ায় সমস্যা হয়েছে। অনুগ্রহ করে ইন্টারনেট কানেকশন চেক করে আবার চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
@@ -123,7 +157,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
 
   if (!isOpen) return null;
 
-  // Generate unique order taking link
+  // Generate unique order link
   const trackingUrl = order 
     ? `${window.location.origin}/?track=${order.orderId}`
     : '';
@@ -188,14 +222,14 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto font-sans">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-amber-100/60 max-h-[92vh] flex flex-col"
         >
-          {/* Top Header with Vehicle Icon and Title */}
+          {/* Top Header with Security Badge and Vehicle Icon */}
           <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-zinc-900 to-slate-950 text-white flex items-center justify-between shrink-0 border-b border-amber-500/20">
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-center justify-center p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 shadow-inner">
@@ -204,12 +238,13 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
               <div>
                 <h3 className="text-base sm:text-lg font-serif font-black text-white tracking-wide flex items-center gap-2">
                   অর্ডার চেক করুন
-                  <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Product & Order Documents
+                  <span className="bg-emerald-500 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                    <ShieldCheck size={11} />
+                    প্রাইভেসি সুরক্ষিত
                   </span>
                 </h3>
                 <p className="text-[11px] text-slate-300 font-medium">
-                  পণ্যের বিবরণী, সাইজ, কোড, কাস্টমার এড্রেস, কুপন/স্পিন হুইল বিজয়ী ছাড় ও ক্যাশমেমো
+                  শুধুমাত্র আপনার নিজস্ব অর্ডার ও ডেলিভারি ডকুমেন্টস নিরাপদে দেখার সুবিধা
                 </p>
               </div>
             </div>
@@ -217,6 +252,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
+              title="বন্ধ করুন"
             >
               <X size={18} />
             </button>
@@ -234,13 +270,27 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
             ) : order ? (
               <div className="space-y-6">
 
-                {/* MY ORDERS TAB STRIP (If customer has placed multiple orders on this device) */}
-                {myCustomerOrders.length > 1 && (
+                {/* MY ORDERS TAB STRIP (Only customer's own saved orders on this device) */}
+                {myCustomerOrders.length > 0 && (
                   <div className="bg-slate-100 p-3 rounded-2xl border border-slate-200/80 space-y-2">
-                    <p className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
-                      <Package size={14} className="text-amber-600" />
-                      আপনার পূর্বে প্রদত্ত অর্ডারসমূহ ({myCustomerOrders.length} টি):
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                        <Package size={14} className="text-amber-600" />
+                        আপনার অর্ডারসমূহ ({myCustomerOrders.length} টি):
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddOtherOrder(prev => !prev);
+                          setVerificationError(null);
+                        }}
+                        className="text-[10px] text-amber-900 bg-amber-200/80 hover:bg-amber-300 font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus size={12} />
+                        <span>{showAddOtherOrder ? 'বাতিল' : 'অন্য অর্ডার ভেরিফাই করুন'}</span>
+                      </button>
+                    </div>
+
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
                       {myCustomerOrders.map((myOrd, idx) => {
                         const targetId = myOrd.orderId || myOrd.id;
@@ -252,10 +302,10 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                             onClick={async () => {
                               setOrder(myOrd);
                               if (targetId) {
-                                const fresh = await getOrderForTracking(targetId);
-                                if (fresh) {
-                                  setOrder(fresh);
-                                  saveCustomerOrderLocally(fresh);
+                                const fresh = await getSecureOrderForTracking(targetId, undefined, true);
+                                if (fresh.order) {
+                                  setOrder(fresh.order);
+                                  saveCustomerOrderLocally(fresh.order);
                                 }
                               }
                             }}
@@ -276,6 +326,63 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                       })}
                     </div>
                   </div>
+                )}
+
+                {/* Collapsible: Secure Add Another Order from Other Device */}
+                {showAddOtherOrder && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                      <Lock size={14} className="text-amber-600" />
+                      <span>আপনার অন্য কোনো অর্ডার ভেরিফাই করে যোগ করুন</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      নিরাপত্তার স্বার্থে সঠিক অর্ডার আইডি এবং অর্ডারে ব্যবহৃত মোবাইল নম্বর দুটিই প্রয়োজন:
+                    </p>
+                    <form onSubmit={handleVerifyOrder} className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={verifyOrderId}
+                          onChange={(e) => setVerifyOrderId(e.target.value)}
+                          placeholder="অর্ডার আইডি (যেমন: SERA-123456)"
+                          className="px-3.5 py-2.5 bg-white text-slate-900 font-mono text-xs rounded-xl border border-amber-300 outline-none focus:border-amber-500"
+                        />
+                        <input
+                          type="tel"
+                          value={verifyMobile}
+                          onChange={(e) => setVerifyMobile(e.target.value)}
+                          placeholder="মোবাইল নম্বর (যেমন: 017XXXXXXXX)"
+                          className="px-3.5 py-2.5 bg-white text-slate-900 font-sans text-xs rounded-xl border border-amber-300 outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddOtherOrder(false)}
+                          className="px-3 py-1.5 text-xs text-slate-600 font-bold hover:bg-slate-200 rounded-lg"
+                        >
+                          বাতিল
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading || !verifyOrderId.trim() || !verifyMobile.trim()}
+                          className="px-4 py-1.5 bg-slate-900 hover:bg-black text-amber-400 font-bold text-xs rounded-xl shadow-xs disabled:opacity-50"
+                        >
+                          ভেরিফাই করুন 🔒
+                        </button>
+                      </div>
+                    </form>
+                    {verificationError && (
+                      <p className="text-xs text-rose-600 font-bold bg-white p-2 rounded-xl border border-rose-200">
+                        {verificationError}
+                      </p>
+                    )}
+                  </motion.div>
                 )}
 
                 {/* 1. PRODUCT DETAILS & FINANCIAL BREAKDOWN DOCUMENT */}
@@ -395,13 +502,17 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                   </div>
                 </div>
 
-                {/* 2. CUSTOMER NAME & DELIVERY ADDRESS */}
+                {/* 2. CUSTOMER NAME & DELIVERY ADDRESS (PRIVACY-PROTECTED) */}
                 <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-lg space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                     <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
                       <User size={16} className="text-amber-400" />
                       কাস্টমার ও ডেলিভারি তথ্য (Customer & Shipping Details)
                     </h4>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <ShieldCheck size={11} />
+                      ভেরিফাইড অর্ডার
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-200">
@@ -440,7 +551,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                         POS ইনভয়েস ক্যাশমেমো (HD POS Cash Memo)
                       </h4>
                       <p className="text-[10.5px] text-slate-300 mt-0.5">
-                        সরাসরি কাস্টমার তার ফোনের গ্যালারিতে ক্যাশমেমো ছবি আকারে ডাউনলোড করে নিতে পারবেন।
+                        সরাসরি আপনার ফোনের গ্যালারিতে ক্যাশমেমো ছবি আকারে ডাউনলোড করে নিতে পারবেন।
                       </p>
                     </div>
 
@@ -533,7 +644,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                   )}
                 </div>
 
-                {/* 5. GENERATED UNIQUE SHAREABLE LINK (WITH ONLY COPY LINK BUTTON) */}
+                {/* 5. GENERATED UNIQUE SHAREABLE LINK */}
                 <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-4 sm:p-5 rounded-2xl border border-amber-200/80 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
@@ -575,7 +686,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                     <HeartHandshake size={20} className="text-amber-400 animate-pulse" />
                   </div>
                   <h4 className="font-serif font-black text-sm uppercase tracking-wide text-slate-950">
-                    সেরা ফ্যাশন (SERA FASHION) তে কেনাকাটা করার জন্য আপনাকে আন্তরিক ধন্যবাদ ও শুভকামনা! 🌸
+                    সেরা ফ্যাশন (SERA FASHION) এ কেনাকাটা করার জন্য আপনাকে আন্তরিক ধন্যবাদ ও শুভকামনা! 🌸
                   </h4>
                   <p className="text-xs font-semibold leading-relaxed max-w-lg mx-auto text-slate-900">
                     আপনার আস্থা ও ভালোবাসাই আমাদের মূল প্রেরণা। প্রতিটি পোশাকে ১০০% প্রিমিয়াম ফেব্রিক্স এবং নিপুণ কারুকাজ নিশ্চিত করতে আমরা প্রতিশ্রুতিবদ্ধ। দ্রুত ও নিরাপদে ডেলিভারি পেয়ে আপনার অভিজ্ঞতা আমাদের সাথে শেয়ার করার বিনীত অনুরোধ রইলো। শুভকামনা নিরন্তর!
@@ -600,91 +711,94 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                   </a>
                 </div>
 
-                {/* 8. [EXACTLY AT THE VERY BOTTOM - OPTIONAL] SUBMIT LINK OR SEARCH OTHER ORDER */}
-                <div className="pt-4 border-t border-slate-200 mt-8">
-                  <div className="bg-slate-100 p-4 sm:p-5 rounded-2xl border border-slate-300/80 space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                      <Search size={16} className="text-amber-600" />
-                      <span>অন্য কোনো অর্ডারের লিংক বা আইডি দিয়ে চেক করতে চান? (ঐচ্ছিক)</span>
-                    </div>
-
-                    <p className="text-[11px] text-slate-600 font-medium">
-                      নিচের ঘরে অন্য অর্ডারের লিংক বা SERA আইডি সাবমিট করে উক্ত অর্ডারের বিস্তারিত ডেলিভারি বিবরণী দেখতে পারবেন।
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
-                        placeholder="যেমন: SERA-123456 বা অন্য ট্র্যাকিং লিংক"
-                        className="w-full px-3.5 py-2.5 bg-white text-slate-900 placeholder-slate-400 font-mono text-xs rounded-xl border border-slate-300 outline-none focus:border-amber-500 shadow-2xs"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={handleManualSearch}
-                        disabled={loading || !searchQuery.trim()}
-                        className="px-5 py-2.5 bg-slate-900 hover:bg-black text-amber-400 font-bold text-xs rounded-xl transition-all shrink-0 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
-                      >
-                        {loading ? <RefreshCw size={14} className="animate-spin text-amber-400" /> : <Search size={14} />}
-                        <span>সাবমিট ও ডেলিভারি ডিটেইলস</span>
-                      </button>
-                    </div>
-
-                    {manualSearchDone && !order && (
-                      <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
-                        সঠিক লিংক বা আইডি পাওয়া যায়নি। দয়া করে পুনরায় চেক করুন।
-                      </p>
-                    )}
-                  </div>
-                </div>
-
               </div>
             ) : (
-              <div className="py-10 px-4 text-center space-y-6 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
-                <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto shadow-sm border border-amber-200">
-                  <ShoppingBag size={32} />
+              /* SECURE 2-FACTOR VERIFICATION SCREEN (NO UNPROTECTED SNOOPING ALLOWED) */
+              <div className="py-8 px-4 text-center space-y-6 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner max-w-lg mx-auto">
+                <div className="w-16 h-16 bg-gradient-to-tr from-slate-950 via-zinc-900 to-slate-950 text-amber-400 rounded-full flex items-center justify-center mx-auto shadow-lg border-2 border-amber-400/40">
+                  <Lock size={28} className="text-amber-400" />
                 </div>
                 
-                <div className="space-y-2 max-w-md mx-auto">
-                  <h4 className="text-base font-black text-slate-900 font-serif">
-                    আপনার কোনো পূর্ববর্তী অর্ডার পাওয়া যায়নি
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-900 text-[11px] font-black uppercase tracking-wider border border-amber-300">
+                    <ShieldCheck size={13} className="text-amber-600" />
+                    <span>অর্ডার প্রাইভেসি ও সিকিউরিটি প্রোটেকশন</span>
+                  </div>
+                  <h4 className="text-base sm:text-lg font-black text-slate-900 font-serif">
+                    আপনার নিজস্ব অর্ডার ভেরিফাই করুন
                   </h4>
                   <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                    আপনি এই ব্রাউজার বা ডিভাইস থেকে এখনও কোনো পণ্য অর্ডার সম্পন্ন করেননি। আপনার পূর্বে দেওয়া কোনো অর্ডার থাকলে আপনার <strong className="text-slate-900 font-bold">মোবাইল নম্বর</strong> (যেমন: 01712345678) অথবা <strong className="text-slate-900 font-bold">অর্ডার আইডি</strong> (যেমন: SERA-123456) নিচে লিখে সার্চ করুন।
+                    {pendingUnverifiedOrderId ? (
+                      <>
+                        অর্ডার <strong className="text-slate-900 font-mono">#{pendingUnverifiedOrderId}</strong> এর বিবরণ দেখতে নিরাপত্তার স্বার্থে অর্ডারে ব্যবহৃত মোবাইল নম্বরটি লিখুন।
+                      </>
+                    ) : (
+                      <>
+                        এই ডিভাইসে আপনার কোনো পূর্ববর্তী অর্ডার রেকর্ড পাওয়া যায়নি। অন্য ডিভাইস থেকে অর্ডার করে থাকলে আপনার নিজস্ব অর্ডার চেক করতে নিচের <strong className="text-slate-900 font-bold">অর্ডার আইডি</strong> ও <strong className="text-slate-900 font-bold">মোবাইল নম্বর</strong> দুটিই প্রদান করে ভেরিফাই করুন:
+                      </>
+                    )}
                   </p>
                 </div>
 
-                <div className="max-w-md mx-auto space-y-3">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
-                      placeholder="যেমন: 01712345678 বা SERA-123456"
-                      className="w-full px-4 py-3 bg-white text-slate-900 placeholder-slate-400 font-sans text-xs rounded-xl border border-slate-300 outline-none focus:border-amber-500 shadow-2xs font-bold"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={handleManualSearch}
-                      disabled={loading || !searchQuery.trim()}
-                      className="px-6 py-3 bg-slate-950 hover:bg-black text-amber-400 font-black text-xs rounded-xl transition-all shrink-0 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
-                    >
-                      {loading ? <RefreshCw size={15} className="animate-spin text-amber-400" /> : <Search size={15} />}
-                      <span>অর্ডার খুঁজুন</span>
-                    </button>
-                  </div>
-
-                  {manualSearchDone && !order && (
-                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center justify-center gap-2">
-                      <AlertCircle size={16} className="text-rose-600 shrink-0" />
-                      <span>উক্ত মোবাইল নম্বর বা আইডি দিয়ে কোনো অর্ডার পাওয়া যায়নি। সঠিক তথ্য দিয়ে ট্রাই করুন।</span>
+                <form onSubmit={handleVerifyOrder} className="space-y-3.5 text-left bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  {!pendingUnverifiedOrderId && (
+                    <div>
+                      <label className="text-[11px] font-black text-slate-700 block mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag size={13} className="text-amber-600" />
+                        <span>১. অর্ডার আইডি (Order ID):</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={verifyOrderId}
+                        onChange={(e) => setVerifyOrderId(e.target.value)}
+                        placeholder="যেমন: SERA-123456"
+                        className="w-full px-4 py-3 bg-slate-50 text-slate-900 placeholder-slate-400 font-mono text-xs rounded-xl border border-slate-300 outline-none focus:border-amber-500 focus:bg-white shadow-2xs font-bold"
+                        required
+                      />
                     </div>
                   )}
+
+                  <div>
+                    <label className="text-[11px] font-black text-slate-700 block mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                      <Phone size={13} className="text-emerald-600" />
+                      <span>{pendingUnverifiedOrderId ? 'অর্ডারে ব্যবহৃত মোবাইল নম্বর লিখুন:' : '২. অর্ডারে ব্যবহৃত মোবাইল নম্বর:'}</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={verifyMobile}
+                      onChange={(e) => setVerifyMobile(e.target.value)}
+                      placeholder="যেমন: 01712345678"
+                      className="w-full px-4 py-3 bg-slate-50 text-slate-900 placeholder-slate-400 font-sans text-xs rounded-xl border border-slate-300 outline-none focus:border-amber-500 focus:bg-white shadow-2xs font-bold"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || (!pendingUnverifiedOrderId && !verifyOrderId.trim()) || !verifyMobile.trim()}
+                    className="w-full py-3 bg-slate-950 hover:bg-black text-amber-400 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md active:scale-98"
+                  >
+                    {loading ? (
+                      <RefreshCw size={15} className="animate-spin text-amber-400" />
+                    ) : (
+                      <KeyRound size={15} className="text-amber-400" />
+                    )}
+                    <span>ভেরিফাই করে অর্ডার চেক করুন 🔒</span>
+                  </button>
+
+                  {verificationError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-start gap-2">
+                      <ShieldAlert size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                      <span>{verificationError}</span>
+                    </div>
+                  )}
+                </form>
+
+                <div className="p-3 bg-slate-100 rounded-xl text-[11px] text-slate-600 space-y-1">
+                  <p className="font-bold text-slate-700">🔒 গোপনীয়তা ও সুরক্ষা পলিসি:</p>
+                  <p>
+                    আমাদের সিস্টেমে একজনের অর্ডারের তথ্য অন্য কেউ দেখতে পারেন না। অর্ডার দেখতে হলে অবশ্যই অর্ডারের আইডি এবং সঠিক মোবাইল নম্বর উভয়ই জানা আবশ্যক।
+                  </p>
                 </div>
               </div>
             )}
