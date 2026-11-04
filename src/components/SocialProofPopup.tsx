@@ -7,6 +7,7 @@ import {
 import { getAllProducts } from '../services/productService';
 import { getAllOrders } from '../services/orderService';
 import { Product, Order, BrandSettings } from '../types';
+import { SpecialOfferNotificationCard } from './PushNotificationOptIn';
 
 // Fallback verified Bangladeshi locations & names (used only when data source is 'mixed' or demo fallback)
 const FALLBACK_LOCATIONS = [
@@ -344,23 +345,20 @@ export default function SocialProofPopup({
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
   };
 
-  const handleToggleCircle = () => {
-    if (isCardOpen) {
+  // Listen to open_notification_drawer global event
+  useEffect(() => {
+    const handleOpenDrawer = () => {
       setIsFeedOpen(true);
       setIsCardOpen(false);
-    } else {
-      if (displayMode === 'circle_badge_only') {
-        // If mode is circle-only, clicking circle directly opens full live activity feed
-        setIsFeedOpen(true);
-      } else {
-        // In popup mode, clicking expands current notification card
-        if (currentNotification) {
-          triggerNotificationPresentation(currentNotification);
-        } else {
-          setIsFeedOpen(true);
-        }
-      }
-    }
+    };
+    window.addEventListener('open_notification_drawer', handleOpenDrawer);
+    return () => window.removeEventListener('open_notification_drawer', handleOpenDrawer);
+  }, []);
+
+  const handleToggleCircle = () => {
+    // Open the notification center drawer housing special offers and live orders
+    setIsFeedOpen(prev => !prev);
+    setIsCardOpen(false);
   };
 
   // If master disabled, render nothing
@@ -597,9 +595,12 @@ export default function SocialProofPopup({
                 </div>
               </div>
 
-              {/* Timeline Stream */}
+              {/* Timeline Stream & Notification Hub */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1">
+                {/* 🌟 New Collection & Special Offers Card Housed Inside the Notification Center */}
+                <SpecialOfferNotificationCard />
+
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1 pt-1 border-t border-white/5">
                   <span>সাম্প্রতিক অর্ডারসমূহ ({activityHistory.length})</span>
                   <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> লাইভ আপডেট
