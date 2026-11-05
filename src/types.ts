@@ -119,6 +119,7 @@ export interface Product {
   regularPrice?: number;
   sizes?: string[];
   imageUrl: string;
+  galleryImages?: string[]; // Multiple photos (photo 2, photo 3, etc.)
   videoUrl?: string;
   category: Category;
   productCode: string;

@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit, Trash2, Package, Tag, Hash, 
   DollarSign, Image as ImageIcon, Check, X, AlertCircle, Loader2,
   Eye, EyeOff, Upload, Camera, ShieldCheck, LogIn, Video, Play, Film,
-  ChevronLeft, ChevronRight, Layers, ImagePlus
+  ChevronLeft, ChevronRight, Layers, ImagePlus, Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -285,6 +285,7 @@ export default function ProductManager() {
       setEditingProduct(product);
       setFormEntries([{
         ...product,
+        galleryImages: Array.isArray(product.galleryImages) ? [...product.galleryImages] : [],
         initialSalesCount: product.initialSalesCount ?? 0
       }]);
     } else {
@@ -295,6 +296,7 @@ export default function ProductManager() {
         description: '',
         price: 0,
         imageUrl: '',
+        galleryImages: [],
         category: 'THREE PIECE',
         productCode: '',
         stock: 50,
@@ -309,80 +311,176 @@ export default function ProductManager() {
   const [uploadProgress, setUploadProgress] = useState<{ [key: number]: number }>({});
   const [uploadingEntry, setUploadingEntry] = useState<{ [key: number]: boolean }>({});
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      showNotification('শুধুমাত্র ছবি (Image) ফাইল আপলোড করা সম্ভব।', 'warning');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification('ফাইলের সাইজ অনেক বড় (সর্বোচ্চ ৫ মেগাবাইট)।', 'warning');
-      return;
-    }
-
-    setUploadingEntry(prev => ({ ...prev, [index]: true }));
-    setUploadProgress(prev => ({ ...prev, [index]: 0 }));
-
-    const convertToBase64 = () => {
+  const processImageFile = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = async (event) => {
+      reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const MAX_SIZE = 500;
+          // High quality 1080px resolution for sharp crisp 1080x1080 square product showcases
+          const MAX_SIZE = 1080;
           if (width > height) {
             if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
+              height = Math.round(height * (MAX_SIZE / width));
               width = MAX_SIZE;
             }
           } else {
             if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
+              width = Math.round(width * (MAX_SIZE / height));
               height = MAX_SIZE;
             }
           }
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          const base64 = canvas.toDataURL('image/jpeg', 0.4);
-          updateFormEntry(index, { imageUrl: base64 });
-          setUploadingEntry(prev => ({ ...prev, [index]: false }));
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
         };
+        img.onerror = () => reject(new Error('ইমেজ প্রসেস করতে ব্যর্থ হয়েছে'));
         img.src = event.target?.result as string;
       };
+      reader.onerror = () => reject(new Error('ফাইল পড়তে সমস্যা হয়েছে'));
       reader.readAsDataURL(file);
-    };
+    });
+  };
+
+  const uploadOrProcessImage = async (file: File, onProgress?: (p: number) => void): Promise<string> => {
+    if (!useBase64) {
+      try {
+        const url = await uploadImage(file, onProgress);
+        if (url) return url;
+      } catch (err) {
+        console.warn("Cloud upload failed, falling back to local optimized base64:", err);
+      }
+    }
+    return processImageFile(file);
+  };
+
+  const handleMultipleFilesChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number,
+    appendToGalleryOnly: boolean = false
+  ) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    const validFiles = files.filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) {
+      showNotification('শুধুমাত্র ছবি (Image) ফাইল আপলোড করা সম্ভব।', 'warning');
+      return;
+    }
+
+    setUploadingEntry(prev => ({ ...prev, [index]: true }));
+    setUploadProgress(prev => ({ ...prev, [index]: 10 }));
 
     try {
-      if (useBase64) {
-        convertToBase64();
+      const processedUrls: string[] = [];
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        if (file.size > 15 * 1024 * 1024) {
+          showNotification(`${file.name} ফাইলটি অনেক বড় (সর্বোচ্চ ১৫ মেগাবাইট)।`, 'warning');
+          continue;
+        }
+
+        const url = await uploadOrProcessImage(file, (p) => {
+          const stepPercent = Math.round(((i + p / 100) / validFiles.length) * 100);
+          setUploadProgress(prev => ({ ...prev, [index]: Math.max(10, stepPercent) }));
+        });
+        if (url) {
+          processedUrls.push(url);
+        }
+      }
+
+      if (processedUrls.length === 0) {
+        showNotification('কোনো ছবি প্রসেস করা সম্ভব হয়নি।', 'error');
         return;
       }
 
-      const url = await uploadImage(file, (progress) => {
-        setUploadProgress(prev => ({ ...prev, [index]: progress }));
-      });
-      if (url) {
-        updateFormEntry(index, { imageUrl: url });
-        setUploadingEntry(prev => ({ ...prev, [index]: false }));
+      const currentEntry = formEntries[index];
+      const existingGallery = Array.isArray(currentEntry?.galleryImages) ? [...currentEntry.galleryImages] : [];
+      const hasMainImage = Boolean(currentEntry?.imageUrl && currentEntry.imageUrl.trim());
+
+      if (appendToGalleryOnly || hasMainImage) {
+        // Append newly uploaded images to gallery
+        const updatedGallery = [...existingGallery, ...processedUrls];
+        updateFormEntry(index, { galleryImages: updatedGallery });
+        showNotification(`সফলভাবে ${processedUrls.length}টি অতিরিক্ত ছবি প্রোডাক্ট গ্যালারিতে যোগ করা হয়েছে!`, 'success');
+      } else {
+        // First image is main image, rest are gallery images
+        const [mainPhoto, ...extraPhotos] = processedUrls;
+        const updatedGallery = [...existingGallery, ...extraPhotos];
+        updateFormEntry(index, {
+          imageUrl: mainPhoto,
+          galleryImages: updatedGallery
+        });
+        showNotification(
+          extraPhotos.length > 0 
+            ? `মূল ছবি এবং ${extraPhotos.length}টি অতিরিক্ত ছবি সফলভাবে আপলোড করা হয়েছে!` 
+            : `মূল ছবি সফলভাবে আপলোড করা হয়েছে!`, 
+          'success'
+        );
       }
-    } catch (error: any) {
-      console.warn("Upload failed. Falling back to Internal Base64 mode:", error);
-      showNotification("ক্লাউড সীমার কারণে স্বয়ংক্রিয়ভাবে ইন্টারনাল মোডে ছবি প্রসেস করা হচ্ছে...", "info");
-      convertToBase64();
+    } catch (err: any) {
+      console.error("Image upload failed:", err);
+      showNotification('ছবি আপলোড করতে সমস্যা হয়েছে, অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
     } finally {
-      // If we are in base64 mode, convertToBase64 handles setting uploadingEntry to false on load.
-      // So only clean up if we didn't do base64 mode, or if an error happened.
-      if (!useBase64) {
-        setUploadingEntry(prev => ({ ...prev, [index]: false }));
-        setUploadProgress(prev => ({ ...prev, [index]: 0 }));
-      }
+      setUploadingEntry(prev => ({ ...prev, [index]: false }));
+      setUploadProgress(prev => ({ ...prev, [index]: 0 }));
+      e.target.value = '';
+    }
+  };
+
+  const handleSetAsMainImage = (entryIndex: number, galleryIdx: number) => {
+    const entry = formEntries[entryIndex];
+    if (!entry) return;
+    const gallery = Array.isArray(entry.galleryImages) ? [...entry.galleryImages] : [];
+    const targetImage = gallery[galleryIdx];
+    if (!targetImage) return;
+
+    // Swap: chosen gallery image becomes main, old main becomes gallery image
+    const oldMain = entry.imageUrl;
+    gallery.splice(galleryIdx, 1);
+    if (oldMain) {
+      gallery.unshift(oldMain);
+    }
+    updateFormEntry(entryIndex, {
+      imageUrl: targetImage,
+      galleryImages: gallery
+    });
+    showNotification('ছবিটিকে সফলভাবে মূল কাভার ছবি হিসেবে সেট করা হয়েছে!', 'success');
+  };
+
+  const handleRemoveGalleryImage = (entryIndex: number, galleryIdx: number) => {
+    const entry = formEntries[entryIndex];
+    if (!entry) return;
+    const gallery = Array.isArray(entry.galleryImages) ? [...entry.galleryImages] : [];
+    gallery.splice(galleryIdx, 1);
+    updateFormEntry(entryIndex, { galleryImages: gallery });
+    showNotification('গ্যালারি থেকে ছবিটি রিমুভ করা হয়েছে।', 'info');
+  };
+
+  const handleRemoveMainImage = (entryIndex: number) => {
+    const entry = formEntries[entryIndex];
+    if (!entry) return;
+    const gallery = Array.isArray(entry.galleryImages) ? [...entry.galleryImages] : [];
+    if (gallery.length > 0) {
+      const nextMain = gallery.shift()!;
+      updateFormEntry(entryIndex, {
+        imageUrl: nextMain,
+        galleryImages: gallery
+      });
+      showNotification('মূল ছবি রিমুভ করে পরবর্তী ছবিটিকে মূল ছবি হিসেবে সেট করা হয়েছে।', 'info');
+    } else {
+      updateFormEntry(entryIndex, { imageUrl: '' });
+      showNotification('মূল ছবি মুছে ফেলা হয়েছে।', 'info');
     }
   };
 
@@ -858,67 +956,272 @@ export default function ProductManager() {
                             </div>
                           </div>
                           <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200/60 rounded-lg px-2.5 py-1 text-[10px] text-emerald-700 font-semibold">
-                            <span>📐 আদর্শ সাইজ: <strong>800 × 1000 px</strong> (4:5 রেশিও)</span>
-                            <span className="text-[9px] bg-emerald-200/60 px-1.5 py-0.2 rounded font-bold">Best Fit</span>
+                            <span>📐 আদর্শ সাইজ: <strong>১০৮০ × ১০৮০ px</strong> (১:১ স্কয়ার রেশিও - পারফেক্ট কোয়ালিটি)</span>
+                            <span className="text-[9px] bg-emerald-200/60 px-1.5 py-0.2 rounded font-bold">1080x1080</span>
                           </div>
 
                           {showUrlInput ? (
-                            <div className="relative">
-                              <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                              <input 
-                                type="url"
-                                placeholder="https://example.com/image.jpg"
-                                value={entry.imageUrl}
-                                onChange={(e) => updateFormEntry(index, { imageUrl: e.target.value })}
-                                className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-medium"
-                              />
+                            <div className="space-y-3">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-500 mb-1 block">মূল ছবির লিংক (Main Photo URL):</label>
+                                <div className="relative">
+                                  <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                  <input 
+                                    type="url"
+                                    placeholder="মূল ছবির লিংক (https://...)"
+                                    value={entry.imageUrl}
+                                    onChange={(e) => updateFormEntry(index, { imageUrl: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-xs font-medium"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[10px] font-bold text-gray-500">
+                                    অতিরিক্ত ছবিসমূহ (Gallery Photos - ছবি ২, ৩...):
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const current = [...(entry.galleryImages || []), ''];
+                                      updateFormEntry(index, { galleryImages: current });
+                                    }}
+                                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Plus size={12} />
+                                    <span>+ আরও লিংক যোগ করুন</span>
+                                  </button>
+                                </div>
+
+                                {(!entry.galleryImages || entry.galleryImages.length === 0) ? (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input 
+                                      type="url"
+                                      placeholder="ছবি ২ এর লিংক (অপশনাল)"
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          updateFormEntry(index, { galleryImages: [e.target.value] });
+                                        }
+                                      }}
+                                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-rose-500/20 outline-none text-xs font-medium"
+                                    />
+                                    <input 
+                                      type="url"
+                                      placeholder="ছবি ৩ এর লিংক (অপশনাল)"
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          updateFormEntry(index, { galleryImages: ['', e.target.value] });
+                                        }
+                                      }}
+                                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-rose-500/20 outline-none text-xs font-medium"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {entry.galleryImages.map((gUrl, gIdx) => (
+                                      <div key={gIdx} className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-gray-400 w-12 shrink-0">ছবি #{gIdx + 2}:</span>
+                                        <input 
+                                          type="url"
+                                          placeholder={`ছবি ${gIdx + 2} এর লিংক`}
+                                          value={gUrl}
+                                          onChange={(e) => {
+                                            const updated = [...(entry.galleryImages || [])];
+                                            updated[gIdx] = e.target.value;
+                                            updateFormEntry(index, { galleryImages: updated });
+                                          }}
+                                          className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-rose-500/20 outline-none text-xs font-medium"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveGalleryImage(index, gIdx)}
+                                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                          title="মুছুন"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ) : (
-                            <div 
-                              onClick={() => !uploadingEntry[index] && document.getElementById(`file-input-${index}`)?.click()}
-                              className={`relative group h-60 rounded-3xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden gap-2 ${
-                                entry.imageUrl 
-                                  ? 'border-emerald-500/40 bg-emerald-50/10' 
-                                  : 'border-gray-200 hover:border-rose-400 bg-gray-50'
-                              }`}
-                            >
+                            <div className="space-y-3 relative">
+                              {/* Hidden Multi-file inputs */}
                               <input 
                                 type="file"
                                 id={`file-input-${index}`}
-                                onChange={(e) => handleFileChange(e, index)}
+                                onChange={(e) => handleMultipleFilesChange(e, index, false)}
                                 accept="image/*"
+                                multiple
                                 className="hidden"
                               />
-                              
-                              {entry.imageUrl ? (
-                                <>
-                                  <img 
-                                    src={entry.imageUrl} 
-                                    alt="Preview" 
-                                    className="absolute inset-0 w-full h-full object-cover group-hover:opacity-40 transition-opacity"
-                                  />
-                                  <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-brand-charcoal/40 backdrop-blur-sm">
-                                    <Upload className="text-white mb-1" size={28} />
-                                    <span className="text-white text-[11px] font-black uppercase tracking-widest">ছবি পরিবর্তন করুন</span>
+                              <input 
+                                type="file"
+                                id={`add-gallery-file-input-${index}`}
+                                onChange={(e) => handleMultipleFilesChange(e, index, true)}
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                              />
+
+                              {/* Upload in Progress Loader */}
+                              {uploadingEntry[index] && (
+                                <div className="absolute inset-0 bg-white/90 backdrop-blur-xs rounded-2xl z-30 flex flex-col items-center justify-center gap-2 p-4">
+                                  <Loader2 className="animate-spin text-rose-600" size={32} />
+                                  <p className="text-xs font-bold text-gray-800">ছবি প্রসেস হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...</p>
+                                  <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-rose-500 transition-all duration-300 rounded-full" 
+                                      style={{ width: `${uploadProgress[index] || 15}%` }} 
+                                    />
                                   </div>
-                                </>
-                              ) : (
-                                <div className="text-center p-4">
-                                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-rose-500 mx-auto mb-2 group-hover:scale-110 transition-transform">
-                                    <Camera size={24} />
-                                  </div>
-                                  <p className="text-xs font-black text-gray-800 uppercase tracking-widest">গ্যালারি থেকে ছবি আপলোড</p>
-                                  <p className="text-[10px] text-gray-400 font-bold mt-1">গ্যালারি থেকে ফটো নির্বাচন করুন</p>
+                                  <span className="text-[10px] font-black text-rose-600">{Math.round(uploadProgress[index] || 15)}% সম্পন্ন</span>
                                 </div>
                               )}
 
-                              {uploadingEntry[index] && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10 flex-col gap-2">
-                                  <Loader2 className="animate-spin text-rose-600" size={28} />
-                                  <div className="w-1/2 h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${uploadProgress[index] || 0}%` }} />
+                              {/* If no images uploaded yet */}
+                              {!entry.imageUrl && (!entry.galleryImages || entry.galleryImages.length === 0) ? (
+                                <div 
+                                  onClick={() => !uploadingEntry[index] && document.getElementById(`file-input-${index}`)?.click()}
+                                  className="group h-56 rounded-3xl border-2 border-dashed border-rose-200 hover:border-rose-400 bg-rose-50/20 hover:bg-rose-50/40 transition-all cursor-pointer flex flex-col items-center justify-center p-6 text-center gap-2"
+                                >
+                                  <div className="w-14 h-14 rounded-2xl bg-white shadow-sm border border-rose-100 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                                    <ImagePlus size={28} />
                                   </div>
-                                  <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest">{Math.round(uploadProgress[index] || 0)}%</span>
+                                  <p className="text-xs font-black text-gray-800 uppercase tracking-widest">
+                                    গ্যালারি থেকে একাধিক ছবি আপলোড করুন
+                                  </p>
+                                  <p className="text-[11px] text-gray-500 font-medium">
+                                    একসাথে ২-৩টি বা তার বেশি ছবি সিলেক্ট করুন (মূল ছবি + গ্যালারি ছবি)
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] bg-rose-100 text-rose-700 font-bold px-2.5 py-0.5 rounded-full">
+                                      + একাধিক ছবি সিলেক্ট করুন
+                                    </span>
+                                    <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full">
+                                      ১০৮০ × ১০৮০ স্কয়ার
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* When at least 1 image is uploaded */
+                                <div className="space-y-3">
+                                  {/* Multi-photo header & Add button */}
+                                  <div className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-xl border border-gray-200/80">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                                      <Camera size={15} className="text-rose-600" />
+                                      <span>
+                                        মোট ফটো: <strong className="text-rose-600 font-black">
+                                          {(entry.imageUrl ? 1 : 0) + (entry.galleryImages?.length || 0)}টি
+                                        </strong>
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => document.getElementById(`add-gallery-file-input-${index}`)?.click()}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer active:scale-95"
+                                    >
+                                      <Plus size={13} />
+                                      <span>+ আরও ছবি যোগ করুন</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Main Cover Image Preview */}
+                                  {entry.imageUrl && (
+                                    <div className="relative group rounded-2xl overflow-hidden border-2 border-emerald-500/40 bg-gray-900 aspect-16/9 sm:aspect-2/1 max-h-52">
+                                      <img 
+                                        src={entry.imageUrl} 
+                                        alt="Main Cover" 
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      />
+                                      <div className="absolute top-2 left-2 z-10">
+                                        <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md">
+                                          <Star size={11} className="fill-white" />
+                                          মূল কাভার ছবি (1080x1080)
+                                        </span>
+                                      </div>
+                                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20">
+                                        <button
+                                          type="button"
+                                          onClick={() => document.getElementById(`file-input-${index}`)?.click()}
+                                          className="px-3 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-transform active:scale-95 cursor-pointer"
+                                        >
+                                          <Upload size={13} />
+                                          <span>ছবি পরিবর্তন</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveMainImage(index)}
+                                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-transform active:scale-95 cursor-pointer"
+                                          title="মূল ছবি মুছুন"
+                                        >
+                                          <Trash2 size={13} />
+                                          <span>মুছুন</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Additional Gallery Photos Grid */}
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-600 px-1">
+                                      <span>অতিরিক্ত গ্যালারি ছবিসমূহ ({(entry.galleryImages?.length || 0)}টি):</span>
+                                      <span className="text-[10px] text-gray-400">কাস্টমার ক্লিক বা স্লাইড করে দেখতে পারবে</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                      {entry.galleryImages?.map((imgUrl, gIdx) => (
+                                        <div 
+                                          key={gIdx}
+                                          className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-100 shadow-2xs"
+                                        >
+                                          <img 
+                                            src={imgUrl} 
+                                            alt={`Gallery ${gIdx + 2}`} 
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                                            ছবি #{gIdx + 2}
+                                          </span>
+                                          <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1 z-10">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSetAsMainImage(index, gIdx)}
+                                              className="w-full py-1 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-[9px] rounded-md transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                                              title="এই ছবিকে মূল কাভার ছবি বানান"
+                                            >
+                                              <Star size={10} className="fill-amber-950" />
+                                              <span>মূল ছবি বানান</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveGalleryImage(index, gIdx)}
+                                              className="w-full py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[9px] rounded-md transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                                              title="মুছুন"
+                                            >
+                                              <Trash2 size={10} />
+                                              <span>মুছুন</span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+
+                                      {/* Add More Tile inside the grid */}
+                                      <div
+                                        onClick={() => !uploadingEntry[index] && document.getElementById(`add-gallery-file-input-${index}`)?.click()}
+                                        className="aspect-square rounded-xl border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/50 hover:bg-rose-100/50 flex flex-col items-center justify-center text-rose-600 cursor-pointer transition-all p-2 text-center group"
+                                      >
+                                        <ImagePlus size={20} className="group-hover:scale-110 transition-transform mb-1 text-rose-500" />
+                                        <span className="text-[10px] font-black leading-tight">+ আরও ছবি</span>
+                                        <span className="text-[8px] text-gray-500 font-semibold mt-0.5">যোগ করুন</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>

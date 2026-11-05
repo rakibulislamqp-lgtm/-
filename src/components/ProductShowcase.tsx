@@ -7,7 +7,7 @@ import { Product, ProductCategoryItem } from '../types';
 import { trackProductView, logVisitorEvent, updateVisitorStage } from '../services/trackingService';
 import { trackPixelViewContent } from '../services/pixelService';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
-import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check } from 'lucide-react';
+import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const PRODUCTS_PER_PAGE = 10;
@@ -58,6 +58,33 @@ export default function ProductShowcase({
   });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'photo' | 'video'>('photo');
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+
+  // Extract all photos (handles 1, 2, 3 or more photos seamlessly)
+  const allProductImages = useMemo(() => {
+    if (!selectedProduct) return [];
+    const list: string[] = [];
+    if (selectedProduct.imageUrl && selectedProduct.imageUrl.trim()) {
+      if (selectedProduct.imageUrl.includes(',') || selectedProduct.imageUrl.includes('\n')) {
+        const splits = selectedProduct.imageUrl.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+        splits.forEach(s => {
+          if (!list.includes(s)) list.push(s);
+        });
+      } else {
+        list.push(selectedProduct.imageUrl.trim());
+      }
+    }
+    if (Array.isArray(selectedProduct.galleryImages)) {
+      selectedProduct.galleryImages.forEach(img => {
+        if (img && typeof img === 'string' && img.trim() && !list.includes(img.trim())) {
+          list.push(img.trim());
+        }
+      });
+    }
+    return list.length > 0 ? list : ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=900'];
+  }, [selectedProduct]);
+
+  const activeImageUrl = allProductImages[activeImageIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
   const [activeCategory, setActiveCategory] = useState<string>(selectedCategory || 'ALL');
   const [categories, setCategories] = useState<ProductCategoryItem[]>(() => getStoredCategories());
   const [sortBy, setSortBy] = useState<'default' | 'price-desc' | 'price-asc' | 'top-selling'>('default');
@@ -133,6 +160,8 @@ export default function ProductShowcase({
 
   const handleOpenProductModal = (product: Product) => {
     setSelectedProduct(product);
+    setActiveImageIndex(0);
+    setActiveMediaTab('photo');
     trackPixelViewContent(product);
   };
 
@@ -564,9 +593,9 @@ export default function ProductShowcase({
               viewport={{ once: true, margin: "-50px" }}
               className="group bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-500 border border-gray-100 flex flex-col"
             >
-              {/* Image Container */}
+              {/* Image Container (1080x1080 Square Frame) */}
               <div 
-                className="relative aspect-[4/5] overflow-hidden cursor-pointer"
+                className="relative aspect-square overflow-hidden cursor-pointer bg-gray-50"
                 onClick={() => handleOpenProductModal(product)}
               >
                 <img 
@@ -740,18 +769,18 @@ export default function ProductShowcase({
                 initial={{ opacity: 0, scale: 0.95, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 30 }}
-                className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl relative z-10 overflow-hidden flex flex-col md:flex-row max-h-[92vh]"
+                className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl relative z-10 flex flex-col md:flex-row max-h-[92vh] overflow-y-auto md:overflow-hidden border border-gray-100"
               >
                 <button 
                   onClick={() => setSelectedProduct(null)}
-                  className="absolute top-3 right-3 p-2 bg-gray-100 hover:bg-rose-600 hover:text-white text-gray-700 rounded-full transition-all z-30 shadow-md"
+                  className="absolute top-3 right-3 p-2 bg-gray-100/90 hover:bg-rose-600 hover:text-white text-gray-700 rounded-full transition-all z-30 shadow-md cursor-pointer"
                   aria-label="Close Product Details"
                 >
                   <X size={18} />
                 </button>
 
-              {/* Left: Image, Video & Thumbnails */}
-              <div className="w-full md:w-[45%] flex flex-col p-4 md:p-6 bg-white overflow-y-auto">
+              {/* Left: 1080x1080 Square Image, Video & Media Switcher */}
+              <div className="w-full md:w-[48%] flex flex-col p-4 sm:p-5 md:p-6 bg-white shrink-0 md:overflow-y-auto border-b md:border-b-0 md:border-r border-gray-150">
                 {selectedProduct.videoUrl && (
                   <div className="flex gap-2 mb-3">
                     <button
@@ -781,7 +810,7 @@ export default function ProductShowcase({
                 )}
 
                 {activeMediaTab === 'video' && selectedProduct.videoUrl ? (
-                  <div className="relative aspect-[4/5] rounded-xl overflow-hidden border border-purple-200 bg-black shadow-lg">
+                  <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-purple-200 bg-black shadow-md">
                     <video
                       src={selectedProduct.videoUrl}
                       controls
@@ -792,8 +821,9 @@ export default function ProductShowcase({
                     />
                   </div>
                 ) : (
+                  /* 1080x1080 True Square Frame */
                   <div 
-                    className="relative aspect-[4/5] rounded-xl overflow-hidden border border-gray-150 cursor-zoom-in group shadow-md"
+                    className="relative aspect-square w-full rounded-2xl overflow-hidden border border-gray-200 bg-[#fafafa] cursor-zoom-in group shadow-sm flex items-center justify-center select-none"
                     onMouseEnter={() => setIsZoomed(true)}
                     onMouseLeave={() => {
                       setIsZoomed(false);
@@ -806,59 +836,118 @@ export default function ProductShowcase({
                     }}
                   >
                     <img 
-                      src={selectedProduct.imageUrl} 
-                      alt={selectedProduct.title}
-                      className="w-full h-full object-cover transition-transform duration-75 select-none"
+                      src={activeImageUrl} 
+                      alt={`${selectedProduct.title} - ছবি ${activeImageIndex + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-100 select-none"
                       style={{
                         transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
                         transform: isZoomed ? 'scale(2.3)' : 'scale(1)',
                       }}
+                      loading="eager"
                       referrerPolicy="no-referrer"
                     />
+
+                    {/* Previous / Next Arrow Controls (When 2, 3 or more photos exist) */}
+                    {allProductImages.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allProductImages.length - 1));
+                          }}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-md active:scale-90 z-20 cursor-pointer"
+                          title="পূর্বের ছবি"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex(prev => (prev < allProductImages.length - 1 ? prev + 1 : 0));
+                          }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-md active:scale-90 z-20 cursor-pointer"
+                          title="পরের ছবি"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+
+                        {/* Top-Right Multi-Photo Counter Badge */}
+                        <div className="absolute top-2.5 right-2.5 bg-black/75 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full border border-white/20 shadow-md flex items-center gap-1.5 z-20 pointer-events-none">
+                          <Camera size={11} className="text-brand-gold shrink-0" />
+                          <span>{toBengaliNumber(activeImageIndex + 1)} / {toBengaliNumber(allProductImages.length)}</span>
+                        </div>
+                      </>
+                    )}
+
                     {/* Zoom indicator label overlay */}
-                    <div className="absolute bottom-3 left-3 right-3 bg-black/75 backdrop-blur-md text-[9px] md:text-[10px] text-white px-3 py-2 rounded-xl font-bold tracking-normal flex items-center justify-center gap-1.5 pointer-events-none transition-all opacity-95 group-hover:opacity-100 shadow-lg text-center">
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-black/75 backdrop-blur-md text-[9px] md:text-[10px] text-white px-3 py-1.5 rounded-xl font-bold tracking-normal flex items-center justify-center gap-1.5 pointer-events-none transition-all opacity-90 group-hover:opacity-100 shadow-md text-center">
                       <ZoomIn size={12} className="text-brand-gold shrink-0 animate-bounce" />
                       <span>জুম করতে কার্সার রাখুন অথবা ক্লিক করে বড় করুন</span>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-2.5 mt-4 overflow-x-auto pb-1">
-                  <div 
-                    onClick={() => setActiveMediaTab('photo')}
-                    className={`w-20 h-20 shrink-0 rounded-xl border-2 p-0.5 cursor-pointer overflow-hidden transition-all ${
-                      activeMediaTab === 'photo' ? 'border-[#438a1a] ring-2 ring-emerald-500/20' : 'border-gray-200 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={selectedProduct.imageUrl} className="w-full h-full object-cover rounded-lg" />
-                  </div>
+                {/* Media Gallery Thumbnails: Visible ONLY when 2 or more photos exist OR video exists */}
+                {(allProductImages.length > 1 || selectedProduct.videoUrl) && (
+                  <div className="flex items-center gap-2.5 mt-3 overflow-x-auto pb-1 custom-scrollbar">
+                    {/* Render each photo in the 2-3 photos gallery */}
+                    {allProductImages.map((imgUrl, idx) => (
+                      <button 
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setActiveImageIndex(idx);
+                          setActiveMediaTab('photo');
+                        }}
+                        className={`relative w-15 h-15 sm:w-16 sm:h-16 aspect-square shrink-0 rounded-xl border-2 p-0.5 cursor-pointer overflow-hidden transition-all ${
+                          activeMediaTab === 'photo' && activeImageIndex === idx 
+                            ? 'border-brand-gold ring-2 ring-amber-400/40 shadow-md scale-105' 
+                            : 'border-gray-200 opacity-70 hover:opacity-100 hover:border-gray-300'
+                        }`}
+                        title={`ছবি ${idx + 1}`}
+                      >
+                        <img src={imgUrl} className="w-full h-full object-cover rounded-lg" alt={`ছবি ${idx + 1}`} />
+                        <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-black px-1 rounded ${
+                          activeMediaTab === 'photo' && activeImageIndex === idx 
+                            ? 'bg-brand-gold text-slate-950' 
+                            : 'bg-black/60 text-white'
+                        }`}>
+                          {toBengaliNumber(idx + 1)}
+                        </span>
+                      </button>
+                    ))}
 
-                  {selectedProduct.videoUrl && (
-                    <div 
-                      onClick={() => setActiveMediaTab('video')}
-                      className={`w-20 h-20 shrink-0 rounded-xl border-2 p-0.5 cursor-pointer overflow-hidden relative transition-all bg-black ${
-                        activeMediaTab === 'video' ? 'border-purple-600 ring-2 ring-purple-500/20' : 'border-purple-200 opacity-80 hover:opacity-100'
-                      }`}
-                    >
-                      <video src={selectedProduct.videoUrl} className="w-full h-full object-cover opacity-60 rounded-lg" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
-                          <Play size={14} className="ml-0.5" />
+                    {/* Video Thumbnail if present */}
+                    {selectedProduct.videoUrl && (
+                      <button 
+                        type="button"
+                        onClick={() => setActiveMediaTab('video')}
+                        className={`relative w-15 h-15 sm:w-16 sm:h-16 aspect-square shrink-0 rounded-xl border-2 p-0.5 cursor-pointer overflow-hidden transition-all bg-black ${
+                          activeMediaTab === 'video' 
+                            ? 'border-purple-600 ring-2 ring-purple-500/40 shadow-md scale-105' 
+                            : 'border-purple-200 opacity-80 hover:opacity-100'
+                        }`}
+                        title="ভিডিও প্লে করুন"
+                      >
+                        <video src={selectedProduct.videoUrl} className="w-full h-full object-cover opacity-60 rounded-lg" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+                            <Play size={11} className="ml-0.5" />
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right: Info */}
-              <div className="w-full md:w-[55%] p-6 md:p-8 space-y-4 overflow-y-auto bg-white">
-                <nav className="text-[10px] md:text-sm text-gray-400 font-medium">
-                  Home / {selectedProduct.category} / <span className="text-gray-600 font-bold">{selectedProduct.title}</span>
-                </nav>
-
-                <div className="space-y-1">
-                  <h2 className="text-xl md:text-3xl font-black text-gray-900 leading-tight">
+              <div className="w-full md:w-[52%] p-5 sm:p-6 md:p-8 space-y-4 md:overflow-y-auto bg-white flex-1">
+                {/* Breadcrumb line completely removed as marked by the user */}
+                <div className="space-y-1 pt-0.5">
+                  <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-gray-900 leading-tight">
                     {selectedProduct.title}
                   </h2>
                 </div>
@@ -1245,9 +1334,9 @@ export default function ProductShowcase({
               {/* Main Interactive Zoom Canvas Area */}
               <div className="relative w-full max-w-xl flex-1 overflow-hidden rounded-2xl border border-slate-800 shadow-2xl flex items-center justify-center bg-slate-900/60 my-2">
                 <motion.img 
-                  src={selectedProduct.imageUrl} 
-                  alt={selectedProduct.title}
-                  key={lightboxScale}
+                  src={activeImageUrl} 
+                  alt={`${selectedProduct.title} - ছবি ${activeImageIndex + 1}`}
+                  key={`${activeImageIndex}_${lightboxScale}`}
                   initial={{ scale: 0.95 }}
                   animate={{ scale: lightboxScale }}
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
@@ -1257,6 +1346,27 @@ export default function ProductShowcase({
                   }}
                   referrerPolicy="no-referrer"
                 />
+
+                {allProductImages.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allProductImages.length - 1))}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/75 hover:bg-black text-white flex items-center justify-center backdrop-blur-md shadow-lg active:scale-90 z-20 cursor-pointer"
+                      title="পূর্বের ছবি"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveImageIndex(prev => (prev < allProductImages.length - 1 ? prev + 1 : 0))}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/75 hover:bg-black text-white flex items-center justify-center backdrop-blur-md shadow-lg active:scale-90 z-20 cursor-pointer"
+                      title="পরের ছবি"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Bottom Help Tag */}
