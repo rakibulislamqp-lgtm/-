@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Smartphone, Send, Settings, CheckCircle2, 
-  AlertTriangle, Globe, Sliders, Cpu, Copy, Check, MessageSquare
+  AlertTriangle, Globe, Sliders, Cpu, Copy, Check, MessageSquare,
+  Eye, EyeOff
 } from 'lucide-react';
 import { getBrandSettings, updateBrandSettings } from '../services/settingsService';
 import { BrandSettings } from '../types';
@@ -35,6 +36,8 @@ export default function SMSSenderModal({
   initialContext
 }: SMSSenderModalProps) {
   const [activeSegment, setActiveSegment] = useState<'send' | 'config'>('send');
+  const [mobileTab, setMobileTab] = useState<'send' | 'preview' | 'config'>('send');
+  const [showInlineMobilePreview, setShowInlineMobilePreview] = useState(false);
   const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(null);
 
   // Editable recipient fields
@@ -45,6 +48,8 @@ export default function SMSSenderModal({
     if (isOpen) {
       setName(recipientName || '');
       setPhone(recipientPhone || '');
+      setMobileTab('send');
+      setShowInlineMobilePreview(false);
     }
   }, [isOpen, recipientName, recipientPhone]);
   
@@ -341,7 +346,7 @@ export default function SMSSenderModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] overflow-y-auto flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[200] overflow-y-auto flex items-center justify-center p-2 sm:p-4 md:p-6">
         
         {/* Backdrop Trigger */}
         <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
@@ -351,18 +356,73 @@ export default function SMSSenderModal({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white border border-slate-100 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden relative z-10 font-sans flex flex-col md:flex-row h-full max-h-[90vh] md:max-h-[640px]"
+          className="bg-white border border-slate-100 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden relative z-10 font-sans flex flex-col md:flex-row max-h-[94dvh] md:max-h-[660px]"
         >
           {/* Close Panel Button */}
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 rounded-xl transition-all cursor-pointer z-50"
+            className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 rounded-xl transition-all cursor-pointer z-50 shadow-xs"
+            title="বন্ধ করুন"
           >
             <X size={16} />
           </button>
 
+          {/* Mobile Top Navigation Tabs (Visible on mobile only) */}
+          <div className="md:hidden bg-slate-50 border-b border-slate-200/80 p-2 pr-12 flex gap-1.5 shrink-0 z-40">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileTab('send');
+                setActiveSegment('send');
+                setSendResult(null);
+              }}
+              className={`flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                mobileTab === 'send'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+              }`}
+            >
+              <Send size={13} />
+              <span>SMS পাঠান</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileTab('preview');
+                setSendResult(null);
+              }}
+              className={`flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                mobileTab === 'preview'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+              }`}
+            >
+              <Smartphone size={13} />
+              <span>ফোন প্রিভিউ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileTab('config');
+                setActiveSegment('config');
+                setSendResult(null);
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                mobileTab === 'config'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+              }`}
+              title="SMS গেটওয়ে সেটিংস"
+            >
+              <Settings size={13} />
+              <span>সেটিংস</span>
+            </button>
+          </div>
+
           {/* Left panel: Smartphone Preview & Real-Time Setup */}
-          <div className="md:w-5/12 bg-slate-50 p-6 border-r border-slate-100 flex flex-col justify-between items-center select-none shrink-0">
+          <div className={`${mobileTab === 'preview' ? 'flex' : 'hidden'} md:flex md:w-5/12 bg-slate-50 p-4 sm:p-6 border-r border-slate-100 flex-col justify-start md:justify-between items-center select-none shrink-0 overflow-y-auto w-full max-h-[82vh] md:max-h-none`}>
             {/* Visual Header */}
             <div className="text-center w-full">
               <span className="text-[10px] bg-rose-50 text-rose-600 px-3 py-1 rounded-full font-black uppercase tracking-widest inline-block mb-1">
@@ -373,7 +433,7 @@ export default function SMSSenderModal({
             </div>
 
             {/* Smartphone Graphic frame mockup with dynamic content inside */}
-            <div className="w-[200px] h-[350px] bg-slate-900 rounded-[35px] border-[6px] border-slate-800 p-2.5 shadow-xl relative my-4 flex flex-col justify-between overflow-hidden">
+            <div className="w-[190px] h-[330px] sm:w-[200px] sm:h-[350px] bg-slate-900 rounded-[35px] border-[6px] border-slate-800 p-2.5 shadow-xl relative my-3 sm:my-4 flex flex-col justify-between overflow-hidden shrink-0">
               {/* Speaker & camera slot */}
               <div className="absolute top-1 left-1/2 -translate-x-1/2 w-16 h-3 bg-slate-800 rounded-b-xl flex justify-center items-center">
                 <div className="w-6 h-0.5 bg-slate-700 rounded-full" />
@@ -401,7 +461,7 @@ export default function SMSSenderModal({
                 </div>
 
                 {/* Simulated SMS Message box bubble */}
-                <div className="bg-slate-800 text-white p-2 rounded-xl rounded-bl-none text-[8px] font-semibold leading-relaxed overflow-y-auto max-h-[190px] scrollbar-thin text-left border border-slate-700/50">
+                <div className="bg-slate-800 text-white p-2 rounded-xl rounded-bl-none text-[8px] font-semibold leading-relaxed overflow-y-auto max-h-[180px] scrollbar-thin text-left border border-slate-700/50">
                   {resolvedMessageText}
                 </div>
 
@@ -415,7 +475,7 @@ export default function SMSSenderModal({
             </div>
 
             {/* Recipient Details display info (Fully Editable form for premium ease-of-use) */}
-            <div className="bg-white p-3.5 rounded-2xl w-full border border-slate-250/70 space-y-2.5 shadow-sm text-left">
+            <div className="bg-white p-3 sm:p-3.5 rounded-2xl w-full border border-slate-200 space-y-2.5 shadow-xs text-left">
               <div className="flex items-center gap-1.5 pb-1 border-b border-dashed border-slate-100">
                 <div className="p-1 bg-rose-50 text-rose-600 rounded-lg">
                   <Smartphone className="animate-pulse" size={13} />
@@ -429,7 +489,7 @@ export default function SMSSenderModal({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-[10.5px] font-bold focus:bg-white focus:border-rose-500 outline-none transition-all"
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-[11px] font-bold focus:bg-white focus:border-rose-500 outline-none transition-all"
                     placeholder="কাস্টমারের নাম..."
                   />
                 </div>
@@ -439,26 +499,41 @@ export default function SMSSenderModal({
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-[10.5px] font-bold focus:bg-white focus:border-rose-500 outline-none transition-all placeholder:font-sans"
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-[11px] font-bold focus:bg-white focus:border-rose-500 outline-none transition-all placeholder:font-sans"
                     placeholder="মোবাইল নং লিখুন..."
                   />
                 </div>
               </div>
             </div>
+
+            {/* Mobile Quick Switch Button at bottom of preview */}
+            <div className="md:hidden w-full pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileTab('send');
+                  setActiveSegment('send');
+                }}
+                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-2xl flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-95 transition-transform"
+              >
+                <Send size={14} />
+                <span>এই বার্তাটি পাঠান (Proceed to Send)</span>
+              </button>
+            </div>
           </div>
 
           {/* Right panel: Active Action flow tab panel (Send vs Gateways setup) */}
-          <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto max-h-[450px] md:max-h-[640px]">
+          <div className={`${mobileTab !== 'preview' ? 'flex' : 'hidden md:flex'} flex-1 p-4 sm:p-6 flex-col justify-between overflow-y-auto w-full max-h-[84vh] md:max-h-none`}>
             <div>
-              {/* Segment Toggle selectors header */}
-              <div className="flex bg-slate-50 border border-slate-150 p-1 rounded-2xl mb-5">
+              {/* Segment Toggle selectors header (Desktop only) */}
+              <div className="hidden md:flex bg-slate-50 border border-slate-150 p-1 rounded-2xl mb-5">
                 <button
                   type="button"
                   onClick={() => {
                     setActiveSegment('send');
                     setSendResult(null);
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                     activeSegment === 'send'
                       ? 'bg-rose-600 text-white shadow-md'
                       : 'text-slate-500 hover:text-slate-800'
@@ -473,7 +548,7 @@ export default function SMSSenderModal({
                     setActiveSegment('config');
                     setSendResult(null);
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                     activeSegment === 'config'
                       ? 'bg-rose-600 text-white shadow-md'
                       : 'text-slate-500 hover:text-slate-800'
@@ -487,6 +562,59 @@ export default function SMSSenderModal({
               {/* Segment 1: SMS template selection & send dispatch */}
               {activeSegment === 'send' && (
                 <div className="space-y-4">
+                  {/* Recipient Details & Live Inline Preview Box on Mobile */}
+                  <div className="md:hidden bg-slate-50 border border-slate-200/80 p-3 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between pb-1 border-b border-dashed border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <div className="p-1 bg-rose-100 text-rose-600 rounded-lg">
+                          <Smartphone size={13} />
+                        </div>
+                        <span className="text-[10px] text-slate-700 font-black uppercase tracking-wider">প্রাপকের তথ্য (কাস্টমাইজ করুন)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowInlineMobilePreview(!showInlineMobilePreview)}
+                        className="text-[10px] font-black text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        {showInlineMobilePreview ? <EyeOff size={11} /> : <Eye size={11} />}
+                        <span>{showInlineMobilePreview ? 'প্রিভিউ লুকান' : 'প্রিভিউ দেখুন'}</span>
+                      </button>
+                    </div>
+
+                    {showInlineMobilePreview && (
+                      <div className="p-2.5 bg-slate-900 rounded-xl text-white text-[11px] leading-relaxed border border-slate-800 my-1.5">
+                        <div className="flex items-center gap-1 mb-1 text-[9px] text-slate-400 font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                          <span>লাইভ SMS বার্তা প্রিভিউ:</span>
+                        </div>
+                        <p className="font-medium text-slate-100 whitespace-pre-wrap">{resolvedMessageText}</p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[9px] text-slate-500 font-bold block mb-0.5">নামঃ</span>
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-xs font-bold focus:border-rose-500 outline-none transition-all"
+                          placeholder="কাস্টমারের নাম..."
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 font-bold block mb-0.5">মোবাইল নাম্বারঃ</span>
+                        <input
+                          type="text"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-mono text-xs font-bold focus:border-rose-500 outline-none transition-all"
+                          placeholder="মোবাইল নম্বর..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <h3 className="text-sm font-black text-slate-900 font-sans text-left">১. ফলোআপ কুপন SMS টেমপ্লেট নির্বাচন করুন</h3>
                     <p className="text-[10px] text-slate-400 mt-0.5 text-left">কাস্টমারের জন্য উপযুক্ত যেকোনো একটি রেডিমেড প্রোফেশনাল টেমপ্লেট বেছে নিন</p>
@@ -789,11 +917,11 @@ export default function SMSSenderModal({
             </div>
 
             {/* Modal Bottom CTA Controls Footer */}
-            <div className="border-t border-slate-100 pt-5 mt-5 flex justify-end gap-3 select-none">
+            <div className="border-t border-slate-100 pt-4 mt-4 flex flex-col-reverse sm:flex-row justify-end gap-2.5 select-none shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-3 hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-all text-xs font-black rounded-2xl border border-slate-200"
+                className="w-full sm:w-auto px-5 py-3 hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-all text-xs font-black rounded-2xl border border-slate-200 cursor-pointer text-center"
               >
                 বাতিল করুন (Close)
               </button>
@@ -803,7 +931,7 @@ export default function SMSSenderModal({
                   type="button"
                   onClick={handleSaveConfig}
                   disabled={isSending}
-                  className="px-6 py-3 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl text-xs font-black shadow-lg shadow-slate-950/20 flex items-center justify-center gap-2 transition-all cursor-pointer min-w-[150px] disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl text-xs font-black shadow-lg shadow-slate-950/20 flex items-center justify-center gap-2 transition-all cursor-pointer min-w-[150px] disabled:opacity-50"
                 >
                   {isSending ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -814,7 +942,7 @@ export default function SMSSenderModal({
                   type="button"
                   onClick={handleDispatchSMS}
                   disabled={isSending}
-                  className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-900/30 flex items-center justify-center gap-2 transition-all cursor-pointer min-w-[150px] disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-900/30 flex items-center justify-center gap-2 transition-all cursor-pointer min-w-[150px] disabled:opacity-50"
                 >
                   <Send size={14} />
                   {isSending ? (
