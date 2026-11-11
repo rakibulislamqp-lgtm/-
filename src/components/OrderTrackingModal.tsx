@@ -5,7 +5,8 @@ import {
   MapPin, Phone, User, FileText, Download, 
   Sparkles, RefreshCw, AlertCircle, Tag, Gift,
   Eye, Truck, Award, HeartHandshake, ShoppingBag,
-  Lock, ShieldCheck, KeyRound, Plus, ShieldAlert
+  Lock, ShieldCheck, KeyRound, Plus, ShieldAlert,
+  AlertTriangle, XCircle, Loader2
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { Order, OrderStatus } from '../types';
@@ -14,7 +15,8 @@ import {
   getOrderForTracking, 
   getMyCustomerOrdersLocally, 
   saveCustomerOrderLocally,
-  isMyDeviceOrder 
+  isMyDeviceOrder,
+  cancelCustomerOrder 
 } from '../services/orderService';
 import { DigitalInvoice } from './DigitalInvoice';
 
@@ -31,6 +33,12 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
   const [copiedLink, setCopiedLink] = useState(false);
   const [downloadingPos, setDownloadingPos] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  // Customer Self-Cancellation States
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReasonOption, setCancelReasonOption] = useState('ভুল পণ্য বা সাইজ নির্বাচন করেছি');
+  const [customReasonText, setCustomReasonText] = useState('');
 
   // Secure 2-Factor Verification States
   const [verifyOrderId, setVerifyOrderId] = useState('');
@@ -152,6 +160,31 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
       setVerificationError('ভেরিফিকেশন প্রক্রিয়ায় সমস্যা হয়েছে। অনুগ্রহ করে ইন্টারনেট কানেকশন চেক করে আবার চেষ্টা করুন।');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Customer Self-Cancellation Handler
+  const handleConfirmCancel = async () => {
+    if (!order) return;
+    setCancelling(true);
+    const finalReason = cancelReasonOption === 'অন্যান্য' 
+      ? (customReasonText.trim() || 'অন্যান্য কারণ') 
+      : cancelReasonOption;
+    const targetId = order.orderId || order.id!;
+    const res = await cancelCustomerOrder(targetId, finalReason);
+    setCancelling(false);
+    if (res.success) {
+      const updatedOrder: Order = {
+        ...order,
+        status: 'Cancelled',
+        cancelledBy: 'customer',
+        cancelReason: finalReason,
+        cancelledAt: new Date().toISOString()
+      };
+      setOrder(updatedOrder);
+      saveCustomerOrderLocally(updatedOrder);
+      setMyCustomerOrders(getMyCustomerOrdersLocally());
+      setShowCancelModal(false);
     }
   };
 
@@ -383,6 +416,57 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                       </p>
                     )}
                   </motion.div>
+                )}
+
+                {/* Cancellation Status Banner or Cancellation Trigger Card */}
+                {order.status === 'Cancelled' ? (
+                  <div className="bg-rose-50 border-2 border-rose-200 p-4 sm:p-5 rounded-2xl space-y-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                        <XCircle size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-black text-rose-900">
+                          {order.cancelledBy === 'customer' 
+                            ? '🚫 আপনার অনুরোধ অনুযায়ী অর্ডারটি বাতিল করা হয়েছে' 
+                            : '⚠️ এই অর্ডারটি বাতিল করা হয়েছে'}
+                        </h4>
+                        <p className="text-[10.5px] text-rose-700">
+                          {order.cancelledBy === 'customer'
+                            ? 'আপনি নিজে ওয়েবসাইট থেকে এই অর্ডারটি বাতিল করেছেন।'
+                            : 'অ্যাডমিন অথবা কুরিয়ার টিম কর্তৃক অর্ডারটি বাতিল করা হয়েছে।'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white/80 p-3 rounded-xl border border-rose-200 text-xs text-rose-950 space-y-1">
+                      <p><strong className="text-rose-950">বাতিলের কারণ:</strong> {order.cancelReason || 'কোনো কারণ উল্লেখ করা হয়নি'}</p>
+                      {order.cancelledAt && (
+                        <p className="text-[10px] text-rose-600">
+                          <strong>বাতিলের সময়:</strong> {new Date(order.cancelledAt).toLocaleString('en-GB')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (order.status === 'Pending' || order.status === 'Confirmed') && (
+                  <div className="bg-rose-50/70 p-3.5 rounded-2xl border border-rose-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                        <AlertTriangle size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-rose-950">ভুলবশত অর্ডার করেছেন বা কোনো পরিবর্তন প্রয়োজন?</p>
+                        <p className="text-[10.5px] text-rose-700">পার্সেল কুরিয়ারে পাঠানোর পূর্বে আপনি যেকোনো সময় নিজে অর্ডার বাতিল করতে পারবেন।</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelModal(true)}
+                      className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+                    >
+                      অর্ডার বাতিল করুন
+                    </button>
+                  </div>
                 )}
 
                 {/* 1. PRODUCT DETAILS & FINANCIAL BREAKDOWN DOCUMENT */}
@@ -829,6 +913,111 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
             </div>
           </div>
         )}
+        {/* Customer Self-Cancellation Modal Dialog */}
+        <AnimatePresence>
+          {showCancelModal && order && (
+            <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-200 space-y-4 relative"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(false)}
+                  className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <XCircle size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">অর্ডার বাতিল নিশ্চিতকরণ</h3>
+                    <p className="text-xs text-gray-500">অর্ডার #{order.orderId}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
+                  ⚠️ আপনি কি নিশ্চিত যে আপনি এই অর্ডারটি বাতিল করতে চান? বাতিল করার সাথে সাথে সিস্টেম ও কুরিয়ার প্রস্তুতি বন্ধ হয়ে যাবে।
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-700 block">
+                    বাতিল করার কারণ নির্বাচন করুন:
+                  </label>
+                  <div className="space-y-1.5">
+                    {[
+                      'ভুল পণ্য বা সাইজ নির্বাচন করেছি',
+                      'ভুলবশত ডুপ্লিকেট সেম অর্ডার হয়েছে',
+                      'ঠিকানা বা মোবাইল নম্বর পরিবর্তন করতে হবে',
+                      'ব্যক্তিগত বা আর্থিক কারণে এখন নিতে পারছি না',
+                      'অন্যান্য'
+                    ].map((reason) => (
+                      <label
+                        key={reason}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                          cancelReasonOption === reason 
+                            ? 'bg-rose-50/80 border-rose-300 text-rose-950 font-bold' 
+                            : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelTrackingReason"
+                          value={reason}
+                          checked={cancelReasonOption === reason}
+                          onChange={(e) => setCancelReasonOption(e.target.value)}
+                          className="accent-rose-600"
+                        />
+                        <span>{reason}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {cancelReasonOption === 'অন্যান্য' && (
+                    <textarea
+                      value={customReasonText}
+                      onChange={(e) => setCustomReasonText(e.target.value)}
+                      placeholder="অর্ডার বাতিলে আপনার কারণ বিস্তারিত লিখুন..."
+                      rows={2}
+                      className="w-full mt-2 p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white transition-all"
+                    />
+                  )}
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelModal(false)}
+                    disabled={cancelling}
+                    className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    ফিরে যান
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmCancel}
+                    disabled={cancelling}
+                    className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md disabled:opacity-60"
+                  >
+                    {cancelling ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin text-white" />
+                        <span>বাতিল হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <span>হ্যাঁ, অর্ডার বাতিল করুন</span>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </AnimatePresence>
   );

@@ -326,6 +326,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [cancelSourceFilter, setCancelSourceFilter] = useState<'ALL' | 'CUSTOMER' | 'ADMIN'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState('');
@@ -1052,12 +1053,14 @@ export default function AdminDashboard() {
         productCode.includes(searchStr);
       
       const matchesStatus = statusFilter === 'ALL' || ((o.status || '').toUpperCase() === statusFilter);
+      const matchesCancelSource = statusFilter !== 'CANCELLED' || cancelSourceFilter === 'ALL' || 
+        (cancelSourceFilter === 'CUSTOMER' ? o.cancelledBy === 'customer' : o.cancelledBy !== 'customer');
       const matchesCategory = categoryFilter === 'ALL' || ((o.category || '').toUpperCase() === categoryFilter);
       const matchesDate = !dateFilter || ((o.createdAt || '').startsWith(dateFilter));
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesDate;
+      return matchesSearch && matchesStatus && matchesCancelSource && matchesCategory && matchesDate;
     });
-  }, [orders, searchTerm, statusFilter, categoryFilter, dateFilter]);
+  }, [orders, searchTerm, statusFilter, cancelSourceFilter, categoryFilter, dateFilter]);
 
   const categoryStats = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -2100,6 +2103,49 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
+
+            {/* Sub-Filter for Cancelled Orders: Customer vs Admin */}
+            {statusFilter === 'CANCELLED' && (
+              <div className="flex flex-wrap items-center gap-2 bg-rose-50/80 p-1.5 rounded-2xl border border-rose-200 w-full sm:w-auto animate-fadeIn">
+                <span className="text-[10px] font-black text-rose-950 px-2 uppercase tracking-wide">
+                  বাতিলের উৎস:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCancelSourceFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    cancelSourceFilter === 'ALL'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'bg-white text-rose-900 hover:bg-rose-100/60'
+                  }`}
+                >
+                  সকল বাতিল ({orders.filter(o => o.status === 'Cancelled').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelSourceFilter('CUSTOMER')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    cancelSourceFilter === 'CUSTOMER'
+                      ? 'bg-rose-700 text-white shadow-md'
+                      : 'bg-white text-rose-700 border border-rose-300 hover:bg-rose-100/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                  🚫 কাস্টমার বাতিল করেছে ({orders.filter(o => o.status === 'Cancelled' && o.cancelledBy === 'customer').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelSourceFilter('ADMIN')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    cancelSourceFilter === 'ADMIN'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  ⚠️ অ্যাডমিন বাতিল করেছে ({orders.filter(o => o.status === 'Cancelled' && o.cancelledBy !== 'customer').length})
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col lg:flex-row gap-3">
@@ -2322,12 +2368,23 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </div>
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest
-                        ${order.status === 'Pending' ? 'bg-amber-50 text-amber-600' :
-                          order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' :
-                          order.status === 'Cancelled' ? 'bg-rose-50 text-rose-600' :
-                          'bg-indigo-50 text-indigo-600'}`}>
-                        {order.status}
+                      <div className="flex flex-col items-end gap-1">
+                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest
+                          ${order.status === 'Pending' ? 'bg-amber-50 text-amber-600' :
+                            order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' :
+                            order.status === 'Cancelled' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                            'bg-indigo-50 text-indigo-600'}`}>
+                          {order.status}
+                        </div>
+                        {order.status === 'Cancelled' && (
+                          <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-md ${
+                            order.cancelledBy === 'customer' 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {order.cancelledBy === 'customer' ? '🚫 কাস্টমার বাতিল' : 'অ্যাডমিন বাতিল'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2366,6 +2423,36 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Prominent Cancellation Reason Banner on Card */}
+                    {order.status === 'Cancelled' && (
+                      <div className={`mb-5 p-3.5 rounded-2xl border text-xs ${
+                        order.cancelledBy === 'customer' 
+                          ? 'bg-rose-50/90 border-rose-200 text-rose-950' 
+                          : 'bg-gray-50 border-gray-200 text-gray-700'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1.5">
+                            {order.cancelledBy === 'customer' ? (
+                              <XCircle size={15} className="text-rose-600" />
+                            ) : (
+                              <AlertCircle size={15} className="text-gray-500" />
+                            )}
+                            {order.cancelledBy === 'customer' ? 'গ্রাহক নিজে বাতিল করেছেন (Customer Self-Cancelled)' : 'অর্ডার বাতিল করা হয়েছে'}
+                          </span>
+                          {order.cancelledAt && (
+                            <span className="text-[10px] text-gray-500 font-normal">
+                              {new Date(order.cancelledAt).toLocaleString('en-GB')}
+                            </span>
+                          )}
+                        </div>
+                        {order.cancelReason && (
+                          <p className="text-[11px] mt-1 text-rose-800 leading-relaxed">
+                            <strong>কারণ:</strong> {order.cancelReason}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Actions Row */}
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
@@ -3182,6 +3269,50 @@ export default function AdminDashboard() {
                           <XCircle size={16} className="text-rose-650 animate-pulse" />
                           <span>উন্নত অর্ডার ক্যান্সেলেশন এনালাইস মডিউল</span>
                         </div>
+
+                        {/* Customer Self-Cancellation Card */}
+                        {viewingOrder.cancelledBy === 'customer' ? (
+                          <div className="bg-rose-100/90 border-2 border-rose-300 p-4 rounded-2xl space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-black text-rose-950 flex items-center gap-1.5 text-xs">
+                                <XCircle size={16} className="text-rose-600" />
+                                🚫 গ্রাহক নিজে ওয়েবসাইট থেকে এই অর্ডারটি বাতিল করেছেন
+                              </span>
+                              <span className="text-[9px] font-black uppercase bg-rose-600 text-white px-2 py-0.5 rounded-full">
+                                Customer Action
+                              </span>
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border border-rose-200 text-rose-900 space-y-1">
+                              <p><strong className="text-rose-950">গ্রাহকের দেওয়া কারণ:</strong> {viewingOrder.cancelReason || 'কোনো কারণ উল্লেখ করা হয়নি'}</p>
+                              {viewingOrder.cancelledAt && (
+                                <p className="text-[10px] text-gray-500">
+                                  <strong>বাতিলের সময়:</strong> {new Date(viewingOrder.cancelledAt).toLocaleString('en-GB')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <span className="text-[10px] text-rose-800">কাস্টমারের সাথে কথা বলে পুনরায় অর্ডারটি চালু করতে চাইলে:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStatusUpdate(viewingOrder.id!, 'Pending', { cancelledBy: undefined, cancelReason: undefined, cancelledAt: undefined })}
+                                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-[10px] transition-all cursor-pointer shadow-xs active:scale-95 text-center shrink-0"
+                              >
+                                পেন্ডিং হিসেবে সচল করুন (Restore)
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-white p-3 rounded-xl border border-gray-200 text-gray-700 text-xs flex items-center justify-between">
+                            <span className="font-bold">⚠️ অ্যাডমিন/ম্যানেজমেন্ট কর্তৃক অর্ডারটি বাতিল করা হয়েছে</span>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusUpdate(viewingOrder.id!, 'Pending', { cancelledBy: undefined, cancelReason: undefined, cancelledAt: undefined })}
+                              className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg text-[10px] transition-all"
+                            >
+                              পুনরায় সচল করুন
+                            </button>
+                          </div>
+                        )}
 
                         {/* Cancellation reasons chips selecting */}
                         <div className="space-y-2">

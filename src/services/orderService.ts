@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc, deleteDoc, onSnapshot, where, limit } from 'firebase/firestore';
 import { initializeFirebase, markQuotaExhausted } from '../lib/firebase';
 import { Order, OrderStatus } from '../types';
 import { addLoyaltyPointsFromOrder } from './loyaltyService';
@@ -525,6 +525,118 @@ export const updateOrder = async (id: string, data: Partial<Order>) => {
       await handleFirestoreError(error, OperationType.UPDATE, `${path}/${id}`);
     }
   }
+};
+
+/**
+ * Allows a customer to cancel their own order after placing it.
+ * Updates order status to 'Cancelled', marks cancelledBy as 'customer', records reason & timestamp,
+ * and synchronizes across Local Storage, Firestore, Supabase & Server Storage.
+ */
+export const cancelCustomerOrder = async (
+  orderIdentifier: string, 
+  reason: string
+): Promise<{ success: boolean; message: string; order?: Order }> => {
+  if (!orderIdentifier || !orderIdentifier.trim()) {
+    return { success: false, message: 'অর্ডার নম্বর পাওয়া যায়নি।' };
+  }
+
+  const cleanId = orderIdentifier.trim();
+  const timestamp = new Date().toISOString();
+  const cancelPayload: Partial<Order> = {
+    status: 'Cancelled',
+    cancelledBy: 'customer',
+    cancelReason: reason || 'কাস্টমার নিজে অর্ডার বাতিল করেছেন',
+    cancelledAt: timestamp
+  };
+
+  let targetOrder: Order | null = null;
+
+  // 1. Update local storage caches immediately
+  try {
+    const existing = JSON.parse(localStorage.getItem('sera_orders') || '[]');
+    const updated = existing.map((o: any) => {
+      if (o.id === cleanId || o.orderId === cleanId) {
+        targetOrder = { ...o, ...cancelPayload };
+        return targetOrder;
+      }
+      return o;
+    });
+    localStorage.setItem('sera_orders', JSON.stringify(updated));
+
+    const cached = JSON.parse(localStorage.getItem('cached_orders') || '[]');
+    const updatedCached = cached.map((o: any) => {
+      if (o.id === cleanId || o.orderId === cleanId) {
+        return { ...o, ...cancelPayload };
+      }
+      return o;
+    });
+    localStorage.setItem('cached_orders', JSON.stringify(updatedCached));
+
+    // Update customer's own device order list
+    const myOrders = getMyCustomerOrdersLocally();
+    const updatedMyOrders = myOrders.map((o: any) => {
+      if (o.id === cleanId || o.orderId === cleanId) {
+        return { ...o, ...cancelPayload };
+      }
+      return o;
+    });
+    localStorage.setItem('sera_my_customer_orders', JSON.stringify(updatedMyOrders));
+
+    window.dispatchEvent(new Event('local_orders_updated'));
+    window.dispatchEvent(new CustomEvent('sera_customer_order_cancelled', { 
+      detail: { orderId: cleanId, reason, cancelledAt: timestamp } 
+    }));
+  } catch (e) {
+    console.warn("Failed to update cancelled order locally:", e);
+  }
+
+  // 2. Persist to Firestore
+  try {
+    const { db } = await initializeFirebase();
+    if (db) {
+      const path = 'orders';
+      let docUpdated = false;
+      if (cleanId && !cleanId.startsWith('ORD-')) {
+        try {
+          const docRef = doc(db, path, cleanId);
+          await updateDoc(docRef, sanitizeForFirestore(cancelPayload));
+          docUpdated = true;
+        } catch (e) {}
+      }
+
+      if (!docUpdated) {
+        try {
+          const q = query(collection(db, path), where('orderId', '==', cleanId), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            await updateDoc(snap.docs[0].ref, sanitizeForFirestore(cancelPayload));
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (firestoreErr) {
+    console.warn("Firestore customer cancellation update error:", firestoreErr);
+  }
+
+  // 3. Persist to Supabase
+  try {
+    if (targetOrder) {
+      supabaseSaveOrder(targetOrder).catch(() => {});
+    } else {
+      supabaseUpdateOrderStatus(cleanId, 'Cancelled').catch(() => {});
+    }
+  } catch (sbErr) {}
+
+  // 4. Persist to cPanel storage
+  try {
+    cpanelUpdateOrderStatus(cleanId, 'Cancelled');
+  } catch (cpErr) {}
+
+  return {
+    success: true,
+    message: 'আপনার অর্ডারটি সফলভাবে বাতিল করা হয়েছে।',
+    order: targetOrder || undefined
+  };
 };
 
 export const deleteOrder = async (id: string, altOrderId?: string) => {

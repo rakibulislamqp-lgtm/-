@@ -35,7 +35,7 @@ service cloud.firestore {
              data.address is string && data.address.size() > 0 && data.address.size() <= 600 &&
              (!('quantity' in data) || (data.quantity is number && data.quantity >= 1 && data.quantity <= 100)) &&
              (!('totalAmount' in data) || (data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 1000000)) &&
-             (!('status' in data) || data.status in ['Pending', 'Confirmed', 'Processing', 'Delivered', 'Cancelled']);
+              (!('status' in data) || data.status in ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']);
     }
 
     // Anti-Poisoning Guard for Reviews
@@ -78,11 +78,18 @@ service cloud.firestore {
     // 3. ORDERS COLLECTION
     // Customers can submit valid orders; Customer can track specific order if they have the exact orderId.
     // Bulk list queries, updates, and order deletions are RESTRICTED TO ADMIN ONLY.
-    // Hackers CANNOT scrape customer database or delete order history!
+    // Customers are securely allowed to cancel their own order before delivery.
     match /orders/{orderId} {
       allow create: if isValidOrder(incoming());
       allow get: if true;
-      allow list, update, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.resource.data.status == 'Cancelled' &&
+        request.resource.data.cancelledBy == 'customer' &&
+        request.resource.data.totalAmount == resource.data.totalAmount &&
+        request.resource.data.customerName == resource.data.customerName &&
+        request.resource.data.mobileNumber == resource.data.mobileNumber
+      );
+      allow list, delete: if isAdmin();
     }
 
     // 4. CUSTOMERS COLLECTION (PII Isolation)

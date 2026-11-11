@@ -89,6 +89,8 @@ export interface Order {
   courierTrackingCode?: string;
   courierStatus?: string;
   cancelReason?: string;
+  cancelledBy?: 'customer' | 'admin';
+  cancelledAt?: string;
   confirmedAt?: string;
   // Fraud & Security Shield Fields
   riskLevel?: 'safe' | 'medium' | 'high';
