@@ -2064,7 +2064,7 @@ export default function AdminDashboard() {
         </section>
 
         {/* Small Analytics Indicator row */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
           <div className="bg-white px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between text-[10px] font-bold shadow-sm">
             <span className="text-gray-400 uppercase tracking-widest pl-1">Total Active Orders (মোট অর্ডার)</span>
             <span className="text-xs font-black text-gray-800 tabular-nums">{stats.total}</span>
@@ -2081,16 +2081,56 @@ export default function AdminDashboard() {
             <span className="text-gray-400 uppercase tracking-widest pl-1 text-indigo-500">Total Discounts Out (মোট ছাড়)</span>
             <span className="text-xs font-black text-indigo-500 tabular-nums">৳{stats.totalDiscounts.toLocaleString('en-US')}</span>
           </div>
+          {/* Quick-Access Customer Cancelled Indicator Card */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('CANCELLED');
+              setCancelSourceFilter('CUSTOMER');
+            }}
+            className={`px-5 py-4 rounded-2xl border flex items-center justify-between text-[10px] font-bold shadow-sm transition-all cursor-pointer ${
+              statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
+                ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30'
+                : 'bg-rose-50/80 border-rose-200 text-rose-950 hover:bg-rose-100'
+            }`}
+            title="ক্লিক করে কাস্টমারদের বাতিল করা অর্ডারগুলো দেখুন"
+          >
+            <div className="flex flex-col text-left">
+              <span className={`uppercase tracking-wider font-black flex items-center gap-1 ${
+                statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER' ? 'text-white' : 'text-rose-700'
+              }`}>
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
+                কাস্টমার বাতিল
+              </span>
+              <span className={`text-[9px] font-semibold ${
+                statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER' ? 'text-rose-100' : 'text-gray-500'
+              }`}>
+                ক্লিক করে দেখুন ↗
+              </span>
+            </div>
+            <span className={`text-xs font-black tabular-nums px-2.5 py-1 rounded-xl shadow-xs ${
+              statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
+                ? 'bg-white text-rose-700'
+                : 'bg-rose-600 text-white'
+            }`}>
+              {orders.filter(o => o.status === 'Cancelled' && o.cancelledBy === 'customer').length}
+            </span>
+          </button>
         </section>
 
         {/* Filters and Search */}
         <section className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto no-scrollbar">
               {['ALL', 'PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
                 <button
                   key={status}
-                  onClick={() => setStatusFilter(status)}
+                  onClick={() => {
+                    setStatusFilter(status);
+                    if (status !== 'CANCELLED') {
+                      setCancelSourceFilter('ALL');
+                    }
+                  }}
                   className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap
                     ${statusFilter === status 
                       ? 'bg-brand-charcoal text-white shadow-lg' 
@@ -2103,6 +2143,23 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
+
+            {/* Direct Quick-Access Button for Customer Cancelled Orders */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('CANCELLED');
+                setCancelSourceFilter('CUSTOMER');
+              }}
+              className={`px-4 py-2.5 rounded-2xl text-[10px] font-black tracking-wider transition-all whitespace-nowrap flex items-center gap-2 border cursor-pointer shadow-xs ${
+                statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-lg scale-102 ring-2 ring-rose-500/20'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <span>🚫 কাস্টমার বাতিলকৃত অর্ডার ({orders.filter(o => o.status === 'Cancelled' && o.cancelledBy === 'customer').length})</span>
+            </button>
 
             {/* Sub-Filter for Cancelled Orders: Customer vs Admin */}
             {statusFilter === 'CANCELLED' && (
