@@ -4181,7 +4181,7 @@ export default function AdminDashboard() {
                 {/* Card Preview - 100% Mobile Safe & Non-Overflowing */}
                 <div 
                   ref={giftPrintRef} 
-                  className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[3.4/4] bg-[#0c0d15] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden mb-6 sm:mb-8 shadow-2xl flex flex-col items-stretch border border-white/10 mx-auto"
+                  className="relative w-full max-w-[340px] sm:max-w-[380px] min-h-[480px] sm:min-h-[520px] bg-[#0c0d15] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden mb-6 sm:mb-8 shadow-2xl flex flex-col justify-between items-stretch border border-white/10 mx-auto"
                   style={{ background: '#0b0c13' }}
                 >
                   {/* Luxury Background Accents */}
@@ -4189,15 +4189,15 @@ export default function AdminDashboard() {
                   <div className="absolute bottom-0 left-0 w-[240px] h-[240px] bg-rose-600/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2" />
                   
                   {/* Decorative Border */}
-                  <div className="absolute inset-3 sm:inset-4 border border-white/10 rounded-[1.5rem] sm:rounded-[1.8rem] pointer-events-none" />
+                  <div className="absolute inset-2.5 sm:inset-3 border border-white/10 rounded-[1.5rem] sm:rounded-[1.8rem] pointer-events-none" />
 
                   {/* Top Section */}
-                  <div className="pt-8 sm:pt-12 px-6 sm:px-10 pb-4 sm:pb-6 flex justify-between items-start z-10">
+                  <div className="pt-6 sm:pt-8 px-5 sm:px-8 pb-3 sm:pb-4 flex justify-between items-start z-10 shrink-0">
                     <div className="text-left">
                       <h3 className="text-xl sm:text-2xl font-serif font-black tracking-tight text-white leading-none">
                         SERA FASHION
                       </h3>
-                      <p className="text-[8px] sm:text-[9px] font-black tracking-[0.4em] uppercase text-gray-400 mt-2 sm:mt-3">
+                      <p className="text-[7.5px] sm:text-[8.5px] font-black tracking-[0.35em] uppercase text-gray-400 mt-2">
                         PREMIUM COUTURE & EXCELLENCE
                       </p>
                     </div>
@@ -4207,56 +4207,56 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Middle Section */}
-                  <div className="flex-1 flex flex-col items-center justify-center text-white px-6 sm:px-10 z-10 relative">
-                    <div className="w-10 sm:w-14 h-[1px] bg-rose-600 mb-6 sm:mb-8 opacity-60" />
+                  {/* Middle Section - Balanced Spacing */}
+                  <div className="flex-1 flex flex-col items-center justify-center text-white px-5 sm:px-8 py-2 z-10 relative">
+                    <div className="w-10 sm:w-14 h-[1px] bg-rose-600 mb-3 sm:mb-5 opacity-60 shrink-0" />
                     
-                    <div className="text-center mb-5 sm:mb-6">
-                      <h4 className="text-[1.8rem] sm:text-[2.5rem] font-serif font-black tracking-tight uppercase leading-[1.05] text-white/95">
+                    <div className="text-center mb-3 sm:mb-4 shrink-0">
+                      <h4 className="text-[1.7rem] sm:text-[2.2rem] font-serif font-black tracking-tight uppercase leading-[1.05] text-white/95">
                         WELCOME
                       </h4>
-                      <h4 className="text-[1.8rem] sm:text-[2.5rem] font-serif font-black tracking-tight uppercase leading-[1.05] mt-0.5">
+                      <h4 className="text-[1.7rem] sm:text-[2.2rem] font-serif font-black tracking-tight uppercase leading-[1.05] mt-0.5">
                         TO THE <span className="text-rose-500">FAMILY</span>
                       </h4>
                     </div>
 
                     {giftCustomerName && (
-                      <div className="relative mb-5 sm:mb-6 text-center">
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-4 h-4 text-rose-600/30">
-                          <Quote size={14} fill="currentColor" />
+                      <div className="relative mb-3 sm:mb-4 text-center shrink-0">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-3.5 h-3.5 text-rose-600/30">
+                          <Quote size={12} fill="currentColor" />
                         </div>
-                        <p className="text-xl sm:text-2xl font-serif italic text-rose-400 font-bold tracking-tight px-3">
+                        <p className="text-lg sm:text-xl font-serif italic text-rose-400 font-bold tracking-tight px-3 break-words max-w-[280px]">
                           {giftCustomerName}
                         </p>
-                        <div className="w-10 h-[1px] bg-rose-900/40 mx-auto mt-1.5" />
+                        <div className="w-10 h-[1px] bg-rose-900/40 mx-auto mt-1" />
                       </div>
                     )}
                     
-                    <p className="text-[10.5px] sm:text-[12px] font-medium text-gray-400 leading-[1.6] text-center italic max-w-[260px] mb-6 sm:mb-8">
+                    <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 leading-[1.5] text-center italic max-w-[260px] mb-3 sm:mb-5 shrink-0">
                       "Your style is our passion. We are honored to have you as a part of our exclusive journey."
                     </p>
 
-                    <div className="flex items-center gap-6 sm:gap-8 w-full justify-center">
+                    <div className="flex items-center gap-4 sm:gap-6 w-full justify-center shrink-0">
                       <div className="w-8 sm:w-12 h-[0.5px] bg-white/10" />
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-white/15 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-inner group">
-                        <Heart size={18} className="text-rose-500 fill-rose-500/25 transition-all" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-white/15 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-inner group">
+                        <Heart size={16} className="text-rose-500 fill-rose-500/25 transition-all" />
                       </div>
                       <div className="w-8 sm:w-12 h-[0.5px] bg-white/10" />
                     </div>
                   </div>
 
-                  {/* Bottom Section */}
-                  <div className="px-6 sm:px-10 py-6 sm:py-8 flex justify-between items-end z-10 border-t border-white/5">
+                  {/* Bottom Section - Locked with shrink-0 so it never overlaps or clips */}
+                  <div className="px-5 sm:px-8 py-3.5 sm:py-5 flex justify-between items-end z-10 border-t border-white/10 shrink-0 bg-[#0c0d15]/80">
                     <div className="text-left space-y-0.5">
-                      <p className="text-[8px] sm:text-[8.5px] font-black text-rose-500 uppercase tracking-[0.25em]">TIER STATUS</p>
-                      <h5 className="text-sm sm:text-base font-serif font-bold text-white uppercase tracking-tight">PREMIUM MEMBER</h5>
-                      <p className="text-[7.5px] font-serif italic text-gray-500">ID: SFH-2024-{Math.floor(Math.random() * 9000) + 1000}</p>
+                      <p className="text-[7.5px] sm:text-[8px] font-black text-rose-500 uppercase tracking-[0.25em]">TIER STATUS</p>
+                      <h5 className="text-xs sm:text-sm font-serif font-bold text-white uppercase tracking-tight">PREMIUM MEMBER</h5>
+                      <p className="text-[7px] font-serif italic text-gray-500">ID: SFH-2024-{Math.floor(Math.random() * 9000) + 1000}</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
-                      <p className="text-lg sm:text-xl font-serif font-black italic text-rose-500 leading-none mb-1">SERA FASHION</p>
+                      <p className="text-base sm:text-lg font-serif font-black italic text-rose-500 leading-none mb-1">SERA FASHION</p>
                       <div className="flex items-center gap-1.5">
                         <div className="w-3 h-[0.5px] bg-gray-700" />
-                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-[0.3em]">INVITATION</p>
+                        <p className="text-[7px] font-black text-gray-400 uppercase tracking-[0.3em]">INVITATION</p>
                       </div>
                     </div>
                   </div>
