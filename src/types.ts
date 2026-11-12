@@ -172,6 +172,7 @@ export interface FooterSettings {
 }
 
 export interface BrandSettings {
+  brandName?: string;
   updatedAt?: string;
   logoUrl?: string;
   invoiceLogoUrl?: string;

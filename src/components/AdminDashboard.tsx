@@ -2730,35 +2730,35 @@ export default function AdminDashboard() {
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="bg-[#1a1c2e] w-full max-w-[850px] rounded-[2rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-[#1a1c2e] w-full max-w-[850px] rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[96vh] border border-white/10"
             >
-              <div className="p-6 bg-[#0f111a] flex items-center justify-between border-b border-white/5">
-                <div className="flex items-center gap-3 text-white">
-                  <Printer size={20} className="text-rose-500" />
-                  <h2 className="text-sm font-black uppercase tracking-widest">Cash Memo / POS</h2>
+              <div className="p-3 sm:p-5 bg-[#0f111a] flex flex-wrap items-center justify-between gap-2.5 border-b border-white/5">
+                <div className="flex items-center gap-2.5 text-white">
+                  <Printer size={18} className="text-rose-500 shrink-0" />
+                  <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider">CASH MEMO / POS</h2>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                   <button 
                     onClick={() => handlePrint()}
-                    className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-rose-900/20 transition-all"
+                    className="bg-rose-600 hover:bg-rose-700 text-white px-3 sm:px-5 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-rose-900/20 transition-all cursor-pointer active:scale-95"
                   >
-                    <Printer size={14} /> Print Memo
+                    <Printer size={13} /> Print Memo
                   </button>
                   <button 
                     onClick={() => downloadAsPng(printRef, `INVOICE-${printingOrder.orderId}`, '#ffffff')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-5 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-emerald-900/20 transition-all cursor-pointer active:scale-95"
                   >
-                    <Download size={14} /> Download PNG
+                    <Download size={13} /> Download PNG
                   </button>
                   <button 
                     onClick={() => setPrintingOrder(null)}
-                    className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl transition-all"
+                    className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-all cursor-pointer"
                   >
                     <X size={18} />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 bg-white m-4 rounded-xl">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 sm:p-6 bg-white m-1 sm:m-4 rounded-xl sm:rounded-2xl">
                  <DigitalInvoice ref={printRef} order={printingOrder} />
               </div>
             </motion.div>
@@ -4147,150 +4147,145 @@ export default function AdminDashboard() {
       {/* Welcome Gift Modal */}
       <AnimatePresence>
         {isWelcomeGiftOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 font-sans">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsWelcomeGiftOpen(false)}
-              className="absolute inset-0 bg-[#0f111a]/80 backdrop-blur-xl"
+              className="absolute inset-0 bg-[#0f111a]/85 backdrop-blur-xl"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl relative z-10 overflow-hidden"
+              className="bg-white w-full max-w-md rounded-[2rem] sm:rounded-[3rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[94vh]"
             >
-              <div className="p-8 text-center">
+              <div className="p-4 sm:p-8 text-center overflow-y-auto">
                 <button 
                   onClick={() => setIsWelcomeGiftOpen(false)}
-                  className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-rose-500 rounded-xl transition-all"
+                  className="absolute top-4 sm:top-6 right-4 sm:right-6 p-2 bg-gray-50 text-gray-400 hover:text-rose-500 rounded-xl transition-all cursor-pointer"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
 
-                <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Gift size={32} />
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-xs">
+                  <Gift size={26} />
                 </div>
 
-                <h2 className="text-xl font-black text-[#1a1c2e] mb-2">Customer Welcome Gift</h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed mb-8">
-                  সেরা (Sera) এর পক্ষ থেকে কাস্টমারের জন্য বিশেষ গিফট কার্ড
+                <h2 className="text-lg sm:text-xl font-black text-[#1a1c2e] mb-1">Customer Welcome Gift</h2>
+                <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider leading-relaxed mb-6 sm:mb-8">
+                  সেরা ফ্যাশন (SERA FASHION) এর পক্ষ থেকে কাস্টমারের জন্য বিশেষ গিফট কার্ড
                 </p>
 
-                {/* Card Preview */}
+                {/* Card Preview - 100% Mobile Safe & Non-Overflowing */}
                 <div 
                   ref={giftPrintRef} 
-                  className="relative w-full aspect-[3.4/4] bg-[#0c0d15] rounded-[2.5rem] overflow-hidden mb-8 shadow-2xl flex flex-col items-stretch border border-white/5"
-                  style={{ width: '400px', margin: '0 auto', background: '#0b0c13' }}
+                  className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[3.4/4] bg-[#0c0d15] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden mb-6 sm:mb-8 shadow-2xl flex flex-col items-stretch border border-white/10 mx-auto"
+                  style={{ background: '#0b0c13' }}
                 >
                   {/* Luxury Background Accents */}
-                  <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-rose-600/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-rose-600/5 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2" />
-                  
-                  {/* Grain/Texture layer */}
-                  <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-                    style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} 
-                  />
+                  <div className="absolute top-0 right-0 w-[240px] h-[240px] bg-rose-600/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="absolute bottom-0 left-0 w-[240px] h-[240px] bg-rose-600/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2" />
                   
                   {/* Decorative Border */}
-                  <div className="absolute inset-4 border border-white/5 rounded-[1.8rem] pointer-events-none" />
+                  <div className="absolute inset-3 sm:inset-4 border border-white/10 rounded-[1.5rem] sm:rounded-[1.8rem] pointer-events-none" />
 
                   {/* Top Section */}
-                  <div className="pt-14 px-12 pb-10 flex justify-between items-start z-10">
+                  <div className="pt-8 sm:pt-12 px-6 sm:px-10 pb-4 sm:pb-6 flex justify-between items-start z-10">
                     <div className="text-left">
-                      <h3 className="text-3xl font-serif font-bold tracking-tight text-white leading-none">
-                        Sera
+                      <h3 className="text-xl sm:text-2xl font-serif font-black tracking-tight text-white leading-none">
+                        SERA FASHION
                       </h3>
-                      <p className="text-[9px] font-black tracking-[0.6em] uppercase text-gray-500 mt-4">
-                        COUTURE & EXCELLENCE
+                      <p className="text-[8px] sm:text-[9px] font-black tracking-[0.4em] uppercase text-gray-400 mt-2 sm:mt-3">
+                        PREMIUM COUTURE & EXCELLENCE
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest">Since 2024</span>
-                      <div className="w-10 h-[1px] bg-rose-600/30" />
+                      <span className="text-[7.5px] sm:text-[8px] font-black text-gray-500 uppercase tracking-widest">Since 2024</span>
+                      <div className="w-8 sm:w-10 h-[1px] bg-rose-600/40" />
                     </div>
                   </div>
 
                   {/* Middle Section */}
-                  <div className="flex-1 flex flex-col items-center justify-center text-white px-12 z-10 relative">
-                    <div className="w-14 h-[1px] bg-rose-600 mb-10 opacity-50" />
+                  <div className="flex-1 flex flex-col items-center justify-center text-white px-6 sm:px-10 z-10 relative">
+                    <div className="w-10 sm:w-14 h-[1px] bg-rose-600 mb-6 sm:mb-8 opacity-60" />
                     
-                    <div className="text-center mb-8">
-                      <h4 className="text-[3rem] font-serif font-black tracking-tight uppercase leading-[1] text-white/90">
+                    <div className="text-center mb-5 sm:mb-6">
+                      <h4 className="text-[1.8rem] sm:text-[2.5rem] font-serif font-black tracking-tight uppercase leading-[1.05] text-white/95">
                         WELCOME
                       </h4>
-                      <h4 className="text-[3rem] font-serif font-black tracking-tight uppercase leading-[1] mt-1">
-                        TO THE <span className="text-rose-600">FAMILY</span>
+                      <h4 className="text-[1.8rem] sm:text-[2.5rem] font-serif font-black tracking-tight uppercase leading-[1.05] mt-0.5">
+                        TO THE <span className="text-rose-500">FAMILY</span>
                       </h4>
                     </div>
 
                     {giftCustomerName && (
-                      <div className="relative mb-8 text-center">
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-4 h-4 text-rose-600/20">
-                          <Quote size={16} fill="currentColor" />
+                      <div className="relative mb-5 sm:mb-6 text-center">
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-4 h-4 text-rose-600/30">
+                          <Quote size={14} fill="currentColor" />
                         </div>
-                        <p className="text-2xl font-serif italic text-rose-500 font-bold tracking-tight px-4">
+                        <p className="text-xl sm:text-2xl font-serif italic text-rose-400 font-bold tracking-tight px-3">
                           {giftCustomerName}
                         </p>
-                        <div className="w-12 h-[1px] bg-rose-900/30 mx-auto mt-2" />
+                        <div className="w-10 h-[1px] bg-rose-900/40 mx-auto mt-1.5" />
                       </div>
                     )}
                     
-                    <p className="text-[12px] font-medium text-gray-400 leading-[1.8] text-center italic max-w-[280px] mb-12">
+                    <p className="text-[10.5px] sm:text-[12px] font-medium text-gray-400 leading-[1.6] text-center italic max-w-[260px] mb-6 sm:mb-8">
                       "Your style is our passion. We are honored to have you as a part of our exclusive journey."
                     </p>
 
-                    <div className="flex items-center gap-8 w-full justify-center">
-                      <div className="w-12 h-[0.5px] bg-white/10" />
-                      <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-inner group">
-                        <Heart size={20} className="text-rose-600 fill-rose-600/20 group-hover:fill-rose-600 transition-all duration-500" />
+                    <div className="flex items-center gap-6 sm:gap-8 w-full justify-center">
+                      <div className="w-8 sm:w-12 h-[0.5px] bg-white/10" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-white/15 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-inner group">
+                        <Heart size={18} className="text-rose-500 fill-rose-500/25 transition-all" />
                       </div>
-                      <div className="w-12 h-[0.5px] bg-white/10" />
+                      <div className="w-8 sm:w-12 h-[0.5px] bg-white/10" />
                     </div>
                   </div>
 
                   {/* Bottom Section */}
-                  <div className="px-12 py-12 flex justify-between items-end z-10">
-                    <div className="text-left space-y-1">
-                      <p className="text-[9px] font-black text-rose-600 uppercase tracking-[0.3em]">TIER STATUS</p>
-                      <h5 className="text-xl font-serif font-bold text-white uppercase tracking-tight">PREMIUM MEMBER</h5>
-                      <p className="text-[8px] font-serif italic text-gray-600">ID: SFH-2024-{Math.floor(Math.random() * 9000) + 1000}</p>
+                  <div className="px-6 sm:px-10 py-6 sm:py-8 flex justify-between items-end z-10 border-t border-white/5">
+                    <div className="text-left space-y-0.5">
+                      <p className="text-[8px] sm:text-[8.5px] font-black text-rose-500 uppercase tracking-[0.25em]">TIER STATUS</p>
+                      <h5 className="text-sm sm:text-base font-serif font-bold text-white uppercase tracking-tight">PREMIUM MEMBER</h5>
+                      <p className="text-[7.5px] font-serif italic text-gray-500">ID: SFH-2024-{Math.floor(Math.random() * 9000) + 1000}</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
-                      <p className="text-3xl font-serif italic text-rose-600 leading-none mb-3">Sera</p>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-[0.5px] bg-gray-800" />
-                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-[0.4em]">INVITATION</p>
+                      <p className="text-lg sm:text-xl font-serif font-black italic text-rose-500 leading-none mb-1">SERA FASHION</p>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-[0.5px] bg-gray-700" />
+                        <p className="text-[7.5px] font-black text-gray-400 uppercase tracking-[0.3em]">INVITATION</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="text-left space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Customer Name (Optional)</label>
+                <div className="space-y-3.5">
+                  <div className="text-left space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-2">Customer Name (Optional)</label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                       <input 
                         type="text" 
-                        placeholder="Type customer name here..."
+                        placeholder="কাস্টমারের নাম লিখুন..."
                         value={giftCustomerName}
                         onChange={(e) => setGiftCustomerName(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all"
                       />
                     </div>
                   </div>
 
                   <button 
                     onClick={() => downloadAsPng(giftPrintRef, `WELCOME-GIFT-${giftCustomerName || 'CUSTOMER'}`, '#0f111a')}
-                    className="w-full py-4 bg-[#1a1c2e] text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl flex items-center justify-center gap-3 hover:translate-y-[-2px] active:translate-y-[0] transition-all"
+                    className="w-full py-3.5 bg-[#1a1c2e] hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
                   >
-                    <Download size={18} /> Download Premium Welcome Card
+                    <Download size={16} /> Download Premium Welcome Card
                   </button>
 
-                  <p className="text-[9px] font-medium text-gray-400 italic">
-                    "Professional Tip: Send this high-quality card to your customer's WhatsApp or Messenger to build lasting brand loyalty."
+                  <p className="text-[9.5px] font-medium text-gray-400 italic">
+                    "টিপস: এই প্রিমিয়াম কার্ডটি ডাউনলোড করে কাস্টমারের হোয়াটসঅ্যাপ বা মেসেঞ্জারে পাঠিয়ে ব্র্যান্ড লয়্যালটি বৃদ্ধি করুন।"
                   </p>
                 </div>
               </div>

@@ -92,38 +92,38 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
             initial={{ opacity: 0, scale: 0.95, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 30 }}
-            className="bg-gray-50 w-full max-w-[1000px] rounded-[3rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+            className="bg-gray-50 w-full max-w-[1000px] rounded-[1.5rem] sm:rounded-[3rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[95vh]"
           >
             {/* Header */}
-            <div className="p-6 bg-white border-b border-gray-100 flex items-center justify-between sticky top-0 z-20">
-              <div className="flex items-center gap-4">
-                <button onClick={onClose} className="p-2 hover:bg-gray-50 rounded-xl transition-all">
-                  <X size={20} className="text-gray-400" />
+            <div className="p-3 sm:p-6 bg-white border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20">
+              <div className="flex items-center gap-3">
+                <button onClick={onClose} className="p-2 hover:bg-gray-50 rounded-xl transition-all cursor-pointer">
+                  <X size={18} className="text-gray-400" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-black text-brand-charcoal">In-Store Cash Memo</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Manual Billing System</p>
+                  <h2 className="text-base sm:text-lg font-black text-brand-charcoal">In-Store Cash Memo</h2>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">Manual Billing System</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <button 
                   onClick={() => handlePrint()}
-                  className="bg-brand-charcoal text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-black transition-all"
+                  className="bg-brand-charcoal text-white px-4 sm:px-6 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:bg-black transition-all cursor-pointer active:scale-95"
                 >
-                  <Printer size={14} /> Print
+                  <Printer size={13} /> Print
                 </button>
                 <button 
                   onClick={() => downloadAsPng(printRef, `CASH-MEMO-${memoNo}`, '#ffffff')}
-                  className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-900/20 hover:bg-emerald-700 transition-all"
+                  className="bg-emerald-600 text-white px-4 sm:px-6 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-900/20 hover:bg-emerald-700 transition-all cursor-pointer active:scale-95"
                 >
-                  <Download size={14} /> Download PNG
+                  <Download size={13} /> Download PNG
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-8 space-y-6 sm:space-y-8">
               {/* Customer Section */}
-              <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+              <div className="bg-white p-4 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4 sm:space-y-6">
                 <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-rose-50 text-rose-500 rounded-xl">
@@ -277,70 +277,68 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Preview</p>
                 <div className="bg-white rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden">
                   <div ref={printRef} className="bg-white p-12 text-[#1a1c2e] font-sans">
-                    <div className="relative border-[4px] border-[#1a1c2e] p-10">
+                    <div className="relative border-[2px] sm:border-[4px] border-[#1a1c2e] p-3 sm:p-10 rounded-xl overflow-hidden">
                       {/* Header */}
-                      <div className="text-center space-y-1 mb-12 border-b-4 border-[#1a1c2e] pb-6">
-                        <div className="flex items-center justify-center gap-3 mb-2">
+                      <div className="text-center space-y-1 mb-6 sm:mb-12 border-b-2 sm:border-b-4 border-[#1a1c2e] pb-4 sm:pb-6">
+                        <div className="flex items-center justify-center gap-2.5 sm:gap-3 mb-2">
                           <img 
                             src={logoUrl} 
                             alt="SERA FASHION Logo" 
-                            className="w-12 h-12 rounded-full object-cover border border-[#1a1c2e] p-0.5 shadow-sm"
+                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border border-[#1a1c2e] p-0.5 shadow-xs shrink-0"
                             referrerPolicy="no-referrer"
                           />
-                          <h1 className="text-4xl font-black italic tracking-tighter text-[#1a1c2e]">
-                            SERA FASHION <span className="text-rose-600">HOUSE</span>
+                          <h1 className="text-2xl sm:text-4xl font-black italic tracking-tighter text-[#1a1c2e]">
+                            SERA FASHION
                           </h1>
                         </div>
-                        <p className="text-[8px] font-black tracking-[0.4em] uppercase text-gray-400">Couture • Excellence • Tradition</p>
+                        <p className="text-[7.5px] sm:text-[8px] font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-gray-400">
+                          Couture • Excellence • Tradition
+                        </p>
                         
-                        <div className="flex justify-center gap-8 pt-4">
-                          <div className="flex items-center gap-1.5 text-[8px] font-black text-gray-500">
-                             <MapPin size={10} className="text-rose-600" />
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-8 pt-3 sm:pt-4">
+                          <div className="flex items-center gap-1.5 text-[7.5px] sm:text-[8px] font-black text-gray-500">
+                             <MapPin size={10} className="text-rose-600 shrink-0" />
                              <span>Buddijibe kobor astan gate No. 1, Mazza Road, Mirpur-1 Dhaka</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[8px] font-black text-gray-500">
-                             <Phone size={10} className="text-rose-600" />
+                          <div className="flex items-center gap-1.5 text-[7.5px] sm:text-[8px] font-black text-gray-500">
+                             <Phone size={10} className="text-rose-600 shrink-0" />
                              <span>01724628453 (Hotline)</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="absolute top-[160px] right-10 flex flex-col items-end">
-                         <div className="text-[28px] font-black text-gray-100/50 uppercase leading-none select-none">CASH MEMO</div>
-                         <div className="bg-rose-600 text-white px-3 py-0.5 text-[8px] font-black uppercase tracking-widest mt-[-4px]">Original Receipt</div>
-                      </div>
-
-                      <div className="flex justify-between items-start mb-12">
-                        <div className="space-y-4">
+                      <div className="flex justify-between items-center sm:items-start mb-6 sm:mb-12">
+                        <div className="space-y-1 sm:space-y-4">
                           <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Bill To</p>
-                          <div className="space-y-1">
-                            <h3 className="text-xl font-black">{customerName || '---'}</h3>
-                            <p className="text-[11px] font-bold text-gray-400">{mobileNumber || '---'}</p>
-                            <p className="text-[11px] font-bold text-gray-400 max-w-[250px]">{address || '---'}</p>
+                          <div className="space-y-0.5">
+                            <h3 className="text-base sm:text-xl font-black">{customerName || '---'}</h3>
+                            <p className="text-[10px] sm:text-[11px] font-bold text-gray-400">{mobileNumber || '---'}</p>
+                            <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 max-w-[250px]">{address || '---'}</p>
                           </div>
                         </div>
-                        <div className="text-right space-y-4">
+                        <div className="text-right space-y-1 sm:space-y-4">
                           <div>
-                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Memo No</p>
-                            <p className="text-sm font-black mt-1">{memoNo}</p>
+                            <p className="text-[7.5px] sm:text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Memo No</p>
+                            <p className="text-xs sm:text-sm font-black mt-0.5 sm:mt-1">{memoNo}</p>
                           </div>
                           <div>
-                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Date</p>
-                            <p className="text-sm font-black mt-1">{date}</p>
+                            <p className="text-[7.5px] sm:text-[8px] font-black text-gray-400 uppercase tracking-wider leading-none">Date</p>
+                            <p className="text-xs sm:text-sm font-black mt-0.5 sm:mt-1">{date}</p>
                           </div>
                         </div>
                       </div>
 
-                      <table className="w-full mb-12">
-                        <thead>
-                          <tr className="border-y-4 border-[#1a1c2e] text-[9px] font-black uppercase tracking-[0.2em] text-gray-500">
-                            <th className="py-2 text-left">Sl</th>
-                            <th className="py-2 text-left">Items & Description</th>
-                            <th className="py-2 text-center">Qty</th>
-                            <th className="py-2 text-right">Unit Price</th>
-                            <th className="py-2 text-right">Amount</th>
-                          </tr>
-                        </thead>
+                      <div className="overflow-x-auto w-full mb-8">
+                        <table className="w-full min-w-[340px]">
+                          <thead>
+                            <tr className="border-y-2 sm:border-y-4 border-[#1a1c2e] text-[8px] sm:text-[9px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-gray-500">
+                              <th className="py-2 text-left">Sl</th>
+                              <th className="py-2 text-left">Items & Description</th>
+                              <th className="py-2 text-center">Qty</th>
+                              <th className="py-2 text-right">Unit Price</th>
+                              <th className="py-2 text-right">Amount</th>
+                            </tr>
+                          </thead>
                         <tbody className="divide-y divide-gray-100">
                           {items.map((item, idx) => (
                             <tr key={item.id} className="text-[11px] font-black">
@@ -353,8 +351,9 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
                           ))}
                         </tbody>
                       </table>
+                    </div>
 
-                      <div className="flex justify-between items-start pt-8">
+                    <div className="flex justify-between items-start pt-8">
                         <div className="space-y-6">
                            <div className="flex items-center gap-3">
                               <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
