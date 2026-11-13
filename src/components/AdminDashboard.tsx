@@ -15,6 +15,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useReactToPrint } from 'react-to-print';
 import { toPng } from 'html-to-image';
 import { downloadAsPng } from '../lib/downloadUtils';
+import {
+  PrintFormat,
+  PRINT_FORMAT_OPTIONS,
+  getStoredPrintFormat,
+  savePrintFormat,
+  getPrintPageStyle,
+} from '../lib/printFormats';
 import { DigitalInvoice } from './DigitalInvoice';
 import { CashMemoModal } from './CashMemoModal';
 import ProductManager from './ProductManager';
@@ -347,6 +354,11 @@ export default function AdminDashboard() {
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
+  const [printFormat, setPrintFormat] = useState<PrintFormat>(() => getStoredPrintFormat());
+  const handleSelectPrintFormat = (fmt: PrintFormat) => {
+    setPrintFormat(fmt);
+    savePrintFormat(fmt);
+  };
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
 
@@ -1030,6 +1042,7 @@ export default function AdminDashboard() {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `INVOICE-${printingOrder?.orderId}`,
+    pageStyle: getPrintPageStyle(printFormat),
   });
 
   useEffect(() => {
@@ -2718,7 +2731,7 @@ export default function AdminDashboard() {
       {/* POS Modal */}
       <AnimatePresence>
         {printingOrder && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2738,6 +2751,23 @@ export default function AdminDashboard() {
                   <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider">CASH MEMO / POS</h2>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <div className="inline-flex items-center bg-white/5 border border-white/10 rounded-xl p-1 gap-0.5">
+                    {PRINT_FORMAT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleSelectPrintFormat(opt.id)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          printFormat === opt.id
+                            ? 'bg-amber-400 text-slate-950 shadow-xs'
+                            : 'text-gray-300 hover:text-white hover:bg-white/10'
+                        }`}
+                        title={opt.label}
+                      >
+                        {opt.shortLabel}
+                      </button>
+                    ))}
+                  </div>
                   <button 
                     onClick={() => handlePrint()}
                     className="bg-rose-600 hover:bg-rose-700 text-white px-3 sm:px-5 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-rose-900/20 transition-all cursor-pointer active:scale-95"
@@ -2758,8 +2788,16 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 sm:p-6 bg-white m-1 sm:m-4 rounded-xl sm:rounded-2xl">
-                 <DigitalInvoice ref={printRef} order={printingOrder} />
+              <div
+                className={`flex-1 overflow-y-auto overflow-x-auto m-1 sm:m-4 rounded-xl sm:rounded-2xl ${
+                  printFormat === 'a4'
+                    ? 'p-1.5 sm:p-6 bg-white'
+                    : 'p-4 sm:p-8 bg-slate-100 flex justify-center items-start'
+                }`}
+              >
+                <div className={printFormat === 'a4' ? 'w-full' : 'bg-white shadow-lg border border-gray-200 inline-block'}>
+                  <DigitalInvoice ref={printRef} order={printingOrder} printFormat={printFormat} />
+                </div>
               </div>
             </motion.div>
           </div>
@@ -4642,7 +4680,7 @@ export default function AdminDashboard() {
       {/* Hidden container for print ref integration */}
       <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
         <div ref={invoiceDownloadRef}>
-          {printingOrder && <DigitalInvoice order={printingOrder} />}
+          {printingOrder && <DigitalInvoice order={printingOrder} printFormat={printFormat} />}
         </div>
       </div>
 

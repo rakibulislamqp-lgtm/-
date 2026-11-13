@@ -3,13 +3,16 @@ import { Order } from '../types';
 import { ShoppingBag, Phone, MapPin, Calendar, Hash } from 'lucide-react';
 import brandLogo from '../assets/images/sfh_logo_1779435027377.png';
 import { getBrandSettings } from '../services/settingsService';
+import { PrintFormat } from '../lib/printFormats';
+import { ThermalReceipt } from './ThermalReceipt';
 
 interface DigitalInvoiceProps {
   order: Order;
   onClose?: () => void;
+  printFormat?: PrintFormat;
 }
 
-export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoiceProps>(({ order, onClose }, ref) => {
+export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoiceProps>(({ order, onClose, printFormat = 'a4' }, ref) => {
   const [logoUrl, setLogoUrl] = useState<string>(() => {
     try {
       const cached = localStorage.getItem('brand_settings');
@@ -38,6 +41,9 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
     return 'SERA FASHION';
   });
 
+  const [storeHotline, setStoreHotline] = useState<string>('01724628453');
+  const [storeAddress, setStoreAddress] = useState<string>('Mirpur-1, Dhaka, Bangladesh');
+
   useEffect(() => {
     async function loadLogo() {
       try {
@@ -47,6 +53,12 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
         }
         if (settings?.brandName) {
           setBrandName(settings.brandName);
+        }
+        if (settings?.footer?.phone) {
+          setStoreHotline(settings.footer.phone);
+        }
+        if (settings?.footer?.address) {
+          setStoreAddress(settings.footer.address);
         }
       } catch (err) {
         console.error("Failed to load invoice logo:", err);
@@ -64,8 +76,59 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
     ? order.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
     : (order.quantity * order.price);
 
+  if (printFormat === '58mm' || printFormat === '80mm') {
+    const thermalItems = order.items && order.items.length > 0
+      ? order.items.map((item) => ({
+          id: item.id,
+          title: item.productTitle,
+          code: item.productCode,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price,
+        }))
+      : [{
+          id: order.id || order.orderId,
+          title: order.category || 'SERA FASHION পোশাক',
+          code: order.productCode,
+          size: (order as any).size,
+          quantity: order.quantity,
+          price: order.price,
+        }];
+
+    const discountType = (order as any).discountType || (order.discount === 100 || order.discount === 200 ? 'flat' : 'percentage');
+    const discountLabel = discountAmount > 0
+      ? `Discount (${discountType === 'flat' ? `${order.discount}৳` : `${order.discount}%`})`
+      : 'Discount';
+
+    const shippingAddr = `${order.address}, ${order.upazila ? `${order.upazila}, ` : ''}${order.district}, Bangladesh`;
+
+    return (
+      <ThermalReceipt
+        ref={ref}
+        widthMode={printFormat}
+        brandName={brandName || 'SERA FASHION'}
+        logoUrl={logoUrl}
+        storeAddress={storeAddress}
+        hotline={storeHotline}
+        invoiceId={order.orderId}
+        dateStr={new Date(order.createdAt).toLocaleDateString('en-US')}
+        customerName={order.customerName}
+        mobileNumber={order.mobileNumber}
+        shippingAddress={shippingAddr}
+        paymentMethod={order.paymentMethod || 'Cash on Delivery'}
+        items={thermalItems}
+        subtotal={subtotal}
+        discountLabel={discountLabel}
+        discountAmount={discountAmount}
+        shippingLabel="Shipping"
+        shippingCharge={deliveryCharge}
+        netTotal={netTotal}
+      />
+    );
+  }
+
   return (
-    <div ref={ref} className="bg-white p-3 sm:p-6 md:p-8 w-full max-w-[600px] mx-auto text-brand-charcoal font-sans relative overflow-hidden">
+    <div ref={ref} className="bg-white p-3 sm:p-6 md:p-8 print:p-6 w-full max-w-[600px] print:max-w-full mx-auto text-brand-charcoal font-sans relative overflow-hidden">
       {/* Header Section */}
       <div className="flex justify-between items-start mb-4 gap-2">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">

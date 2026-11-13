@@ -8,6 +8,14 @@ import { useReactToPrint } from 'react-to-print';
 import { downloadAsPng } from '../lib/downloadUtils';
 import brandLogoDefault from '../assets/images/sfh_logo_1779435027377.png';
 import { getBrandSettings } from '../services/settingsService';
+import {
+  PrintFormat,
+  PRINT_FORMAT_OPTIONS,
+  getStoredPrintFormat,
+  savePrintFormat,
+  getPrintPageStyle,
+} from '../lib/printFormats';
+import { ThermalReceipt } from './ThermalReceipt';
 
 interface CashMemoItem {
   id: string;
@@ -53,10 +61,18 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
     }).catch(() => {});
   }, []);
 
+  const [printFormat, setPrintFormat] = useState<PrintFormat>(() => getStoredPrintFormat());
+
+  const handleSelectFormat = (fmt: PrintFormat) => {
+    setPrintFormat(fmt);
+    savePrintFormat(fmt);
+  };
+
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `CASH-MEMO-${memoNo}`,
+    pageStyle: getPrintPageStyle(printFormat),
   });
 
   const addItem = () => {
@@ -106,6 +122,23 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-xl p-1 gap-0.5">
+                  {PRINT_FORMAT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleSelectFormat(opt.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        printFormat === opt.id
+                          ? 'bg-brand-charcoal text-white shadow-xs'
+                          : 'text-gray-600 hover:text-brand-charcoal hover:bg-white/70'
+                      }`}
+                      title={opt.label}
+                    >
+                      {opt.shortLabel}
+                    </button>
+                  ))}
+                </div>
                 <button 
                   onClick={() => handlePrint()}
                   className="bg-brand-charcoal text-white px-4 sm:px-6 py-2 rounded-xl text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:bg-black transition-all cursor-pointer active:scale-95"
@@ -273,11 +306,49 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
               </div>
 
               {/* Preview Section */}
-              <div className="space-y-6">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Preview</p>
-                <div className="bg-white rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden">
-                  <div ref={printRef} className="bg-white p-12 text-[#1a1c2e] font-sans">
-                    <div className="relative border-[2px] sm:border-[4px] border-[#1a1c2e] p-3 sm:p-10 rounded-xl overflow-hidden">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Preview</p>
+                  <span className="text-[10px] font-black text-brand-charcoal/70 uppercase tracking-wider">
+                    {PRINT_FORMAT_OPTIONS.find(o => o.id === printFormat)?.label}
+                  </span>
+                </div>
+                <div className="bg-white rounded-[1.5rem] sm:rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden">
+                  {printFormat === '58mm' || printFormat === '80mm' ? (
+                    <div className="bg-gray-100/80 p-4 sm:p-8 flex justify-center overflow-x-auto">
+                      <div className="bg-white shadow-md border border-gray-200 inline-block">
+                        <ThermalReceipt
+                          ref={printRef}
+                          widthMode={printFormat}
+                          brandName="SERA FASHION"
+                          logoUrl={logoUrl}
+                          tagline="Couture • Excellence • Tradition"
+                          storeAddress="Buddijibe kobor astan gate No. 1, Mazza Road, Mirpur-1 Dhaka"
+                          hotline="01724628453"
+                          invoiceId={memoNo}
+                          dateStr={date}
+                          customerName={customerName || '---'}
+                          mobileNumber={mobileNumber || '---'}
+                          shippingAddress={address || '---'}
+                          paymentMethod={paymentMethod}
+                          items={items.map((item) => ({
+                            id: item.id,
+                            title: item.name || '---',
+                            quantity: item.quantity,
+                            price: item.price,
+                          }))}
+                          subtotal={subtotal}
+                          discountLabel="Total Discount"
+                          discountAmount={totalDiscount}
+                          shippingCharge={0}
+                          netTotal={totalAmount}
+                          noteText="ধন্যবাদ আমাদের সাথে কেনাকাটা করার জন্য। পণ্য পরিবর্তনের জন্য ৭ দিনের মধ্যে মেমো সহ যোগাযোগ করুন।"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div ref={printRef} className="bg-white p-3 sm:p-10 print:p-6 text-[#1a1c2e] font-sans">
+                      <div className="relative border-[2px] sm:border-[4px] border-[#1a1c2e] p-3 sm:p-10 rounded-xl overflow-hidden">
                       {/* Header */}
                       <div className="text-center space-y-1 mb-6 sm:mb-12 border-b-2 sm:border-b-4 border-[#1a1c2e] pb-4 sm:pb-6">
                         <div className="flex items-center justify-center gap-2.5 sm:gap-3 mb-2">
@@ -401,6 +472,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({ isOpen, onClose })
                       </div>
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             </div>

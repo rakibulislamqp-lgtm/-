@@ -11,6 +11,7 @@ import { DigitalInvoice } from './DigitalInvoice';
 import { Order } from '../types';
 import { generateReferralCodeForPhone } from '../services/loyaltyService';
 import { cancelCustomerOrder } from '../services/orderService';
+import { getPrintPageStyle } from '../lib/printFormats';
 
 interface SuccessViewProps {
   order: Order;
@@ -66,6 +67,7 @@ export default function SuccessView({ order }: SuccessViewProps) {
   const handlePrint = useReactToPrint({
     contentRef: invoiceRef,
     documentTitle: `SERA-FASHION-INVOICE-${currentOrder.orderId}`,
+    pageStyle: getPrintPageStyle('a4'),
   });
 
   // Real Download Functionality using html-to-image to Phone Gallery
