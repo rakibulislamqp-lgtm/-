@@ -330,7 +330,11 @@ export default function OfferLandingPage({
             <p className="text-xs text-slate-400 mt-1">অনুগ্রহ করে মূল স্টোর ভিজিট করুন।</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={
+            filteredProducts.length === 1
+              ? "flex justify-center"
+              : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          }>
             {filteredProducts.map((product) => {
               const pId = product.id || product.productCode;
               const hasSizes = product.category !== 'SAREE';
@@ -346,7 +350,9 @@ export default function OfferLandingPage({
               return (
                 <div 
                   key={pId}
-                  className="bg-[#0b0f1a] border border-white/10 rounded-3xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col shadow-xl group"
+                  className={`bg-[#0b0f1a] border border-white/10 rounded-3xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col shadow-xl group ${
+                    filteredProducts.length === 1 ? 'w-full max-w-md' : ''
+                  }`}
                 >
                   <div className="relative aspect-[4/5] bg-slate-950 overflow-hidden">
                     <img

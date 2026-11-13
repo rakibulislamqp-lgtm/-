@@ -64,7 +64,11 @@ export default function ProductPicker({ onSelect, selectedId }: ProductPickerPro
         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{products.length} Items</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className={
+        products.length === 1
+          ? "flex justify-center"
+          : "grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+      }>
         {products.map((product) => (
           <motion.button
             key={product.id}
@@ -72,6 +76,8 @@ export default function ProductPicker({ onSelect, selectedId }: ProductPickerPro
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(product)}
             className={`group relative flex flex-col text-left transition-all duration-500 ${
+              products.length === 1 ? 'w-full max-w-[280px] sm:max-w-[310px]' : ''
+            } ${
               selectedId === product.id 
                 ? 'ring-4 ring-brand-gold/20' 
                 : ''

@@ -579,7 +579,11 @@ export default function ProductShowcase({
 
 
 
-      <div className="max-w-6xl mx-auto px-2 md:px-4 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8">
+      <div className={
+        paginatedProducts.length === 1
+          ? "max-w-6xl mx-auto px-4 flex justify-center"
+          : "max-w-6xl mx-auto px-2 md:px-4 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8"
+      }>
         {paginatedProducts
           .map((product, index) => {
           const discount = product.discount || 0;
@@ -591,7 +595,11 @@ export default function ProductShowcase({
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              className="group bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-500 border border-gray-100 flex flex-col"
+              className={`group bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-500 border border-gray-100 flex flex-col ${
+                paginatedProducts.length === 1
+                  ? 'w-full max-w-[280px] sm:max-w-[310px] md:max-w-[320px] shadow-[0_12px_36px_rgba(0,0,0,0.06)]'
+                  : ''
+              }`}
             >
               {/* Image Container (1080x1080 Square Frame) */}
               <div 
