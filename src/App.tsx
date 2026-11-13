@@ -1304,6 +1304,17 @@ export default function App() {
           getValues={getValues} 
           cartLength={cart.length} 
           onOpenCheckout={() => setCheckoutMode(true)} 
+          onBrowseProducts={() => {
+            setCheckoutMode(false);
+            setTimeout(() => {
+              const el = document.getElementById('products-showcase-section') || document.getElementById('products-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }, 150);
+          }}
           onOpenChange={setIsSpinModalOpen}
           brandSettings={brandSettingsObj}
         />

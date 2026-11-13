@@ -13,6 +13,7 @@ interface SpinWheelModalProps {
   getValues: (name: string) => any;
   cartLength?: number;
   onOpenCheckout?: () => void;
+  onBrowseProducts?: () => void;
   onOpenChange?: (isOpen: boolean) => void;
   brandSettings?: BrandSettings | null;
 }
@@ -223,6 +224,7 @@ export default function SpinWheelModal({
   getValues, 
   cartLength = 0, 
   onOpenCheckout, 
+  onBrowseProducts,
   onOpenChange, 
   brandSettings 
 }: SpinWheelModalProps) {
@@ -470,16 +472,28 @@ export default function SpinWheelModal({
     setValidationError('');
   };
 
-  // Proceed to order action
-  const handleProceedToOrder = () => {
+  // Browse products first if cart is empty, or proceed to checkout if items already chosen
+  const handleBrowseProducts = () => {
     handleClose();
-    if (onOpenCheckout) {
+    if (onBrowseProducts) {
+      onBrowseProducts();
+    } else {
+      const target = document.getElementById('products-showcase-section') || document.getElementById('products-section') || document.getElementById('product-catalog');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
+
+  // Proceed to order action: if cart has products, go to checkout; otherwise bring customer to product selection first
+  const handleProceedToOrder = () => {
+    if ((cartLength || 0) > 0 && onOpenCheckout) {
+      handleClose();
       onOpenCheckout();
     } else {
-      const target = document.getElementById('order-form') || document.getElementById('product-section') || document.querySelector('form');
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth' });
-      }
+      handleBrowseProducts();
     }
   };
 
@@ -750,7 +764,7 @@ export default function SpinWheelModal({
               className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition"
             >
               <ShoppingCart size={14} />
-              <span>এই অফারে এখনি অর্ডার করুন</span>
+              <span>{(cartLength || 0) > 0 ? 'এই অফারে এখনি অর্ডার করুন' : 'প্রোডাক্ট পছন্দ করে অর্ডার করুন'}</span>
             </button>
           </motion.div>
         )}
@@ -1087,16 +1101,16 @@ export default function SpinWheelModal({
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
                         <ShoppingCart size={16} />
-                        <span>অর্ডার করতে এগিয়ে যান</span>
+                        <span>{(cartLength || 0) > 0 ? 'অর্ডার করতে এগিয়ে যান' : 'পছন্দের প্রোডাক্ট বাছাই করুন'}</span>
                         <ArrowRight size={16} />
                       </button>
 
                       <button
-                        onClick={handleClose}
+                        onClick={handleBrowseProducts}
                         className="w-full py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-stone-700 rounded-xl font-bold text-xs transition-all cursor-pointer"
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
-                        অন্যান্য পোশাক দেখুন (বন্ধ করুন)
+                        সকল পোশাক দেখুন (বন্ধ করুন)
                       </button>
                     </div>
 
