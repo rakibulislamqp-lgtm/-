@@ -52,6 +52,10 @@
       "type": "object",
       "properties": {
         "logoUrl": { "type": "string" },
+        "liveViewerEnabled": { "type": "boolean" },
+        "liveViewerMode": { "type": "string", "enum": ["combined", "real_only", "fake_only"] },
+        "liveViewerFakeCount": { "type": "number" },
+        "liveViewerFakeCountsByProduct": { "type": "object" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["logoUrl"]

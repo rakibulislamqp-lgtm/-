@@ -17,6 +17,7 @@ import { getPixelLogs, clearPixelLogs, subscribePixelLogs, testPixelEvent, syncP
 import defaultLogo from '../assets/images/sfh_logo_1779435027377.png';
 import { BrandSettings } from '../types';
 import SpinWheelOffersManager from './SpinWheelOffersManager';
+import LiveViewerControlPanel from './LiveViewerControlPanel';
 
 // Modern Promise-based helper to read files safely
 const readFileAsDataURL = (file: File): Promise<string> => {
@@ -1338,6 +1339,9 @@ export default function SettingsManager() {
                   </div>
                 )}
               </div>
+
+              {/* Product Live Viewer Control (Real & Fake) */}
+              <LiveViewerControlPanel />
 
               {/* Lucky Spin Wheel On/Off Settings Card */}
               <div className="bg-gradient-to-tr from-amber-500/5 via-white to-amber-500/10 p-5 rounded-3xl border border-amber-200/60 shadow-sm space-y-4">

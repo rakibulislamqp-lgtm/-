@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { subscribeToVisitorSessions } from '../services/trackingService';
 import { VisitorSession, ProductView, TrackingEvent } from '../types';
+import LiveViewerControlPanel from './LiveViewerControlPanel';
 
 export default function LiveVisitorTracker() {
   const [sessions, setSessions] = useState<VisitorSession[]>(() => {
@@ -405,6 +406,9 @@ export default function LiveVisitorTracker() {
           </span>
         </div>
       </div>
+
+      {/* Live Product Viewer Control Panel (Real & Fake) */}
+      <LiveViewerControlPanel />
 
       {/* 2. Highlights Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

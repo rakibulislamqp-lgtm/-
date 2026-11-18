@@ -300,6 +300,69 @@ async function startServer() {
     }
   });
 
+  // 1d-2. Real-time Anonymous Product Live Viewer Presence API (Zero PII)
+  interface LiveViewerEntry {
+    sessionId: string;
+    productCode?: string;
+    lastSeen: number;
+  }
+  const liveViewerSessions = new Map<string, LiveViewerEntry>();
+  const LIVE_VIEWER_TTL_MS = 45000;
+
+  const getLiveViewerSummaryPayload = () => {
+    const now = Date.now();
+    const byProduct: Record<string, number> = {};
+    for (const [sid, entry] of liveViewerSessions.entries()) {
+      if (now - entry.lastSeen > LIVE_VIEWER_TTL_MS) {
+        liveViewerSessions.delete(sid);
+        continue;
+      }
+      if (entry.productCode) {
+        byProduct[entry.productCode] = (byProduct[entry.productCode] || 0) + 1;
+      }
+    }
+    return {
+      success: true,
+      totalRealOnline: liveViewerSessions.size,
+      byProduct,
+      updatedAt: new Date().toISOString()
+    };
+  };
+
+  app.post("/api/live-viewers/heartbeat", (req, res) => {
+    try {
+      const sessionId = String(req.body?.sessionId || '').trim().slice(0, 128);
+      const productCode = req.body?.productCode ? String(req.body.productCode).trim().slice(0, 64) : undefined;
+      if (sessionId) {
+        liveViewerSessions.set(sessionId, {
+          sessionId,
+          productCode: productCode || undefined,
+          lastSeen: Date.now()
+        });
+      }
+      return res.json(getLiveViewerSummaryPayload());
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/live-viewers/leave", (req, res) => {
+    try {
+      const sessionId = String(req.body?.sessionId || '').trim().slice(0, 128);
+      if (sessionId) {
+        liveViewerSessions.delete(sessionId);
+      }
+      return res.json(getLiveViewerSummaryPayload());
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.get("/api/live-viewers/summary", (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(getLiveViewerSummaryPayload());
+  });
+
   // 1e. Universal Upload Endpoint (for cPanel & Node.js uploads)
   app.post(["/api/upload", "/api/upload.php"], (req, res) => {
     try {

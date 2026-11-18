@@ -266,6 +266,11 @@ export interface BrandSettings {
   spinWheelDelaySeconds?: number; // Auto-popup entrance delay in seconds (default 5s)
   spinWheelShowFloatingButton?: boolean; // Show floating gift badge on storefront when modal is closed (default true)
   spinWheelItems?: SpinWheelItem[]; // Dynamic wheel prize items & sector offers
+  // Live Product Viewer Controls (Real & Fake)
+  liveViewerEnabled?: boolean; // Show live viewer badge on product cards (default true)
+  liveViewerMode?: 'combined' | 'real_only' | 'fake_only'; // 'combined': Real + Fake, 'real_only': Only Real, 'fake_only': Only Fake
+  liveViewerFakeCount?: number; // Admin-controlled fake live viewer boost/base count (default 5)
+  liveViewerFakeCountsByProduct?: Record<string, number>; // Optional per-product fake count override by productCode
   // Landing Page Full Management & Structural Controls
   landingPage?: LandingPageConfig;
 }

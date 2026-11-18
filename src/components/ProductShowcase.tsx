@@ -3,10 +3,16 @@ import { createPortal } from 'react-dom';
 import { getAllProducts } from '../services/productService';
 import { getAllOrders } from '../services/orderService';
 import { getReviewsForProduct, createReview, deleteReview, getProductSalesCount, ProductReview } from '../services/reviewService';
-import { Product, ProductCategoryItem } from '../types';
+import { Product, ProductCategoryItem, BrandSettings } from '../types';
 import { trackProductView, logVisitorEvent, updateVisitorStage } from '../services/trackingService';
 import { trackPixelViewContent } from '../services/pixelService';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
+import { subscribeToBrandSettings } from '../services/settingsService';
+import {
+  LiveViewerSummary,
+  subscribeToLiveViewerSummary,
+  computeProductLiveViewers,
+} from '../services/liveViewerService';
 import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -69,6 +75,15 @@ export default function ProductShowcase({
     }
   });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(() => {
+    try {
+      const cached = localStorage.getItem('brand_settings');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [viewerSummary, setViewerSummary] = useState<LiveViewerSummary | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'photo' | 'video'>('photo');
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
@@ -220,6 +235,28 @@ export default function ProductShowcase({
       window.removeEventListener('local_products_updated', handleProductsUpdated);
     };
   }, []);
+
+  // Subscribe to live viewer brand settings (real/fake mode & counts)
+  useEffect(() => {
+    const unsubscribe = subscribeToBrandSettings((nextSettings) => {
+      if (nextSettings) {
+        setBrandSettings(nextSettings);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Report storefront presence and subscribe to live viewer counts
+  useEffect(() => {
+    const unsubscribe = subscribeToLiveViewerSummary(
+      true,
+      selectedProduct?.productCode,
+      (nextSummary) => {
+        setViewerSummary(nextSummary);
+      }
+    );
+    return () => unsubscribe();
+  }, [selectedProduct?.productCode]);
 
   useEffect(() => {
     if (selectedProduct) {
@@ -681,6 +718,11 @@ export default function ProductShowcase({
           .map((product, index) => {
           const discount = product.discount || 0;
           const originalPrice = product.price + discount;
+          const liveInfo = computeProductLiveViewers({
+            summary: viewerSummary,
+            settings: brandSettings,
+            productCode: product.productCode,
+          });
           
           return (
             <motion.div 
@@ -758,11 +800,15 @@ export default function ProductShowcase({
                   </div>
 
                   <div className="inline-flex items-center gap-2 text-[9px] md:text-[10px] font-bold text-slate-500 bg-amber-50/50 border border-amber-200/50 px-2.5 py-0.5 rounded-xl">
-                    <span className="flex items-center gap-1 text-rose-600 font-extrabold">
-                      <Eye size={10} className="animate-pulse" />
-                      {((index * 3) % 4) + 3} জন লাইভ দেখছেন
-                    </span>
-                    <span>•</span>
+                    {liveInfo.enabled && (
+                      <>
+                        <span className="flex items-center gap-1 text-rose-600 font-extrabold">
+                          <Eye size={10} className="animate-pulse" />
+                          {liveInfo.displayCount} জন লাইভ দেখছেন
+                        </span>
+                        <span>•</span>
+                      </>
+                    )}
                     <span className="text-amber-800 font-extrabold">
                       ⚡ স্টক বাকি {product.stock > 0 ? product.stock : ((index % 3) + 2)}টি
                     </span>

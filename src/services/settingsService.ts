@@ -1,10 +1,14 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { initializeFirebase } from '../lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { initializeFirebase, checkIsQuotaExhausted } from '../lib/firebase';
 import { BrandSettings } from '../types';
 import { detectCPanelStorage, cpanelFetchSettings, cpanelSaveSettings } from './cpanelStorageService';
 import { supabaseFetchSettings, supabaseSaveSettings } from './supabaseService';
 
 const SETTING_DOC_ID = 'brand';
+
+const settingsChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('sera_brand_settings_bc')
+  : null;
 
 export const getBrandSettings = async (): Promise<BrandSettings | null> => {
   let cachedData: BrandSettings | null = null;
@@ -117,6 +121,11 @@ export const updateBrandSettings = async (
       const updated = { ...current, ...settings, updatedAt: new Date().toISOString() };
       localStorage.setItem('brand_settings', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('brand_settings_updated', { detail: updated }));
+      if (settingsChannel) {
+        try {
+          settingsChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: updated });
+        } catch {}
+      }
 
       // Also persist to cPanel / API server native storage immediately
       try {
@@ -385,4 +394,123 @@ export const uploadAndSaveBrandLogo = async (file: File): Promise<string> => {
   return base64Url;
 };
 
+/**
+ * Real-time subscription to BrandSettings across tabs, server & Firestore
+ */
+export const subscribeToBrandSettings = (
+  callback: (settings: BrandSettings | null) => void
+): (() => void) => {
+  let isActive = true;
+  let unsubscribeFirestore: (() => void) | null = null;
 
+  const emitCachedOrFetched = async () => {
+    try {
+      const local = localStorage.getItem('brand_settings');
+      if (local && isActive) {
+        callback(JSON.parse(local));
+      }
+    } catch {}
+    try {
+      const fresh = await getBrandSettings();
+      if (fresh && isActive) {
+        callback(fresh);
+      }
+    } catch {}
+  };
+
+  emitCachedOrFetched();
+
+  const handleCustomUpdate = (e: Event) => {
+    if (!isActive) return;
+    const detail = (e as CustomEvent)?.detail;
+    if (detail) {
+      callback(detail);
+    } else {
+      try {
+        const local = localStorage.getItem('brand_settings');
+        if (local) callback(JSON.parse(local));
+      } catch {}
+    }
+  };
+
+  const handleStorage = (e: StorageEvent) => {
+    if (!isActive) return;
+    if (e.key === 'brand_settings' && e.newValue) {
+      try {
+        callback(JSON.parse(e.newValue));
+      } catch {}
+    }
+  };
+
+  const handleBc = (event: MessageEvent) => {
+    if (!isActive) return;
+    if (event.data?.type === 'SETTINGS_UPDATED' && event.data?.settings) {
+      try {
+        localStorage.setItem('brand_settings', JSON.stringify(event.data.settings));
+      } catch {}
+      callback(event.data.settings);
+    }
+  };
+
+  window.addEventListener('brand_settings_updated', handleCustomUpdate);
+  window.addEventListener('storage', handleStorage);
+  settingsChannel?.addEventListener('message', handleBc);
+
+  // Attach Firestore real-time snapshot listener when quota allows
+  (async () => {
+    try {
+      if (checkIsQuotaExhausted()) return;
+      const { db } = await initializeFirebase();
+      if (!db || !isActive) return;
+      unsubscribeFirestore = onSnapshot(
+        doc(db, 'settings', SETTING_DOC_ID),
+        (snap) => {
+          if (!isActive || !snap.exists()) return;
+          const remote = snap.data() as BrandSettings;
+          try {
+            const currentLocal = localStorage.getItem('brand_settings');
+            const localObj = currentLocal ? JSON.parse(currentLocal) : null;
+            const localTime = localObj?.updatedAt ? new Date(localObj.updatedAt).getTime() : 0;
+            const remoteTime = remote?.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+            if (!localObj || remoteTime >= localTime) {
+              localStorage.setItem('brand_settings', JSON.stringify(remote));
+              callback(remote);
+            }
+          } catch {
+            callback(remote);
+          }
+        },
+        (err) => {
+          console.warn('Brand settings Firestore listener notice:', err?.message || err);
+        }
+      );
+    } catch {}
+  })();
+
+  // Periodic background sync from server (/api/settings) every 15s for cross-device updates
+  const pollInterval = setInterval(async () => {
+    if (!isActive) return;
+    try {
+      const cData = await cpanelFetchSettings();
+      if (cData && typeof cData === 'object' && Object.keys(cData).length > 0) {
+        const currentLocal = localStorage.getItem('brand_settings');
+        const localObj = currentLocal ? JSON.parse(currentLocal) : null;
+        const localTime = localObj?.updatedAt ? new Date(localObj.updatedAt).getTime() : 0;
+        const remoteTime = (cData as any)?.updatedAt ? new Date((cData as any).updatedAt).getTime() : 0;
+        if (!localObj || remoteTime > localTime) {
+          localStorage.setItem('brand_settings', JSON.stringify(cData));
+          callback(cData as BrandSettings);
+        }
+      }
+    } catch {}
+  }, 15000);
+
+  return () => {
+    isActive = false;
+    window.removeEventListener('brand_settings_updated', handleCustomUpdate);
+    window.removeEventListener('storage', handleStorage);
+    settingsChannel?.removeEventListener('message', handleBc);
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    clearInterval(pollInterval);
+  };
+};
