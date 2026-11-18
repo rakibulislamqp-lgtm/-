@@ -4,16 +4,24 @@ import {
   ShoppingBag, Sparkles, Clock, Truck, RotateCcw, ShieldCheck, 
   CheckCircle2, ChevronDown, ChevronUp, Star, Phone, MessageCircle, 
   ArrowRight, Tag, Flame, Zap, Award, HelpCircle, ExternalLink, 
-  Store, Check, AlertCircle, Eye, X, Plus, Minus
+  Store, Check, AlertCircle, Eye, X, Plus, Minus, Camera
 } from 'lucide-react';
 import { Product, BrandSettings, LandingPageSectionId } from '../types';
 import { getAllProducts } from '../services/productService';
 import { DEFAULT_LANDING_PAGE_CONFIG } from '../services/landingPageDefaults';
 import defaultLogo from '../assets/images/sfh_logo_1779435027377.png';
+import {
+  getProductSizes,
+  getDefaultSizeForProduct,
+  getDefaultColorForProduct,
+  getProductImagesList,
+  getPhotoVariantLabel,
+  toBanglaDigits,
+} from '../lib/productVariants';
 
 interface OfferLandingPageProps {
-  onBuyNow: (product: Product, quantity: number, size: string) => void;
-  onAddToCart?: (product: Product, quantity: number, size: string) => void;
+  onBuyNow: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
+  onAddToCart?: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
   onGoToStore: () => void;
   brandSettings?: BrandSettings | null;
   logoUrl?: string;
@@ -49,9 +57,12 @@ export default function OfferLandingPage({
     config.defaultCategory || 'ALL'
   );
   
-  // Per-product state: selected size & quantity
+  // Per-product state: selected size, color/photo, quantity & per-piece variants
   const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
+  const [selectedColors, setSelectedColors] = useState<Record<string, string>>({});
+  const [selectedImageUrls, setSelectedImageUrls] = useState<Record<string, string>>({});
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
+  const [pieceVariants, setPieceVariants] = useState<Record<string, Array<{ size: string; color: string; imageUrl?: string }>>>({});
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
 
   // FAQ Accordion active index
@@ -117,23 +128,139 @@ export default function OfferLandingPage({
     };
   }, []);
 
-  const handleSizeSelect = (productId: string, size: string) => {
+  const handleSizeSelect = (product: Product, size: string) => {
+    const productId = product.id || product.productCode;
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
     setSelectedSizes(prev => ({ ...prev, [productId]: size }));
+    setPieceVariants(prev => {
+      const existing = prev[productId];
+      if (!existing || existing.length === 0) {
+        return {
+          ...prev,
+          [productId]: [{ size, color: selectedColors[productId] || getDefaultColorForProduct(product), imageUrl: defImage }],
+        };
+      }
+      const next = [...existing];
+      next[0] = { ...next[0], size };
+      return { ...prev, [productId]: next };
+    });
   };
 
-  const handleQuantityChange = (productId: string, delta: number) => {
-    setSelectedQuantities(prev => {
-      const current = prev[productId] || 1;
-      const next = Math.max(1, Math.min(10, current + delta));
+  const handlePhotoSelect = (product: Product, imgUrl: string, imgIdx: number, totalImages: number) => {
+    const productId = product.id || product.productCode;
+    const colorLabel = getPhotoVariantLabel(imgIdx, totalImages);
+    setSelectedImageUrls(prev => ({ ...prev, [productId]: imgUrl }));
+    setSelectedColors(prev => ({ ...prev, [productId]: colorLabel }));
+    setPieceVariants(prev => {
+      const existing = prev[productId];
+      if (!existing || existing.length === 0) {
+        return {
+          ...prev,
+          [productId]: [{
+            size: selectedSizes[productId] || getDefaultSizeForProduct(product),
+            color: colorLabel,
+            imageUrl: imgUrl,
+          }],
+        };
+      }
+      const next = [...existing];
+      next[0] = { ...next[0], color: colorLabel, imageUrl: imgUrl };
       return { ...prev, [productId]: next };
+    });
+  };
+
+  const handleQuantityChange = (product: Product, delta: number) => {
+    const productId = product.id || product.productCode;
+    const current = selectedQuantities[productId] || 1;
+    const nextQty = Math.max(1, Math.min(10, current + delta));
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    setSelectedQuantities(prev => ({ ...prev, [productId]: nextQty }));
+    setPieceVariants(prev => {
+      const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+      const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+      const currentList = prev[productId] || [{ size: defSize, color: defColor, imageUrl: defImage }];
+      if (nextQty === currentList.length) return prev;
+      if (nextQty < currentList.length) {
+        return { ...prev, [productId]: currentList.slice(0, nextQty) };
+      }
+      const template = currentList[currentList.length - 1] || { size: defSize, color: defColor, imageUrl: defImage };
+      return {
+        ...prev,
+        [productId]: [
+          ...currentList,
+          ...Array.from({ length: nextQty - currentList.length }, () => ({ ...template })),
+        ],
+      };
+    });
+  };
+
+  const handlePieceSizeChange = (product: Product, pieceIdx: number, value: string) => {
+    const productId = product.id || product.productCode;
+    const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+    const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    const qty = selectedQuantities[productId] || 1;
+    setPieceVariants(prev => {
+      const base = prev[productId] && prev[productId].length === qty
+        ? [...prev[productId]]
+        : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
+      base[pieceIdx] = { ...base[pieceIdx], size: value };
+      return { ...prev, [productId]: base };
+    });
+    if (pieceIdx === 0) {
+      setSelectedSizes(prev => ({ ...prev, [productId]: value }));
+    }
+  };
+
+  const handlePiecePhotoChange = (product: Product, pieceIdx: number, imgUrl: string, imgIdx: number, totalImages: number) => {
+    const productId = product.id || product.productCode;
+    const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+    const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    const qty = selectedQuantities[productId] || 1;
+    const colorLabel = getPhotoVariantLabel(imgIdx, totalImages);
+    setPieceVariants(prev => {
+      const base = prev[productId] && prev[productId].length === qty
+        ? [...prev[productId]]
+        : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
+      base[pieceIdx] = { ...base[pieceIdx], color: colorLabel, imageUrl: imgUrl };
+      return { ...prev, [productId]: base };
+    });
+    if (pieceIdx === 0) {
+      setSelectedImageUrls(prev => ({ ...prev, [productId]: imgUrl }));
+      setSelectedColors(prev => ({ ...prev, [productId]: colorLabel }));
+    }
+  };
+
+  const handleSyncFirstPieceToAll = (product: Product) => {
+    const productId = product.id || product.productCode;
+    const qty = selectedQuantities[productId] || 1;
+    const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+    const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    setPieceVariants(prev => {
+      const current = prev[productId] || [];
+      const first = current[0] || { size: defSize, color: defColor, imageUrl: defImage };
+      return { ...prev, [productId]: Array.from({ length: qty }, () => ({ ...first })) };
     });
   };
 
   const handleProductBuy = (product: Product) => {
     const pId = product.id || product.productCode;
-    const size = selectedSizes[pId] || (product.category === 'SAREE' ? 'Free Size' : '38');
+    const size = selectedSizes[pId] || getDefaultSizeForProduct(product);
+    const color = selectedColors[pId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[pId] || availImages[0] || product.imageUrl;
     const quantity = selectedQuantities[pId] || 1;
-    onBuyNow(product, quantity, size);
+    const variants = pieceVariants[pId] && pieceVariants[pId].length === quantity
+      ? pieceVariants[pId]
+      : Array.from({ length: quantity }, () => ({ size, color, imageUrl: defImage }));
+    onBuyNow(product, quantity, variants[0]?.size || size, variants[0]?.color || color, variants);
   };
 
   const filteredProducts = products.filter(p => {
@@ -337,10 +464,17 @@ export default function OfferLandingPage({
           }>
             {filteredProducts.map((product) => {
               const pId = product.id || product.productCode;
-              const hasSizes = product.category !== 'SAREE';
-              const availableSizes = product.sizes && product.sizes.length > 0 ? product.sizes : ['38', '40', '42', '44'];
-              const currentSize = selectedSizes[pId] || (hasSizes ? '38' : 'Free Size');
+              const availableSizes = getProductSizes(product);
+              const rawImages = getProductImagesList(product);
+              const cardImages = rawImages.length > 0 ? rawImages : [product.imageUrl].filter(Boolean);
+              const hasSizes = availableSizes.length > 1 || product.category !== 'SAREE';
+              const currentSize = selectedSizes[pId] || getDefaultSizeForProduct(product);
+              const currentColor = selectedColors[pId] || getDefaultColorForProduct(product);
+              const currentImageUrl = selectedImageUrls[pId] || cardImages[0] || product.imageUrl;
               const currentQty = selectedQuantities[pId] || 1;
+              const currentPieces = pieceVariants[pId] && pieceVariants[pId].length === currentQty
+                ? pieceVariants[pId]
+                : Array.from({ length: currentQty }, () => ({ size: currentSize, color: currentColor, imageUrl: currentImageUrl }));
 
               const regularPrice = product.regularPrice || Math.round(product.price * 1.25);
               const discountPercent = regularPrice > product.price 
@@ -356,7 +490,7 @@ export default function OfferLandingPage({
                 >
                   <div className="relative aspect-[4/5] bg-slate-950 overflow-hidden">
                     <img
-                      src={product.imageUrl}
+                      src={currentImageUrl}
                       alt={product.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"
@@ -410,37 +544,12 @@ export default function OfferLandingPage({
                         </span>
                       </div>
 
-                      {hasSizes && (
-                        <div className="mt-3.5 space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
-                            <span>সাইজ বেছে নিন:</span>
-                            <span className="text-amber-300 font-bold">{currentSize}</span>
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {availableSizes.map(s => (
-                              <button
-                                key={s}
-                                type="button"
-                                onClick={() => handleSizeSelect(pId, s)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                  currentSize === s
-                                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
-                                }`}
-                              >
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       <div className="mt-3.5 flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-slate-400">পরিমাণ:</span>
                         <div className="flex items-center gap-2 bg-slate-950 border border-white/10 rounded-xl px-2 py-1">
                           <button
                             type="button"
-                            onClick={() => handleQuantityChange(pId, -1)}
+                            onClick={() => handleQuantityChange(product, -1)}
                             className="text-slate-400 hover:text-white p-1 cursor-pointer"
                           >
                             <Minus size={12} />
@@ -450,13 +559,183 @@ export default function OfferLandingPage({
                           </span>
                           <button
                             type="button"
-                            onClick={() => handleQuantityChange(pId, 1)}
+                            onClick={() => handleQuantityChange(product, 1)}
                             className="text-slate-400 hover:text-white p-1 cursor-pointer"
                           >
                             <Plus size={12} />
                           </button>
                         </div>
                       </div>
+
+                      {currentQty === 1 ? (
+                        <>
+                          {hasSizes && (
+                            <div className="mt-3.5 space-y-1.5">
+                              <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
+                                <span>সাইজ বেছে নিন:</span>
+                                <span className="text-amber-300 font-bold">{currentSize}</span>
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {availableSizes.map(s => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => handleSizeSelect(product, s)}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      currentSize === s
+                                        ? 'bg-amber-400 text-slate-950 shadow-sm'
+                                        : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                                    }`}
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-3.5 space-y-2">
+                            <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between gap-2 flex-wrap">
+                              <span className="inline-flex items-center gap-1">
+                                <Camera size={12} className="text-amber-400" />
+                                কালার ও ডিজাইন (ছবিতে টাচ করুন):
+                              </span>
+                              <span className="text-amber-300 font-bold inline-flex items-center gap-1.5 truncate max-w-[150px]">
+                                <img
+                                  src={currentImageUrl}
+                                  alt={currentColor}
+                                  className="w-3.5 h-3.5 rounded object-cover border border-amber-400/50 shrink-0"
+                                />
+                                <span>{currentColor}</span>
+                              </span>
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {cardImages.map((imgUrl, imgIdx) => {
+                                const isSelected = currentImageUrl === imgUrl;
+                                return (
+                                  <button
+                                    key={imgIdx}
+                                    type="button"
+                                    onClick={() => handlePhotoSelect(product, imgUrl, imgIdx, cardImages.length)}
+                                    className={`relative w-12 h-12 rounded-xl overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
+                                      isSelected
+                                        ? 'border-2 border-amber-400 ring-2 ring-amber-400/35 shadow-lg scale-105'
+                                        : 'border border-white/15 opacity-75 hover:opacity-100 hover:border-white/40'
+                                    }`}
+                                    title={`ডিজাইন ${toBanglaDigits(imgIdx + 1)} সিলেক্ট করুন`}
+                                  >
+                                    <img
+                                      src={imgUrl}
+                                      alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                      className="w-full h-full object-cover rounded-[9px]"
+                                    />
+                                    {isSelected && (
+                                      <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow">
+                                        <Check size={9} strokeWidth={3} />
+                                      </span>
+                                    )}
+                                    {cardImages.length > 1 && (
+                                      <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
+                                        isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
+                                      }`}>
+                                        {toBanglaDigits(imgIdx + 1)}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-3.5 space-y-2 bg-slate-950/70 border border-white/10 rounded-2xl p-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[10.5px] font-bold text-amber-300 inline-flex items-center gap-1">
+                              <Camera size={12} className="text-amber-400" />
+                              <span>প্রতিটি পিসের সাইজ ও ছবি:</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncFirstPieceToAll(product)}
+                              className="text-[9.5px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 px-2 py-0.5 rounded-md border border-amber-400/30 cursor-pointer"
+                            >
+                              সব ১মটির মতো রাখুন
+                            </button>
+                          </div>
+                          <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+                            {currentPieces.map((piece, idx) => (
+                              <div key={idx} className="p-2 rounded-xl bg-white/[0.04] border border-white/10 space-y-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-bold gap-2">
+                                  <span className="text-amber-300">পিস {toBanglaDigits(idx + 1)}</span>
+                                  <span className="text-slate-300 inline-flex items-center gap-1.5 truncate max-w-[175px]">
+                                    <img
+                                      src={piece.imageUrl || currentImageUrl}
+                                      alt={`পিস ${idx + 1}`}
+                                      className="w-3.5 h-3.5 rounded object-cover border border-amber-400/50 shrink-0"
+                                    />
+                                    <span>{piece.size} • {piece.color}</span>
+                                  </span>
+                                </div>
+                                {hasSizes && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {availableSizes.map(s => (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => handlePieceSizeChange(product, idx, s)}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                          piece.size === s ? 'bg-amber-400 text-slate-950' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                                        }`}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  <span className="text-[9.5px] text-slate-400 block">ছবিতে টাচ করে ডিজাইন নিন:</span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {cardImages.map((imgUrl, imgIdx) => {
+                                      const isSelected = (piece.imageUrl || cardImages[0]) === imgUrl;
+                                      return (
+                                        <button
+                                          key={imgIdx}
+                                          type="button"
+                                          onClick={() => handlePiecePhotoChange(product, idx, imgUrl, imgIdx, cardImages.length)}
+                                          className={`relative w-10 h-10 rounded-lg overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
+                                            isSelected
+                                              ? 'border-2 border-amber-400 ring-1 ring-amber-400/40 scale-105'
+                                              : 'border border-white/15 opacity-70 hover:opacity-100'
+                                          }`}
+                                          title={`পিস ${toBanglaDigits(idx + 1)} - ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                        >
+                                          <img
+                                            src={imgUrl}
+                                            alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                            className="w-full h-full object-cover rounded-[5px]"
+                                          />
+                                          {isSelected && (
+                                            <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow">
+                                              <Check size={8} strokeWidth={3} />
+                                            </span>
+                                          )}
+                                          {cardImages.length > 1 && (
+                                            <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[7.5px] font-black ${
+                                              isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
+                                            }`}>
+                                              {toBanglaDigits(imgIdx + 1)}
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2">
@@ -739,7 +1018,11 @@ export default function OfferLandingPage({
               </div>
 
               <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-black">
-                <img src={previewProduct.imageUrl} alt={previewProduct.title} className="w-full h-full object-cover" />
+                <img
+                  src={selectedImageUrls[previewProduct.id || previewProduct.productCode] || previewProduct.imageUrl}
+                  alt={previewProduct.title}
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               <div className="flex items-center justify-between pt-2">

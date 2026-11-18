@@ -9,9 +9,10 @@ import {
   Plus, Search, Edit, Trash2, Package, Tag, Hash, 
   DollarSign, Image as ImageIcon, Check, X, AlertCircle, Loader2,
   Eye, EyeOff, Upload, Camera, ShieldCheck, LogIn, Video, Play, Film,
-  ChevronLeft, ChevronRight, Layers, ImagePlus, Star
+  ChevronLeft, ChevronRight, Layers, ImagePlus, Star, Ruler
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ADMIN_PRESET_SIZES } from '../lib/productVariants';
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>(() => {
@@ -248,12 +249,41 @@ export default function ProductManager() {
     }
   };
 
+  const [customSizeInputs, setCustomSizeInputs] = useState<Record<number, string>>({});
+
   const updateFormEntry = (index: number, updates: Partial<Product>) => {
     setFormEntries(prev => {
       const newEntries = [...prev];
       newEntries[index] = { ...newEntries[index], ...updates };
       return newEntries;
     });
+  };
+
+  const toggleVariantOption = (index: number, field: 'sizes', val: string) => {
+    setFormEntries(prev => {
+      const newEntries = [...prev];
+      const current = Array.isArray(newEntries[index]?.[field]) ? [...(newEntries[index][field] as string[])] : [];
+      const exists = current.includes(val);
+      newEntries[index] = {
+        ...newEntries[index],
+        [field]: exists ? current.filter(item => item !== val) : [...current, val]
+      };
+      return newEntries;
+    });
+  };
+
+  const addCustomVariantOption = (index: number, field: 'sizes', rawVal: string) => {
+    const clean = rawVal.trim();
+    if (!clean) return;
+    setFormEntries(prev => {
+      const newEntries = [...prev];
+      const current = Array.isArray(newEntries[index]?.[field]) ? [...(newEntries[index][field] as string[])] : [];
+      if (!current.includes(clean)) {
+        newEntries[index] = { ...newEntries[index], [field]: [...current, clean] };
+      }
+      return newEntries;
+    });
+    setCustomSizeInputs(prev => ({ ...prev, [index]: '' }));
   };
 
   const fetchProducts = async () => {
@@ -281,10 +311,12 @@ export default function ProductManager() {
   }, [products]);
 
   const handleOpenModal = (product?: Product) => {
+    setCustomSizeInputs({});
     if (product) {
       setEditingProduct(product);
       setFormEntries([{
         ...product,
+        sizes: Array.isArray(product.sizes) ? [...product.sizes] : [],
         galleryImages: Array.isArray(product.galleryImages) ? [...product.galleryImages] : [],
         initialSalesCount: product.initialSalesCount ?? 0
       }]);
@@ -295,6 +327,7 @@ export default function ProductManager() {
         brand: '',
         description: '',
         price: 0,
+        sizes: [],
         imageUrl: '',
         galleryImages: [],
         category: 'THREE PIECE',
@@ -1463,6 +1496,79 @@ export default function ProductManager() {
                               className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums"
                             />
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Sizes Configuration + Photo-Based Color Selection Note */}
+                      <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 bg-amber-50/35 p-5 rounded-3xl border border-amber-200/60">
+                        {/* Available Sizes */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="text-[10.5px] font-black text-brand-charcoal uppercase tracking-wider flex items-center gap-1.5">
+                              <Ruler size={13} className="text-amber-600" />
+                              <span>সাইজ অপশন (Sizes)</span>
+                            </label>
+                            <span className="text-[9.5px] font-bold text-gray-500">
+                              {(entry.sizes?.length || 0) > 0 ? `${entry.sizes?.length}টি নির্বাচিত` : 'ডিফল্ট সাইজ চালু থাকবে'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from(new Set([...ADMIN_PRESET_SIZES, ...(entry.sizes || [])])).map((sz) => {
+                              const selected = (entry.sizes || []).includes(sz);
+                              return (
+                                <button
+                                  key={sz}
+                                  type="button"
+                                  onClick={() => toggleVariantOption(index, 'sizes', sz)}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                                    selected
+                                      ? 'bg-brand-charcoal text-amber-300 border-brand-charcoal shadow-xs'
+                                      : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400'
+                                  }`}
+                                >
+                                  {sz}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              placeholder="কাস্টম সাইজ (যেমন: 42 বা Unstitched)"
+                              value={customSizeInputs[index] || ''}
+                              onChange={(e) => setCustomSizeInputs(prev => ({ ...prev, [index]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '');
+                                }
+                              }}
+                              className="flex-1 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold outline-none focus:border-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '')}
+                              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-[11px] font-black cursor-pointer shrink-0"
+                            >
+                              + যোগ
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Photo-Touch Color & Design Guidance */}
+                        <div className="flex flex-col justify-center bg-white/80 p-4 rounded-2xl border border-amber-200/70 space-y-2">
+                          <div className="flex items-center gap-2 text-brand-charcoal">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                              <Camera size={16} />
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-black">কালার ও ডিজাইন (ছবি ভিত্তিক)</h5>
+                              <p className="text-[10px] font-bold text-emerald-700">অটোমেটিক ফটো সিলেকশন সক্রিয়</p>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-gray-600 leading-relaxed">
+                            উপরে প্রতিটি কালার বা ডিজাইনের জন্য প্রোডাক্টের ছবি আপলোড করুন। কাস্টমার অর্ডার করার সময় সরাসরি <strong className="text-brand-charcoal">প্রোডাক্টের ছবির উপর টাচ করেই</strong> পছন্দের কালার ও ডিজাইন সিলেক্ট করতে পারবেন।
+                          </p>
                         </div>
                       </div>
 

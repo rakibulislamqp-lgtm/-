@@ -52,6 +52,10 @@ export interface CartItem {
   price: number;
   quantity: number;
   size: string;
+  color?: string;
+  availableSizes?: string[];
+  availableColors?: string[];
+  availableImages?: string[];
 }
 
 export interface Order {
@@ -85,6 +89,8 @@ export interface Order {
   date?: string;
   productId?: string;
   productImage?: string;
+  size?: string;
+  color?: string;
   courierId?: string;
   courierTrackingCode?: string;
   courierStatus?: string;
@@ -120,6 +126,7 @@ export interface Product {
   price: number;
   regularPrice?: number;
   sizes?: string[];
+  colors?: string[];
   imageUrl: string;
   galleryImages?: string[]; // Multiple photos (photo 2, photo 3, etc.)
   videoUrl?: string;

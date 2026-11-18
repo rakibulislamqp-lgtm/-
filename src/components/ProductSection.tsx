@@ -10,7 +10,7 @@ interface ProductSectionProps {
   control: any;
   setValue: any;
   cart: any[];
-  onAddToCart: (product: Product, quantity: number, size: string) => void;
+  onAddToCart: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
 }
 
 const CODE_TO_DISCOUNT: Record<string, number> = {

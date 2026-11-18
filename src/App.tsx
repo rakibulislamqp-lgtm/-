@@ -24,7 +24,15 @@ import Footer from './components/Footer';
 import { createOrder } from './services/orderService';
 import { dispatchOrderNotifications } from './services/notificationService';
 import { Order, CartItem, BrandSettings, CustomerUser } from './types';
-import { ShoppingBag, Loader2, Database, RefreshCcw, ArrowDown, ArrowLeft, ShoppingCart, Trash2, Plus, Minus, CheckCircle2, User, AlertCircle, X, Eye, EyeOff, Lock, LayoutDashboard } from 'lucide-react';
+import { ShoppingBag, Loader2, Database, RefreshCcw, ArrowDown, ArrowLeft, ShoppingCart, Trash2, Plus, Minus, CheckCircle2, User, AlertCircle, X, Eye, EyeOff, Lock, LayoutDashboard, Camera, Layers, Check } from 'lucide-react';
+import {
+  getProductSizes,
+  getDefaultSizeForProduct,
+  getDefaultColorForProduct,
+  getProductImagesList,
+  getPhotoVariantLabel,
+  toBanglaDigits,
+} from './lib/productVariants';
 import BANNER_IMAGE from './assets/images/sera_fashion_banner_1779021192580.png';
 import brandLogo from './assets/images/sfh_logo_1779435027377.png';
 import { getBrandLogoSettings } from './services/settingsService';
@@ -462,9 +470,14 @@ export default function App() {
       
       const referralCodeUsed = sessionStorage.getItem('sera_referral_code_used') || undefined;
 
+      const sanitizedItems = cart.map(({ availableSizes, availableColors, availableImages, ...rest }) => ({
+        ...rest,
+        color: rest.color || 'ছবির কালার ও ডিজাইন',
+      }));
+
       const result = await createOrder({
         ...data,
-        items: cart,
+        items: sanitizedItems,
         sessionId: getOrCreateSessionId(),
         referralCodeUsed,
         // Attach Courier Fraud & Return Intelligence
@@ -476,12 +489,14 @@ export default function App() {
         riskReason: fraudProfile.riskReason,
         isBlacklisted: fraudProfile.isBlacklisted,
         // Sync main fields with first item for legacy compatibility
-        productId: cart[0].productId,
-        productImage: cart[0].productImage,
-        productCode: cart[0].productCode,
-        category: cart[0].category,
-        price: cart[0].price,
-        quantity: cart.reduce((acc, item) => acc + item.quantity, 0),
+        productId: sanitizedItems[0].productId,
+        productImage: sanitizedItems[0].productImage,
+        productCode: sanitizedItems[0].productCode,
+        category: sanitizedItems[0].category,
+        size: sanitizedItems[0].size || 'Free Size',
+        color: sanitizedItems[0].color || 'ছবির কালার ও ডিজাইন',
+        price: sanitizedItems[0].price,
+        quantity: sanitizedItems.reduce((acc, item) => acc + item.quantity, 0),
         deliveryCharge,
         discountAmount,
         totalAmount
@@ -584,21 +599,35 @@ export default function App() {
     }
   }, [checkoutMode]);
 
-  const handleShowcaseOrder = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
+  const handleShowcaseOrder = (
+    product: ProductType,
+    orderQuantity: number = 1,
+    orderSize?: string,
+    orderColor?: string,
+    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+  ) => {
+    const resolvedSize = orderSize || getDefaultSizeForProduct(product);
+    const resolvedColor = orderColor || getDefaultColorForProduct(product);
     trackProductView(product).catch(err => {
       console.error("Failed to track view:", err);
     });
-    logVisitorEvent('click', 'order_showcase_direct', `ক্লিক করেছেন: "${product.title}" সরাসরি অর্ডার বাটন 🛒 (সাইজ: ${orderSize}, পরিমাণ: ${orderQuantity})`, 'home');
+    logVisitorEvent('click', 'order_showcase_direct', `ক্লিক করেছেন: "${product.title}" সরাসরি অর্ডার বাটন 🛒 (সাইজ: ${resolvedSize}, কালার/ডিজাইন: ${resolvedColor}, পরিমাণ: ${orderQuantity})`, 'home');
     trackPixelAddToCart(product, orderQuantity);
     trackPixelInitiateCheckout(product, orderQuantity);
-    handleAddToCart(product, orderQuantity, orderSize);
+    handleAddToCart(product, orderQuantity, resolvedSize, resolvedColor, variants);
     setCheckoutMode(true);
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOfferBuyNow = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
-    handleShowcaseOrder(product, orderQuantity, orderSize);
+  const handleOfferBuyNow = (
+    product: ProductType,
+    orderQuantity: number = 1,
+    orderSize?: string,
+    orderColor?: string,
+    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+  ) => {
+    handleShowcaseOrder(product, orderQuantity, orderSize, orderColor, variants);
     setView('form');
     try {
       if (window.location.pathname === '/offer' || window.location.hash.includes('offer') || window.location.search.includes('offer')) {
@@ -607,8 +636,14 @@ export default function App() {
     } catch {}
   };
 
-  const handleOfferAddToCart = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
-    handleAddToCart(product, orderQuantity, orderSize);
+  const handleOfferAddToCart = (
+    product: ProductType,
+    orderQuantity: number = 1,
+    orderSize?: string,
+    orderColor?: string,
+    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+  ) => {
+    handleAddToCart(product, orderQuantity, orderSize, orderColor, variants);
     setShowAddSuccess(true);
   };
 
@@ -622,36 +657,82 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleAddToCart = (product: ProductType, orderQuantity: number = 1, orderSize: string = '38') => {
+  const handleAddToCart = (
+    product: ProductType,
+    orderQuantity: number = 1,
+    orderSize?: string,
+    orderColor?: string,
+    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+  ) => {
+    const resolvedDefaultSize = orderSize || getDefaultSizeForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defaultImg = availImages[0] || product.imageUrl;
+    const resolvedDefaultColor = orderColor || getDefaultColorForProduct(product);
+    const availSizes = getProductSizes(product);
+
     // Record view activity
     trackProductView(product).catch(err => {
       console.error("Failed to track product view:", err);
     });
 
-    logVisitorEvent('click', 'add_to_cart', `ক্লিক করেছেন: "${product.title}" ব্যাগ বাটন (সাইজ: ${orderSize}, পরিমাণ: ${orderQuantity}) 🎒`, 'home');
+    logVisitorEvent('click', 'add_to_cart', `ক্লিক করেছেন: "${product.title}" ব্যাগ বাটন (সাইজ: ${resolvedDefaultSize}, কালার/ডিজাইন: ${resolvedDefaultColor}, পরিমাণ: ${orderQuantity}) 🎒`, 'home');
     updateVisitorStage('added_to_cart', 'কার্টে পণ্য যোগ করেছেন 🎒').catch(() => {});
 
     trackPixelAddToCart(product, orderQuantity);
 
-    const existingIndex = cart.findIndex(item => item.productId === product.id && item.size === orderSize);
-    
-    if (existingIndex > -1) {
-      const newCart = [...cart];
-      newCart[existingIndex].quantity += orderQuantity;
-      setCart(newCart);
+    const entriesToAdd: Array<{ size: string; color: string; imageUrl: string; qty: number }> = [];
+    if (variants && variants.length > 0) {
+      variants.forEach((v) => {
+        const s = v.size || resolvedDefaultSize;
+        const c = v.color || resolvedDefaultColor;
+        const img = v.imageUrl || defaultImg;
+        const found = entriesToAdd.find((e) => e.size === s && e.imageUrl === img && e.color === c);
+        if (found) {
+          found.qty += 1;
+        } else {
+          entriesToAdd.push({ size: s, color: c, imageUrl: img, qty: 1 });
+        }
+      });
     } else {
-      setCart([...cart, {
-        id: Math.random().toString(36).substr(2, 9),
-        productId: product.id!,
-        productTitle: product.title,
-        productImage: product.imageUrl,
-        productCode: product.productCode,
-        category: product.category,
-        price: product.price,
-        quantity: orderQuantity,
-        size: orderSize
-      }]);
+      entriesToAdd.push({ size: resolvedDefaultSize, color: resolvedDefaultColor, imageUrl: defaultImg, qty: orderQuantity });
     }
+
+    setCart((prevCart) => {
+      const newCart = [...prevCart];
+      entriesToAdd.forEach((entry) => {
+        const existingIndex = newCart.findIndex(
+          (item) =>
+            item.productId === product.id &&
+            item.size === entry.size &&
+            item.productImage === entry.imageUrl
+        );
+
+        if (existingIndex > -1) {
+          newCart[existingIndex] = {
+            ...newCart[existingIndex],
+            quantity: newCart[existingIndex].quantity + entry.qty,
+            availableSizes: newCart[existingIndex].availableSizes || availSizes,
+            availableImages: newCart[existingIndex].availableImages || availImages,
+          };
+        } else {
+          newCart.push({
+            id: Math.random().toString(36).substr(2, 9),
+            productId: product.id!,
+            productTitle: product.title,
+            productImage: entry.imageUrl,
+            productCode: product.productCode,
+            category: product.category,
+            price: product.price,
+            quantity: entry.qty,
+            size: entry.size,
+            color: entry.color,
+            availableSizes: availSizes,
+            availableImages: availImages,
+          });
+        }
+      });
+      return newCart;
+    });
 
     setShowAddSuccess(true);
     setTimeout(() => setShowAddSuccess(false), 2000);
@@ -668,6 +749,43 @@ export default function App() {
       }
       return item;
     }));
+  };
+
+  const updateCartItemSize = (itemId: string, size: string) => {
+    setCart(prev =>
+      prev.map(item => (item.id === itemId ? { ...item, size } : item))
+    );
+  };
+
+  const updateCartItemPhoto = (itemId: string, imgUrl: string, imgIndex: number, totalImages: number) => {
+    const colorLabel = getPhotoVariantLabel(imgIndex, totalImages);
+    setCart(prev =>
+      prev.map(item =>
+        item.id === itemId
+          ? { ...item, productImage: imgUrl, color: colorLabel }
+          : item
+      )
+    );
+  };
+
+  const splitCartItemPieces = (itemId: string) => {
+    setCart(prev => {
+      const next: CartItem[] = [];
+      prev.forEach(item => {
+        if (item.id === itemId && item.quantity > 1) {
+          for (let i = 0; i < item.quantity; i++) {
+            next.push({
+              ...item,
+              id: `${item.id}_${i}_${Math.random().toString(36).substr(2, 5)}`,
+              quantity: 1,
+            });
+          }
+        } else {
+          next.push(item);
+        }
+      });
+      return next;
+    });
   };
 
   // Instant 0-delay Facebook opener (Android Intent & iOS deep-link with fallback)
@@ -841,11 +959,11 @@ export default function App() {
   if (view === 'offer') {
     return (
       <OfferLandingPage
-        onBuyNow={(product, quantity, size) => {
-          handleOfferBuyNow(product, quantity, size);
+        onBuyNow={(product, quantity, size, color, variants) => {
+          handleOfferBuyNow(product, quantity, size, color, variants);
         }}
-        onAddToCart={(product, quantity, size) => {
-          handleOfferAddToCart(product, quantity, size);
+        onAddToCart={(product, quantity, size, color, variants) => {
+          handleOfferAddToCart(product, quantity, size, color, variants);
         }}
         onGoToStore={handleGoToStore}
         brandSettings={brandSettingsObj}
@@ -949,9 +1067,8 @@ export default function App() {
                       selectedCategory={selectedCategory}
                       onCategoryChange={(cat) => setSelectedCategory(cat)}
                       onOrderNow={handleShowcaseOrder}
-                      onAddToCart={(p, q, s) => {
-                        handleAddToCart(p, q, s);
-                        // Optional: trigger some UI feedback
+                      onAddToCart={(p, q, s, c, v) => {
+                        handleAddToCart(p, q, s, c, v);
                       }}
                     />
 
@@ -1043,86 +1160,193 @@ export default function App() {
                         <div className="space-y-4">
                           <h3 className="text-lg font-serif font-black italic border-b border-gray-100 pb-2">আপনার ব্যাগ (Your Shopping Bag)</h3>
                           <div className="space-y-4">
-                            {cart.map((item) => (
-                              <div 
-                                key={item.id} 
-                                className="relative p-3 xs:p-4 bg-stone-50 rounded-2xl border border-stone-200/60 flex items-start gap-3 xs:gap-4 shadow-sm hover:shadow-md transition-all group"
-                              >
-                                {/* Image Container */}
-                                <div className="relative flex-shrink-0">
-                                  <img 
-                                    src={item.productImage} 
-                                    alt={item.productTitle}
-                                    className="w-16 h-16 xs:w-20 xs:h-20 object-cover rounded-xl shadow-md ring-2 ring-white"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
+                            {cart.map((item, itemIdx) => {
+                              const itemSizes = item.availableSizes && item.availableSizes.length > 0
+                                ? item.availableSizes
+                                : getProductSizes({ category: item.category });
+                              const itemImages = item.availableImages && item.availableImages.length > 0
+                                ? item.availableImages
+                                : [item.productImage].filter(Boolean);
+                              const currentColorLabel = item.color || getPhotoVariantLabel(
+                                Math.max(0, itemImages.indexOf(item.productImage)),
+                                itemImages.length
+                              );
 
-                                {/* Details Column */}
-                                <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch pr-8 xs:pr-10">
-                                  <div>
-                                    {/* Product Title */}
-                                    <h4 className="text-xs xs:text-sm md:text-base font-bold text-stone-900 leading-snug line-clamp-2 pr-1">
-                                      {item.productTitle}
-                                    </h4>
-                                    
-                                    {/* Product Tags (Code, Size) */}
-                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] xs:text-[10px] font-black bg-stone-200/70 text-stone-700 uppercase tracking-wider">
-                                        কোড: {item.productCode}
-                                      </span>
-                                      {item.size && (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] xs:text-[10px] font-black bg-amber-100 text-amber-800 tracking-wider">
-                                          সাইজ: {item.size}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Bottom Actions Row */}
-                                  <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2 border-t border-stone-200/40">
-                                    {/* Quantity Controller with Large Touch Targets */}
-                                    <div className="flex items-center gap-1 border border-stone-300 rounded-xl bg-white p-0.5 shadow-sm">
-                                      <button 
-                                        type="button"
-                                        onClick={() => updateCartQuantity(item.id, -1)}
-                                        className="w-8 h-8 flex items-center justify-center font-bold text-stone-500 hover:bg-stone-50 active:bg-stone-100 rounded-lg transition-colors"
-                                        aria-label="Decrease quantity"
-                                      >
-                                        <Minus size={14} className="stroke-[3]" />
-                                      </button>
-                                      <span className="w-8 text-center text-sm font-black text-stone-900">{item.quantity}</span>
-                                      <button 
-                                        type="button"
-                                        onClick={() => updateCartQuantity(item.id, 1)}
-                                        className="w-8 h-8 flex items-center justify-center font-bold text-stone-500 hover:bg-stone-50 active:bg-stone-100 rounded-lg transition-colors"
-                                        aria-label="Increase quantity"
-                                      >
-                                        <Plus size={14} className="stroke-[3]" />
-                                      </button>
-                                    </div>
-
-                                    {/* Price Tag */}
-                                    <div className="text-right">
-                                      <span className="text-sm xs:text-base font-black text-stone-950 tabular-nums">
-                                        ৳{(item.price * item.quantity).toLocaleString()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Absolute Positioned Delete Button for perfect layout consistency & finger friendliness */}
-                                <button 
-                                  type="button"
-                                  onClick={() => removeFromCart(item.id)}
-                                  className="absolute top-2.5 right-2.5 p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all shadow-sm active:scale-90 border border-rose-200/50 flex items-center justify-center cursor-pointer"
-                                  title="প্রোডাক্ট মুছুন"
-                                  aria-label="Delete product"
+                              return (
+                                <div 
+                                  key={item.id} 
+                                  className="relative p-3 xs:p-4 bg-stone-50 rounded-2xl border border-stone-200/60 flex items-start gap-3 xs:gap-4 shadow-sm hover:shadow-md transition-all group"
                                 >
-                                  <Trash2 size={16} className="stroke-[2.5]" />
-                                </button>
-                              </div>
-                            ))}
+                                  {/* Image Container */}
+                                  <div className="relative flex-shrink-0">
+                                    <img 
+                                      src={item.productImage} 
+                                      alt={item.productTitle}
+                                      className="w-16 h-16 xs:w-20 xs:h-20 object-cover rounded-xl shadow-md ring-2 ring-white"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    {cart.length > 1 && (
+                                      <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-brand-charcoal text-brand-gold text-[10px] font-black flex items-center justify-center shadow border border-white">
+                                        {toBanglaDigits(itemIdx + 1)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Details Column */}
+                                  <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch pr-8 xs:pr-10">
+                                    <div>
+                                      {/* Product Title */}
+                                      <h4 className="text-xs xs:text-sm md:text-base font-bold text-stone-900 leading-snug line-clamp-2 pr-1">
+                                        {item.productTitle}
+                                      </h4>
+                                      
+                                      {/* Product Tags (Code, Size, Photo Design) */}
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] xs:text-[10px] font-black bg-stone-200/70 text-stone-700 uppercase tracking-wider">
+                                          কোড: {item.productCode}
+                                        </span>
+                                        {item.size && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] xs:text-[10px] font-black bg-amber-100 text-amber-800 tracking-wider">
+                                            সাইজ: {item.size}
+                                          </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] xs:text-[10px] font-black bg-emerald-100 text-emerald-800 tracking-wider">
+                                          <img
+                                            src={item.productImage}
+                                            alt={currentColorLabel}
+                                            className="w-3 h-3 rounded object-cover border border-emerald-300 shrink-0"
+                                          />
+                                          <span>{currentColorLabel}</span>
+                                        </span>
+                                      </div>
+
+                                      {/* Per-Product Size & Photo-Touch Design Selectors */}
+                                      <div className="mt-2.5 space-y-2 bg-white/90 p-2 xs:p-2.5 rounded-xl border border-stone-200/70">
+                                        {(itemSizes.length > 1 || item.category !== 'SAREE') && (
+                                          <div className="space-y-1">
+                                            <span className="text-[9.5px] font-black text-stone-500 uppercase tracking-wider block">
+                                              সাইজ পরিবর্তন করুন:
+                                            </span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {itemSizes.map((sz) => (
+                                                <button
+                                                  key={sz}
+                                                  type="button"
+                                                  onClick={() => updateCartItemSize(item.id, sz)}
+                                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                    item.size === sz
+                                                      ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-2xs'
+                                                      : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
+                                                  }`}
+                                                >
+                                                  {sz}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="space-y-1.5">
+                                          <span className="text-[9.5px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1">
+                                            <Camera size={10} className="text-brand-gold" />
+                                            ছবিতে টাচ করে কালার/ডিজাইন বেছে নিন:
+                                          </span>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {itemImages.map((imgUrl, imgIdx) => {
+                                              const isSelected = item.productImage === imgUrl;
+                                              return (
+                                                <button
+                                                  key={imgIdx}
+                                                  type="button"
+                                                  onClick={() => updateCartItemPhoto(item.id, imgUrl, imgIdx, itemImages.length)}
+                                                  className={`relative w-11 h-11 xs:w-12 xs:h-12 rounded-xl overflow-hidden transition-all cursor-pointer p-0.5 bg-white ${
+                                                    isSelected
+                                                      ? 'border-2 border-brand-gold ring-2 ring-amber-400/35 shadow-md scale-105'
+                                                      : 'border border-stone-200 opacity-75 hover:opacity-100'
+                                                  }`}
+                                                  title={`ডিজাইন ${toBanglaDigits(imgIdx + 1)} সিলেক্ট করুন`}
+                                                >
+                                                  <img
+                                                    src={imgUrl}
+                                                    alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                                    className="w-full h-full object-cover rounded-[8px]"
+                                                  />
+                                                  {isSelected && (
+                                                    <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#438a1a] text-white flex items-center justify-center shadow">
+                                                      <Check size={9} strokeWidth={3} />
+                                                    </span>
+                                                  )}
+                                                  {itemImages.length > 1 && (
+                                                    <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
+                                                      isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
+                                                    }`}>
+                                                      {toBanglaDigits(imgIdx + 1)}
+                                                    </span>
+                                                  )}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {item.quantity > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => splitCartItemPieces(item.id)}
+                                            className="w-full py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                          >
+                                            <Layers size={11} className="text-amber-700 shrink-0" />
+                                            <span>প্রতিটি পিসের আলাদা সাইজ ও ছবি সেট করুন</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Bottom Actions Row */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2 border-t border-stone-200/40">
+                                      {/* Quantity Controller with Large Touch Targets */}
+                                      <div className="flex items-center gap-1 border border-stone-300 rounded-xl bg-white p-0.5 shadow-sm">
+                                        <button 
+                                          type="button"
+                                          onClick={() => updateCartQuantity(item.id, -1)}
+                                          className="w-8 h-8 flex items-center justify-center font-bold text-stone-500 hover:bg-stone-50 active:bg-stone-100 rounded-lg transition-colors"
+                                          aria-label="Decrease quantity"
+                                        >
+                                          <Minus size={14} className="stroke-[3]" />
+                                        </button>
+                                        <span className="w-8 text-center text-sm font-black text-stone-900">{item.quantity}</span>
+                                        <button 
+                                          type="button"
+                                          onClick={() => updateCartQuantity(item.id, 1)}
+                                          className="w-8 h-8 flex items-center justify-center font-bold text-stone-500 hover:bg-stone-50 active:bg-stone-100 rounded-lg transition-colors"
+                                          aria-label="Increase quantity"
+                                        >
+                                          <Plus size={14} className="stroke-[3]" />
+                                        </button>
+                                      </div>
+
+                                      {/* Price Tag */}
+                                      <div className="text-right">
+                                        <span className="text-sm xs:text-base font-black text-stone-950 tabular-nums">
+                                          ৳{(item.price * item.quantity).toLocaleString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Absolute Positioned Delete Button for perfect layout consistency & finger friendliness */}
+                                  <button 
+                                    type="button"
+                                    onClick={() => removeFromCart(item.id)}
+                                    className="absolute top-2.5 right-2.5 p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all shadow-sm active:scale-90 border border-rose-200/50 flex items-center justify-center cursor-pointer"
+                                    title="প্রোডাক্ট মুছুন"
+                                    aria-label="Delete product"
+                                  >
+                                    <Trash2 size={16} className="stroke-[2.5]" />
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                           {cart.length === 0 && (
                             <div className="py-10 text-center space-y-4">
@@ -1385,7 +1609,7 @@ export default function App() {
           enabled={!isSpinModalOpen && !showTrackingModal && !showLoyaltyModal}
           brandSettings={brandSettingsObj}
           onSelectProduct={(product) => {
-            handleAddToCart(product, 1, 'Free Size');
+            handleAddToCart(product, 1, getDefaultSizeForProduct(product), getDefaultColorForProduct(product));
             setCheckoutMode(true);
           }}
         />

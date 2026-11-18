@@ -75,8 +75,8 @@ export const sendTelegramNotification = async (order: any): Promise<boolean> => 
 
     // Format clean product items list
     const itemsDetails = order.items && order.items.length > 0
-      ? order.items.map((item: any, index: number) => `${index+1}. 🛍️ *${item.productTitle}* (${item.productCode})\n📏 সাইজ: ${item.size} | পরিমাণ: ${item.quantity}টি | মূল্য: ৳${item.price}`).join('\n\n')
-      : `🛍️ *${order.category || 'Product'}* (${order.productCode || 'N/A'})\n📏 পরিমাণ: ${order.quantity || 1}টি | মূল্য: ৳${order.price || 0}`;
+      ? order.items.map((item: any, index: number) => `${index+1}. 🛍️ *${item.productTitle}* (${item.productCode})\n📏 সাইজ: ${item.size}${item.color ? ` | 🎨 কালার: ${item.color}` : ''} | পরিমাণ: ${item.quantity}টি | মূল্য: ৳${item.price}`).join('\n\n')
+      : `🛍️ *${order.category || 'Product'}* (${order.productCode || 'N/A'})\n📏 সাইজ: ${order.size || 'Free Size'}${order.color ? ` | 🎨 কালার: ${order.color}` : ''} | পরিমাণ: ${order.quantity || 1}টি | মূল্য: ৳${order.price || 0}`;
 
     const cleanDistrict = order.district || 'Unspecified';
     const cleanUpazila = order.upazila || 'Unspecified';

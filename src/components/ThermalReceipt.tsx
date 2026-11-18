@@ -5,6 +5,7 @@ export interface ThermalReceiptItem {
   title: string;
   code?: string;
   size?: string;
+  color?: string;
   quantity: number;
   price: number;
 }
@@ -153,9 +154,13 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
                   <div className="font-bold text-black break-words leading-tight">
                     {idx + 1}. {item.title || '---'}
                   </div>
-                  {(item.code || item.size) && (
+                  {(item.code || item.size || item.color) && (
                     <div className="text-[8px] font-semibold text-black/80">
-                      {[item.code ? `Code: ${item.code}` : '', item.size ? `Size: ${item.size}` : '']
+                      {[
+                        item.code ? `Code: ${item.code}` : '',
+                        item.size ? `Size: ${item.size}` : '',
+                        item.color ? `Color: ${item.color}` : '',
+                      ]
                         .filter(Boolean)
                         .join(' | ')}
                     </div>
@@ -190,9 +195,13 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
                     <div className="font-bold text-black break-words leading-tight">
                       {idx + 1}. {item.title || '---'}
                     </div>
-                    {(item.code || item.size) && (
+                    {(item.code || item.size || item.color) && (
                       <div className="text-[8.5px] font-semibold text-black/80 mt-0.5">
-                        {[item.code ? `Code: ${item.code}` : '', item.size ? `Size: ${item.size}` : '']
+                        {[
+                          item.code ? `Code: ${item.code}` : '',
+                          item.size ? `Size: ${item.size}` : '',
+                          item.color ? `Color: ${item.color}` : '',
+                        ]
                           .filter(Boolean)
                           .join(' | ')}
                       </div>

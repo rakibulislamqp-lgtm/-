@@ -419,7 +419,7 @@ export default function AdminDashboard() {
     // Generate order products note
     let orderProductNote = '';
     if (order.items && order.items.length > 0) {
-      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size})`).join(', ');
+      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
     } else {
       orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
     }
@@ -443,7 +443,7 @@ export default function AdminDashboard() {
   const startPathaoBooking = (order: Order) => {
     let orderProductNote = '';
     if (order.items && order.items.length > 0) {
-      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size})`).join(', ');
+      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
     } else {
       orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
     }
@@ -799,7 +799,7 @@ export default function AdminDashboard() {
 
       let orderProductNote = '';
       if (order.items && order.items.length > 0) {
-        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size})`).join(', ');
+        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
       } else {
         orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
       }
@@ -879,7 +879,7 @@ export default function AdminDashboard() {
 
       let orderProductNote = '';
       if (order.items && order.items.length > 0) {
-        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size})`).join(', ');
+        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
       } else {
         orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
       }
@@ -3549,7 +3549,7 @@ export default function AdminDashboard() {
                           <img src={item.productImage} alt={item.productTitle} className="w-12 h-12 object-cover rounded-lg" />
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs font-black text-gray-800 truncate">{item.productTitle}</h4>
-                            <p className="text-[10px] text-gray-400 font-bold">Qty: {item.quantity} | Size: {item.size} | Code: {item.productCode}</p>
+                            <p className="text-[10px] text-gray-400 font-bold">Qty: {item.quantity} | Size: {item.size}{item.color ? ` | Color: ${item.color}` : ''} | Code: {item.productCode}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-xs font-black text-rose-500 tabular-nums">৳ {item.price.toLocaleString('en-US')}</p>

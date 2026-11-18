@@ -189,7 +189,7 @@ export default function SuccessView({ order }: SuccessViewProps) {
                     <div className="flex-1 min-w-0 text-xs">
                       <h6 className="font-bold text-slate-900 truncate">{item.productTitle}</h6>
                       <p className="text-[10px] text-gray-500 font-medium">
-                        কোড: {item.productCode} • সাইজ: <strong className="text-amber-700">{item.size}</strong>
+                        কোড: {item.productCode} • সাইজ: <strong className="text-amber-700">{item.size}</strong>{item.color ? <> • কালার: <strong className="text-emerald-700">{item.color}</strong></> : ''}
                       </p>
                     </div>
                     <div className="text-right text-xs shrink-0">
@@ -210,7 +210,7 @@ export default function SuccessView({ order }: SuccessViewProps) {
                   <div className="flex-1 min-w-0 text-xs">
                     <h6 className="font-bold text-slate-900">{currentOrder.category || 'SERA FASHION ড্রেস'}</h6>
                     <p className="text-[10px] text-gray-500 font-medium">
-                      কোড: {currentOrder.productCode} • সাইজ: {(currentOrder as any).size || '38'} • পরিমাণ: {currentOrder.quantity}
+                      কোড: {currentOrder.productCode} • সাইজ: {(currentOrder as any).size || '38'}{(currentOrder as any).color ? ` • কালার: ${(currentOrder as any).color}` : ''} • পরিমাণ: {currentOrder.quantity}
                     </p>
                   </div>
                   <div className="text-right text-xs shrink-0">

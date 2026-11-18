@@ -83,6 +83,7 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
           title: item.productTitle,
           code: item.productCode,
           size: item.size,
+          color: item.color,
           quantity: item.quantity,
           price: item.price,
         }))
@@ -91,6 +92,7 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
           title: order.category || 'SERA FASHION পোশাক',
           code: order.productCode,
           size: (order as any).size,
+          color: (order as any).color,
           quantity: order.quantity,
           price: order.price,
         }];
@@ -226,7 +228,7 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
                     {item.productTitle}
                   </div>
                   <div className="text-[7.5px] sm:text-[8px] text-gray-400 font-bold mt-0.5 uppercase tracking-wider truncate">
-                    Code: {item.productCode} | Size: {item.size}
+                    Code: {item.productCode} | Size: {item.size}{item.color ? ` | Color: ${item.color}` : ''}
                   </div>
                 </div>
                 <div className="w-10 sm:w-14 text-center text-xs sm:text-sm font-black text-gray-900 tabular-nums shrink-0">

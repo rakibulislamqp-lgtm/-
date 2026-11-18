@@ -497,6 +497,12 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                               <span>কোড: <strong className="text-slate-900 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{item.productCode}</strong></span>
                               <span>•</span>
                               <span>সাইজ: <strong className="text-amber-800 font-bold bg-amber-50 px-1.5 py-0.5 rounded">{item.size}</strong></span>
+                              {item.color && (
+                                <>
+                                  <span>•</span>
+                                  <span>কালার: <strong className="text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">{item.color}</strong></span>
+                                </>
+                              )}
                               <span>•</span>
                               <span>কোয়ান্টিটি: <strong className="text-slate-900 font-bold">{item.quantity} টি</strong></span>
                             </div>
@@ -519,7 +525,7 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                         <div className="flex-1 min-w-0">
                           <h6 className="text-xs font-bold text-slate-900">{order.category || 'sera fashion item'}</h6>
                           <p className="text-[11px] text-slate-600 font-semibold mt-1">
-                            কোড: <strong className="font-mono">{order.productCode}</strong> • সাইজ: <strong className="text-amber-800">{(order as any).size || '38'}</strong> • কোয়ান্টিটি: <strong className="text-slate-900">{order.quantity} টি</strong>
+                            কোড: <strong className="font-mono">{order.productCode}</strong> • সাইজ: <strong className="text-amber-800">{(order as any).size || '38'}</strong>{(order as any).color ? <> • কালার: <strong className="text-emerald-800">{(order as any).color}</strong></> : ''} • কোয়ান্টিটি: <strong className="text-slate-900">{order.quantity} টি</strong>
                           </p>
                         </div>
                         <div className="text-right shrink-0">

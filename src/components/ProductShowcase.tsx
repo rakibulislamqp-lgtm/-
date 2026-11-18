@@ -9,6 +9,12 @@ import { trackPixelViewContent } from '../services/pixelService';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
 import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  getProductSizes,
+  getDefaultSizeForProduct,
+  getProductImagesList,
+  getPhotoVariantLabel,
+} from '../lib/productVariants';
 
 const PRODUCTS_PER_PAGE = 10;
 
@@ -17,9 +23,15 @@ const toBengaliNumber = (num: number | string): string => {
   return String(num).replace(/[0-9]/g, (w) => banglaDigits[+w]);
 };
 
+export interface ProductVariantSelection {
+  size: string;
+  color: string;
+  imageUrl?: string;
+}
+
 interface ProductShowcaseProps {
-  onOrderNow: (product: Product, quantity: number, size: string) => void;
-  onAddToCart?: (product: Product, quantity: number, size: string) => void;
+  onOrderNow: (product: Product, quantity: number, size: string, color?: string, variants?: ProductVariantSelection[]) => void;
+  onAddToCart?: (product: Product, quantity: number, size: string, color?: string, variants?: ProductVariantSelection[]) => void;
   selectedCategory?: string;
   onCategoryChange?: (category: string) => void;
 }
@@ -133,8 +145,9 @@ export default function ProductShowcase({
   }, []);
 
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState('38');
-  const sizes = ['34', '36', '38', '40', '42', '44', '46', '48'];
+  const [pieceSelections, setPieceSelections] = useState<ProductVariantSelection[]>([
+    { size: '38', color: 'ছবির কালার ও ডিজাইন', imageUrl: '' },
+  ]);
 
   // Reviews states
   const [reviews, setReviews] = useState<ProductReview[]>([]);
@@ -210,8 +223,16 @@ export default function ProductShowcase({
 
   useEffect(() => {
     if (selectedProduct) {
+      const imgs = getProductImagesList(selectedProduct);
+      const firstImg = imgs[0] || selectedProduct.imageUrl;
       setQuantity(1);
-      setSelectedSize('38');
+      setPieceSelections([
+        {
+          size: getDefaultSizeForProduct(selectedProduct),
+          color: getPhotoVariantLabel(0, imgs.length),
+          imageUrl: firstImg,
+        },
+      ]);
       setReviewSuccessMessage('');
       
       const fetchModalReviews = () => {
@@ -285,9 +306,81 @@ export default function ProductShowcase({
     return parseFloat((sum / reviews.length).toFixed(1));
   }, [reviews]);
 
+  const modalAvailableSizes = useMemo(
+    () => getProductSizes(selectedProduct),
+    [selectedProduct]
+  );
+
+  const selectPhotoForMainPreviewAndSinglePiece = (imgIndex: number) => {
+    setActiveImageIndex(imgIndex);
+    setActiveMediaTab('photo');
+    if (quantity === 1) {
+      const chosenImg = allProductImages[imgIndex] || activeImageUrl;
+      const chosenLabel = getPhotoVariantLabel(imgIndex, allProductImages.length);
+      setPieceSelections((prev) =>
+        prev.map((piece, idx) =>
+          idx === 0 ? { ...piece, imageUrl: chosenImg, color: chosenLabel } : piece
+        )
+      );
+    }
+  };
+
+  const updateQuantityAndPieces = (newQty: number) => {
+    const clampedQty = Math.max(1, Math.min(20, newQty));
+    setQuantity(clampedQty);
+    setPieceSelections((prev) => {
+      if (clampedQty === prev.length) return prev;
+      if (clampedQty < prev.length) return prev.slice(0, clampedQty);
+      const fallbackImg = allProductImages[activeImageIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
+      const template = prev[prev.length - 1] || {
+        size: getDefaultSizeForProduct(selectedProduct),
+        color: getPhotoVariantLabel(activeImageIndex, allProductImages.length),
+        imageUrl: fallbackImg,
+      };
+      return [
+        ...prev,
+        ...Array.from({ length: clampedQty - prev.length }, () => ({ ...template })),
+      ];
+    });
+  };
+
+  const updatePieceSize = (pieceIndex: number, size: string) => {
+    setPieceSelections((prev) =>
+      prev.map((piece, idx) => (idx === pieceIndex ? { ...piece, size } : piece))
+    );
+  };
+
+  const updatePiecePhoto = (pieceIndex: number, imgIndex: number) => {
+    const chosenImg = allProductImages[imgIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
+    const chosenLabel = getPhotoVariantLabel(imgIndex, allProductImages.length);
+    setPieceSelections((prev) =>
+      prev.map((piece, idx) =>
+        idx === pieceIndex ? { ...piece, imageUrl: chosenImg, color: chosenLabel } : piece
+      )
+    );
+    setActiveImageIndex(imgIndex);
+    setActiveMediaTab('photo');
+  };
+
+  const applyFirstPieceToAll = () => {
+    setPieceSelections((prev) => {
+      const first = prev[0] || {
+        size: getDefaultSizeForProduct(selectedProduct),
+        color: getPhotoVariantLabel(0, allProductImages.length),
+        imageUrl: allProductImages[0] || selectedProduct?.imageUrl || '',
+      };
+      return prev.map(() => ({ ...first }));
+    });
+  };
+
   const handleOrder = () => {
     if (selectedProduct) {
-      onOrderNow(selectedProduct, quantity, selectedSize);
+      const first = pieceSelections[0] || {
+        size: getDefaultSizeForProduct(selectedProduct),
+        color: getPhotoVariantLabel(0, allProductImages.length),
+        imageUrl: allProductImages[0] || selectedProduct.imageUrl,
+      };
+      onOrderNow(selectedProduct, quantity, first.size, first.color, pieceSelections);
       setSelectedProduct(null);
     }
   };
@@ -862,7 +955,8 @@ export default function ProductShowcase({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allProductImages.length - 1));
+                            const nextIdx = activeImageIndex > 0 ? activeImageIndex - 1 : allProductImages.length - 1;
+                            selectPhotoForMainPreviewAndSinglePiece(nextIdx);
                           }}
                           className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-md active:scale-90 z-20 cursor-pointer"
                           title="পূর্বের ছবি"
@@ -873,7 +967,8 @@ export default function ProductShowcase({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setActiveImageIndex(prev => (prev < allProductImages.length - 1 ? prev + 1 : 0));
+                            const nextIdx = activeImageIndex < allProductImages.length - 1 ? activeImageIndex + 1 : 0;
+                            selectPhotoForMainPreviewAndSinglePiece(nextIdx);
                           }}
                           className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-md active:scale-90 z-20 cursor-pointer"
                           title="পরের ছবি"
@@ -905,10 +1000,7 @@ export default function ProductShowcase({
                       <button 
                         key={idx}
                         type="button"
-                        onClick={() => {
-                          setActiveImageIndex(idx);
-                          setActiveMediaTab('photo');
-                        }}
+                        onClick={() => selectPhotoForMainPreviewAndSinglePiece(idx)}
                         className={`relative w-15 h-15 sm:w-16 sm:h-16 aspect-square shrink-0 rounded-xl border-2 p-0.5 cursor-pointer overflow-hidden transition-all ${
                           activeMediaTab === 'photo' && activeImageIndex === idx 
                             ? 'border-brand-gold ring-2 ring-amber-400/40 shadow-md scale-105' 
@@ -1006,50 +1098,24 @@ export default function ProductShowcase({
 
 
                 <div className="flex flex-col gap-4 pt-2">
-                  {/* Size Selection */}
-                  {selectedProduct.category !== 'SAREE' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black uppercase tracking-wider text-gray-700">
-                          সাইজ নির্বাচন করুন:
-                        </span>
-                        <span className="text-xs font-bold text-[#438a1a] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                          সিলেক্টেড: {selectedSize}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {(selectedProduct.sizes && selectedProduct.sizes.length > 0 
-                          ? selectedProduct.sizes 
-                          : ['36', '38', '40', '42', '44', 'Free Size']
-                        ).map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => setSelectedSize(s)}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                              selectedSize === s
-                                ? 'bg-brand-charcoal text-brand-gold border-2 border-brand-gold shadow-md scale-105'
-                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
-                            }`}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Quantity */}
                   <div className="space-y-1.5">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-700 block">
-                      পরিমাণ (Quantity):
-                    </span>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-gray-700">
+                        পরিমাণ (Quantity):
+                      </span>
+                      {quantity > 1 && (
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                          {toBengaliNumber(quantity)}টির জন্য ছবিতে টাচ করে কালার ও সাইজ দিন
+                        </span>
+                      )}
+                    </div>
                     <div className="inline-flex items-center border-2 border-gray-200 rounded-xl bg-gray-50 p-1">
                       <button 
                         type="button"
                         onClick={() => {
                           const newQty = Math.max(1, quantity - 1);
-                          setQuantity(newQty);
+                          updateQuantityAndPieces(newQty);
                           logVisitorEvent('click', 'change_quantity', `প্রোডাক্টের পরিমাণ কমিয়েছেন: ${newQty} টি 🔢`, 'product_details');
                         }}
                         className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
@@ -1061,7 +1127,7 @@ export default function ProductShowcase({
                         type="button"
                         onClick={() => {
                           const newQty = quantity + 1;
-                          setQuantity(newQty);
+                          updateQuantityAndPieces(newQty);
                           logVisitorEvent('click', 'change_quantity', `প্রোডাক্টের পরিমাণ বাড়িয়েছেন: ${newQty} টি 🔢`, 'product_details');
                         }}
                         className="w-10 h-10 flex items-center justify-center font-black text-xl text-gray-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
@@ -1071,12 +1137,213 @@ export default function ProductShowcase({
                     </div>
                   </div>
 
+                  {/* Size & Visual Photo Selection: Single piece vs Multiple pieces */}
+                  {quantity === 1 ? (
+                    <>
+                      {/* Size Selection */}
+                      {(modalAvailableSizes.length > 1 || selectedProduct.category !== 'SAREE') && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-gray-700">
+                              সাইজ নির্বাচন করুন:
+                            </span>
+                            <span className="text-xs font-bold text-[#438a1a] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              সিলেক্টেড: {pieceSelections[0]?.size}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {modalAvailableSizes.map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => updatePieceSize(0, s)}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                  pieceSelections[0]?.size === s
+                                    ? 'bg-brand-charcoal text-brand-gold border-2 border-brand-gold shadow-md scale-105'
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                                }`}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Photo-Touch Color & Design Selection (NO text color chips!) */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                            <Camera size={13} className="text-brand-gold" />
+                            <span>কালার ও ডিজাইন (ছবিতে টাচ করুন):</span>
+                          </span>
+                          <span className="text-xs font-bold text-[#438a1a] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-flex items-center gap-1.5">
+                            <img
+                              src={pieceSelections[0]?.imageUrl || activeImageUrl}
+                              alt="নির্বাচিত ডিজাইন"
+                              className="w-4 h-4 rounded object-cover border border-emerald-300 shrink-0"
+                            />
+                            <span>{pieceSelections[0]?.color}</span>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2.5">
+                          {allProductImages.map((imgUrl, imgIdx) => {
+                            const selectedImg = pieceSelections[0]?.imageUrl || allProductImages[0];
+                            const isSelected = selectedImg === imgUrl;
+                            return (
+                              <button
+                                key={imgIdx}
+                                type="button"
+                                onClick={() => updatePiecePhoto(0, imgIdx)}
+                                className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden transition-all cursor-pointer p-0.5 bg-white ${
+                                  isSelected
+                                    ? 'border-2 border-brand-gold ring-2 ring-amber-400/40 shadow-lg scale-105'
+                                    : 'border-2 border-gray-200 opacity-80 hover:opacity-100 hover:border-gray-300'
+                                }`}
+                                title={`ডিজাইন ${toBengaliNumber(imgIdx + 1)} সিলেক্ট করুন`}
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                  className="w-full h-full object-cover rounded-[12px]"
+                                />
+                                {isSelected && (
+                                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#438a1a] text-white flex items-center justify-center shadow">
+                                    <Check size={10} strokeWidth={3} />
+                                  </span>
+                                )}
+                                {allProductImages.length > 1 && (
+                                  <span className={`absolute bottom-1 left-1 px-1.5 py-0.2 rounded text-[9px] font-black shadow-xs ${
+                                    isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
+                                  }`}>
+                                    {toBengaliNumber(imgIdx + 1)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* Modern Per-Piece Size & Photo-Touch Design Selector when quantity > 1 */
+                    <div className="space-y-2.5 bg-gray-50/90 p-3 sm:p-3.5 rounded-2xl border border-gray-200">
+                      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-gray-200/80 pb-2">
+                        <span className="text-[11px] font-black text-gray-800 flex items-center gap-1.5">
+                          <Camera size={13} className="text-brand-gold" />
+                          <span>প্রতিটি পিসের সাইজ ও ছবি সিলেক্ট করুন</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={applyFirstPieceToAll}
+                          className="text-[10px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg border border-amber-200 transition-colors cursor-pointer"
+                        >
+                          ১ম পিসের মতো সবগুলো রাখুন
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-64 overflow-y-auto pr-0.5">
+                        {pieceSelections.map((piece, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-200/90 shadow-2xs space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-[11px] font-black text-brand-charcoal bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                পিস {toBengaliNumber(idx + 1)}
+                              </span>
+                              <span className="text-[10.5px] font-bold text-emerald-700 inline-flex items-center gap-1.5">
+                                <img
+                                  src={piece.imageUrl || activeImageUrl}
+                                  alt={`পিস ${idx + 1}`}
+                                  className="w-4 h-4 rounded object-cover border border-emerald-300 shrink-0"
+                                />
+                                <span>{piece.size}</span>
+                                <span>•</span>
+                                <span>{piece.color}</span>
+                              </span>
+                            </div>
+
+                            {(modalAvailableSizes.length > 1 || selectedProduct.category !== 'SAREE') && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-gray-500 block">সাইজ:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {modalAvailableSizes.map((s) => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => updatePieceSize(idx, s)}
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                        piece.size === s
+                                          ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-xs'
+                                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                                      }`}
+                                    >
+                                      {s}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-gray-500 block">
+                                পছন্দের কালার/ডিজাইনের ছবিতে টাচ করুন:
+                              </span>
+                              <div className="flex flex-wrap gap-2">
+                                {allProductImages.map((imgUrl, imgIdx) => {
+                                  const isSelected = (piece.imageUrl || allProductImages[0]) === imgUrl;
+                                  return (
+                                    <button
+                                      key={imgIdx}
+                                      type="button"
+                                      onClick={() => updatePiecePhoto(idx, imgIdx)}
+                                      className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden transition-all cursor-pointer p-0.5 bg-white ${
+                                        isSelected
+                                          ? 'border-2 border-brand-gold ring-2 ring-amber-400/35 shadow-md scale-105'
+                                          : 'border border-gray-200 opacity-75 hover:opacity-100'
+                                      }`}
+                                      title={`পিস ${toBengaliNumber(idx + 1)} - ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                    >
+                                      <img
+                                        src={imgUrl}
+                                        alt={`ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                        className="w-full h-full object-cover rounded-lg"
+                                      />
+                                      {isSelected && (
+                                        <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#438a1a] text-white flex items-center justify-center shadow">
+                                          <Check size={8} strokeWidth={3} />
+                                        </span>
+                                      )}
+                                      {allProductImages.length > 1 && (
+                                        <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
+                                          isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
+                                        }`}>
+                                          {toBengaliNumber(imgIdx + 1)}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Modal Action Buttons: Add to Cart & Confirm Order */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
                     <button 
                       type="button"
                       onClick={() => {
-                        onAddToCart?.(selectedProduct, quantity, selectedSize);
+                        const first = pieceSelections[0] || {
+                          size: getDefaultSizeForProduct(selectedProduct),
+                          color: getPhotoVariantLabel(0, allProductImages.length),
+                          imageUrl: allProductImages[0] || selectedProduct.imageUrl,
+                        };
+                        onAddToCart?.(selectedProduct, quantity, first.size, first.color, pieceSelections);
                         setSelectedProduct(null);
                       }}
                       className="w-full py-3.5 bg-brand-charcoal hover:bg-black text-white rounded-xl font-black uppercase tracking-wider text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"

@@ -1009,6 +1009,7 @@ export default function CustomerPortalModal({
                                   <p className="text-[11px] text-gray-500 font-medium">
                                     পরিমাণ: <span className="font-bold text-gray-800">{item.quantity}টি</span>
                                     {item.size ? ` • সাইজ: ${item.size}` : ''}
+                                    {item.color ? ` • কালার: ${item.color}` : ''}
                                   </p>
                                 </div>
                                 <div className="text-right text-xs font-black text-brand-charcoal">
