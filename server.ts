@@ -363,6 +363,194 @@ async function startServer() {
     return res.json(getLiveViewerSummaryPayload());
   });
 
+  // 1d-3. Cross-Device Visitor Session Sync API (Supports Live Tracker & Spin Leads across all devices)
+  app.get("/api/visitor-sessions", (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const raw = readJsonFile('visitor_sessions.json', []);
+    if (!Array.isArray(raw)) return res.json([]);
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    const active = raw.filter((s: any) => {
+      if (!s || !s.sessionId) return false;
+      const t = new Date(s.lastActiveAt || s.createdAt || 0).getTime();
+      return !isNaN(t) && t >= cutoff;
+    });
+    return res.json(active);
+  });
+
+  app.post("/api/visitor-sessions", (req, res) => {
+    try {
+      const incoming = req.body;
+      if (!incoming || typeof incoming !== 'object' || !incoming.sessionId) {
+        return res.status(400).json({ success: false, error: 'Invalid session payload' });
+      }
+      const sessionId = String(incoming.sessionId).trim().slice(0, 128);
+      if (!sessionId) {
+        return res.status(400).json({ success: false, error: 'Missing sessionId' });
+      }
+
+      let sessions = readJsonFile('visitor_sessions.json', []);
+      if (!Array.isArray(sessions)) sessions = [];
+
+      const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+      sessions = sessions.filter((s: any) => {
+        if (!s || !s.sessionId) return false;
+        const t = new Date(s.lastActiveAt || s.createdAt || 0).getTime();
+        return !isNaN(t) && t >= cutoff;
+      });
+
+      const idx = sessions.findIndex((s: any) => s.sessionId === sessionId);
+      const updatedSession = {
+        ...(idx >= 0 ? sessions[idx] : {}),
+        ...incoming,
+        sessionId,
+        lastActiveAt: incoming.lastActiveAt || new Date().toISOString(),
+      };
+
+      if (idx >= 0) {
+        sessions[idx] = updatedSession;
+      } else {
+        sessions.unshift(updatedSession);
+      }
+
+      sessions.sort((a: any, b: any) =>
+        new Date(b.lastActiveAt || 0).getTime() - new Date(a.lastActiveAt || 0).getTime()
+      );
+      if (sessions.length > 400) {
+        sessions = sessions.slice(0, 400);
+      }
+
+      writeJsonFile('visitor_sessions.json', sessions);
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // 1d-4. Real-Time Spin Wheel Live Notification Hub (SSE + REST Persistence)
+  const spinSseClients = new Set<express.Response>();
+
+  const broadcastSpinSseEvent = (notification: any) => {
+    const payload = `event: spin_notification\ndata: ${JSON.stringify(notification)}\n\n`;
+    for (const client of spinSseClients) {
+      try {
+        client.write(payload);
+      } catch {
+        spinSseClients.delete(client);
+      }
+    }
+  };
+
+  app.get("/api/spin-notifications/stream", (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, time: new Date().toISOString() })}\n\n`);
+    spinSseClients.add(res);
+
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(`: ping ${Date.now()}\n\n`);
+      } catch {
+        clearInterval(keepAlive);
+        spinSseClients.delete(res);
+      }
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      spinSseClients.delete(res);
+    });
+  });
+
+  app.get("/api/spin-notifications", (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const list = readJsonFile('spin_notifications.json', []);
+    return res.json(Array.isArray(list) ? list : []);
+  });
+
+  app.post("/api/spin-notifications", (req, res) => {
+    try {
+      const body = req.body || {};
+      const customerName = String(body.customerName || 'Anonymous Visitor').trim().slice(0, 120);
+      const mobileNumber = String(body.mobileNumber || '').trim().slice(0, 25);
+      const wonCouponCode = String(body.wonCouponCode || 'SERA_SPIN').trim().slice(0, 64);
+      const wonCouponLabel = String(body.wonCouponLabel || 'স্পিন অফার').trim().slice(0, 120);
+      const wonCouponDiscount = Number(body.wonCouponDiscount) || 0;
+      const discountType = body.discountType === 'flat' ? 'flat' : 'percentage';
+      const sessionId = String(body.sessionId || `spin_${Date.now()}`).trim().slice(0, 128);
+      const deviceInfo = String(body.deviceInfo || '').trim().slice(0, 60);
+      const id = String(body.id || `spin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`).trim().slice(0, 128);
+      const createdAt = body.createdAt || new Date().toISOString();
+
+      let list = readJsonFile('spin_notifications.json', []);
+      if (!Array.isArray(list)) list = [];
+
+      // Deduplicate by id or very recent identical session+coupon
+      const nowMs = Date.now();
+      const existing = list.find((item: any) =>
+        item && (
+          item.id === id ||
+          (item.sessionId === sessionId &&
+            item.wonCouponCode === wonCouponCode &&
+            Math.abs(nowMs - new Date(item.createdAt || 0).getTime()) < 15000)
+        )
+      );
+
+      if (existing) {
+        return res.json({ success: true, notification: existing, deduplicated: true });
+      }
+
+      const notification = {
+        id,
+        sessionId,
+        customerName,
+        mobileNumber,
+        wonCouponCode,
+        wonCouponLabel,
+        wonCouponDiscount,
+        discountType,
+        deviceInfo,
+        createdAt,
+        read: false,
+      };
+
+      list.unshift(notification);
+      if (list.length > 100) {
+        list = list.slice(0, 100);
+      }
+
+      writeJsonFile('spin_notifications.json', list);
+      broadcastSpinSseEvent(notification);
+
+      return res.json({ success: true, notification });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/spin-notifications/mark-read", (req, res) => {
+    try {
+      const { ids } = req.body || {};
+      let list = readJsonFile('spin_notifications.json', []);
+      if (!Array.isArray(list)) list = [];
+
+      if (ids === 'all' || !ids) {
+        list = list.map((item: any) => ({ ...item, read: true }));
+      } else if (Array.isArray(ids)) {
+        const idSet = new Set(ids.map((x: any) => String(x)));
+        list = list.map((item: any) => (idSet.has(String(item.id)) ? { ...item, read: true } : item));
+      }
+
+      writeJsonFile('spin_notifications.json', list);
+      return res.json({ success: true, notifications: list });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // 1e. Universal Upload Endpoint (for cPanel & Node.js uploads)
   app.post(["/api/upload", "/api/upload.php"], (req, res) => {
     try {

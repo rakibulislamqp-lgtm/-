@@ -3,6 +3,12 @@ import { getAllOrders, updateOrderStatus, updateOrder, deleteOrder, subscribeOrd
 import { getBrandSettings, updateBrandSettings } from '../services/settingsService';
 import { Order, Category, VisitorSession, TrackingEvent } from '../types';
 import { subscribeToVisitorSessions } from '../services/trackingService';
+import {
+  SpinNotification,
+  subscribeToSpinNotifications,
+  markSpinNotificationsRead,
+} from '../services/spinNotificationService';
+import { dispatchAdminSpinAlert } from '../services/notificationService';
 import { 
   LayoutDashboard, Receipt, Gift, LogOut, ShoppingBag, TrendingUp, Clock, 
   Search, Calendar, RefreshCw, Download, Eye, Edit, Trash2, Printer, 
@@ -41,7 +47,7 @@ import ReferralLoyaltyManager from './ReferralLoyaltyManager';
 import LandingPageManager from './LandingPageManager';
 import PushNotificationManager from './PushNotificationManager';
 import SupabaseManager from './SupabaseManager';
-import { Activity, MessageSquare, Target, Image as ImageIcon, BarChart3, LayoutTemplate, Users, Flame } from 'lucide-react';
+import { Activity, MessageSquare, MessageCircle, Target, Image as ImageIcon, BarChart3, LayoutTemplate, Users, Flame } from 'lucide-react';
 
 export interface CourierStat {
   courierName: string;
@@ -315,9 +321,22 @@ export default function AdminDashboard() {
     supabase_hub: true,
   });
 
+  const [spinNotifications, setSpinNotifications] = useState<SpinNotification[]>([]);
+  const [liveSpinToast, setLiveSpinToast] = useState<SpinNotification | null>(null);
+  const [isSpinNotifDrawerOpen, setIsSpinNotifDrawerOpen] = useState(false);
+  const liveSpinToastTimerRef = useRef<any>(null);
+
+  const unreadSpinCount = useMemo(
+    () => spinNotifications.filter((n) => !n.read).length,
+    [spinNotifications]
+  );
+
   const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub') => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
+    if (tab === 'spin_leads') {
+      markSpinNotificationsRead('all').then(setSpinNotifications).catch(() => {});
+    }
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -713,6 +732,39 @@ export default function AdminDashboard() {
       }
     };
   }, []);
+
+  // Subscribe to real-time customer spin notifications (SSE + Polling + BroadcastChannel)
+  useEffect(() => {
+    const unsubSpin = subscribeToSpinNotifications(
+      (list) => {
+        setSpinNotifications(list);
+      },
+      (newSpin) => {
+        setLiveSpinToast(newSpin);
+        if (liveSpinToastTimerRef.current) {
+          clearTimeout(liveSpinToastTimerRef.current);
+        }
+        liveSpinToastTimerRef.current = setTimeout(() => {
+          setLiveSpinToast(null);
+        }, 12000);
+        dispatchAdminSpinAlert(newSpin).catch(() => {});
+      }
+    );
+
+    return () => {
+      unsubSpin();
+      if (liveSpinToastTimerRef.current) {
+        clearTimeout(liveSpinToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Clear unread spin notifications when viewing the Spin Leads tab
+  useEffect(() => {
+    if (activeTab === 'spin_leads' && unreadSpinCount > 0) {
+      markSpinNotificationsRead('all').then(setSpinNotifications).catch(() => {});
+    }
+  }, [activeTab, unreadSpinCount]);
 
   useEffect(() => {
     if (orders && orders.length > 0) {
@@ -1390,10 +1442,16 @@ export default function AdminDashboard() {
                         <span className="block text-[8px] opacity-70 font-semibold tracking-wide">স্পিন ঘুরিয়ে পালিয়ে যাওয়া গ্রাহক</span>
                       </div>
                     </div>
-                    <span className="flex h-2.5 w-2.5 relative shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
-                    </span>
+                    {unreadSpinCount > 0 ? (
+                      <span className="px-2 py-0.5 bg-rose-500 text-white font-black text-[10px] rounded-full shadow-sm animate-bounce shrink-0">
+                        {unreadSpinCount}
+                      </span>
+                    ) : (
+                      <span className="flex h-2.5 w-2.5 relative shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+                      </span>
+                    )}
                   </button>
 
                   {/* Option 7: Zero-Cost Retargeting Center */}
@@ -1751,11 +1809,16 @@ export default function AdminDashboard() {
               Reviews
             </button>
             <button 
-              onClick={() => setActiveTab('spin_leads')}
+              onClick={() => handleSelectTab('spin_leads')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'spin_leads' ? 'bg-[#9333ea] text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
             >
               <Gift size={13} className={activeTab === 'spin_leads' ? 'animate-bounce' : ''} />
               Spin Leads
+              {unreadSpinCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 bg-rose-500 text-white rounded-full text-[9px] font-black leading-none animate-bounce">
+                  {unreadSpinCount}
+                </span>
+              )}
             </button>
             <button 
               onClick={() => setActiveTab('retargeting')}
@@ -1826,41 +1889,70 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          {/* Desktop Only Extra action CTAs */}
-          <div className="hidden xl:flex items-center gap-2">
-            <button 
-              onClick={() => setIsCashMemoOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-xs font-bold border border-white/10"
-            >
-              <Receipt size={13} className="text-amber-500" />
-              CREATE CASH MEMO
-            </button>
-            <button 
-              onClick={() => setIsWelcomeGiftOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-rose-600/90 hover:bg-rose-700 rounded-xl transition-all text-xs font-bold shadow-md shadow-rose-900/10"
-            >
-              <Gift size={13} />
-              WELCOME GIFT
-            </button>
-          </div>
-
-          {/* Mobile Right Quick Toggle triggers full sidebar */}
-          <div className="flex xl:hidden items-center gap-2">
+          {/* Live Spin Notification Bell + Quick Actions (Mobile & Desktop) */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="flex lg:hidden items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md shadow-rose-950/20 active:scale-95 select-none"
+              type="button"
+              onClick={() => setIsSpinNotifDrawerOpen((prev) => !prev)}
+              className={`relative p-2 sm:px-3 sm:py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border ${
+                unreadSpinCount > 0
+                  ? 'bg-purple-600/30 border-purple-400/60 text-white shadow-md shadow-purple-900/30'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-gray-200'
+              }`}
+              title="স্পিন হুইল লাইভ নোটিফিকেশন"
+              aria-label="স্পিন হুইল লাইভ নোটিফিকেশন"
             >
-              <LayoutDashboard size={12} className="animate-pulse" />
-              মেনু অপশন সমূহ
+              {unreadSpinCount > 0 ? (
+                <BellRing size={16} className="text-amber-300 animate-bounce" />
+              ) : (
+                <Bell size={16} className="text-purple-300" />
+              )}
+              <span className="hidden sm:inline text-[10px] font-black uppercase tracking-wider">
+                স্পিন অ্যালার্ট
+              </span>
+              {unreadSpinCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-[#10121d] shadow">
+                  {unreadSpinCount > 99 ? '99+' : unreadSpinCount}
+                </span>
+              )}
             </button>
-            
-            <button 
-              onClick={() => window.location.reload()}
-              className="p-2 bg-rose-600/20 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all scale-90 sm:scale-100"
-              title="রিফ্রেশ ড্যাশবোর্ড"
-            >
-              <RefreshCw size={15} />
-            </button>
+
+            {/* Desktop Only Extra action CTAs */}
+            <div className="hidden xl:flex items-center gap-2">
+              <button 
+                onClick={() => setIsCashMemoOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-xs font-bold border border-white/10"
+              >
+                <Receipt size={13} className="text-amber-500" />
+                CREATE CASH MEMO
+              </button>
+              <button 
+                onClick={() => setIsWelcomeGiftOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-rose-600/90 hover:bg-rose-700 rounded-xl transition-all text-xs font-bold shadow-md shadow-rose-900/10"
+              >
+                <Gift size={13} />
+                WELCOME GIFT
+              </button>
+            </div>
+
+            {/* Mobile Right Quick Toggle triggers full sidebar */}
+            <div className="flex xl:hidden items-center gap-2">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="flex lg:hidden items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md shadow-rose-950/20 active:scale-95 select-none"
+              >
+                <LayoutDashboard size={12} className="animate-pulse" />
+                মেনু অপশন সমূহ
+              </button>
+              
+              <button 
+                onClick={() => window.location.reload()}
+                className="p-2 bg-rose-600/20 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all scale-90 sm:scale-100"
+                title="রিফ্রেশ ড্যাশবোর্ড"
+              >
+                <RefreshCw size={15} />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -4705,6 +4797,222 @@ export default function AdminDashboard() {
         }}
         initialOrderId={trackingOrderId}
       />
+
+      {/* 🔔 Mobile-Friendly Live Spin Notification Center Drawer/Dropdown */}
+      <AnimatePresence>
+        {isSpinNotifDrawerOpen && (
+          <>
+            <div
+              onClick={() => setIsSpinNotifDrawerOpen(false)}
+              className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-[1px]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.98 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-x-3 top-16 sm:inset-x-auto sm:right-4 sm:w-[400px] z-[80] bg-white rounded-3xl shadow-2xl border border-purple-200 overflow-hidden flex flex-col max-h-[78vh]"
+            >
+              <div className="bg-gradient-to-r from-[#10121d] via-purple-950 to-[#10121d] text-white px-4 py-3.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/25 border border-purple-400/40 flex items-center justify-center shrink-0">
+                    <Gift size={16} className="text-amber-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black tracking-wide truncate">
+                      স্পিন হুইল লাইভ নোটিফিকেশন
+                    </h4>
+                    <p className="text-[10px] text-purple-200 font-semibold">
+                      {unreadSpinCount > 0
+                        ? `${unreadSpinCount}টি নতুন লাইভ স্পিন এসেছে`
+                        : 'রিয়েল-টাইম লাইভ অ্যালার্ট সচল আছে'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {unreadSpinCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markSpinNotificationsRead('all').then(setSpinNotifications).catch(() => {});
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-amber-200 cursor-pointer"
+                    >
+                      সব পড়া হয়েছে
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsSpinNotifDrawerOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-white">
+                {spinNotifications.length === 0 ? (
+                  <div className="p-8 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto">
+                      <Bell size={22} />
+                    </div>
+                    <p className="text-xs font-black text-gray-800">এখনো কোনো স্পিন নোটিফিকেশন আসেনি</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      যেকোনো কাস্টমার ওয়েবসাইটে স্পিন হুইল ঘুরালেই সাথে সাথে এখানে লাইভ অ্যালার্ট চলে আসবে।
+                    </p>
+                  </div>
+                ) : (
+                  spinNotifications.slice(0, 25).map((notif) => {
+                    const phoneClean = (notif.mobileNumber || '').replace(/\D/g, '');
+                    const waPhone = phoneClean.startsWith('01') ? `88${phoneClean}` : phoneClean;
+                    const diffSec = Math.max(0, Math.floor((Date.now() - new Date(notif.createdAt).getTime()) / 1000));
+                    const timeAgo =
+                      diffSec < 30
+                        ? 'এইমাত্র'
+                        : diffSec < 60
+                        ? `${diffSec} সেকেন্ড আগে`
+                        : diffSec < 3600
+                        ? `${Math.floor(diffSec / 60)} মিনিট আগে`
+                        : `${Math.floor(diffSec / 3600)} ঘণ্টা আগে`;
+
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`p-3.5 transition-colors ${!notif.read ? 'bg-purple-50/70' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {!notif.read && (
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-ping" />
+                              )}
+                              <span className="text-xs font-black text-gray-900 truncate">
+                                {notif.customerName || 'Anonymous Visitor'}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                                {notif.mobileNumber}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-purple-800 font-bold mt-1">
+                              🎁 জিতেছেন: <span className="text-rose-600">{notif.wonCouponLabel}</span>{' '}
+                              <span className="font-mono text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                {notif.wonCouponCode}
+                              </span>
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-semibold mt-1">
+                              ⏱ {timeAgo} {notif.deviceInfo ? `• ${notif.deviceInfo}` : ''}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {notif.mobileNumber && (
+                              <a
+                                href={`tel:${notif.mobileNumber}`}
+                                className="p-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white transition-colors"
+                                title="কল দিন"
+                              >
+                                <Phone size={13} />
+                              </a>
+                            )}
+                            {waPhone && (
+                              <a
+                                href={`https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(
+                                  `সালামু আলাইকুম ${notif.customerName || 'গ্রাহক'}, সেরা ফ্যাশনে স্পিন ঘুরিয়ে আপনি '${notif.wonCouponLabel}' (${notif.wonCouponCode}) জিতেছেন! আপনার পছন্দের পণ্য অর্ডার করতে সহায়তা লাগলে জানান।`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white transition-colors"
+                                title="হোয়াটসঅ্যাপ"
+                              >
+                                <MessageCircle size={13} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="p-3 bg-gray-50 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSpinNotifDrawerOpen(false);
+                    handleSelectTab('spin_leads');
+                  }}
+                  className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-700 hover:to-rose-700 text-white rounded-xl text-xs font-black tracking-wide shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Gift size={14} />
+                  <span>সব স্পিন কাস্টমার লিডস দেখুন</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ⚡ Real-Time Floating Spin Winner Toast Alert */}
+      <AnimatePresence>
+        {liveSpinToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.95 }}
+            className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-5 sm:bottom-5 sm:w-[370px] z-[90] bg-[#10121d] text-white rounded-2xl p-4 shadow-2xl border-2 border-purple-500/70"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-lg">
+                <Gift size={18} className="animate-bounce" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    লাইভ স্পিন অ্যালার্ট!
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLiveSpinToast(null)}
+                    className="text-gray-400 hover:text-white p-0.5 cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <p className="text-xs font-black text-white mt-0.5 truncate">
+                  {liveSpinToast.customerName} • <span className="text-emerald-300 font-mono">{liveSpinToast.mobileNumber}</span>
+                </p>
+                <p className="text-[11px] text-purple-200 font-bold mt-0.5 truncate">
+                  জিতেছেন: {liveSpinToast.wonCouponLabel} ({liveSpinToast.wonCouponCode})
+                </p>
+                <div className="flex items-center gap-2 mt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLiveSpinToast(null);
+                      handleSelectTab('spin_leads');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-rose-600 text-white text-[10px] font-black cursor-pointer"
+                  >
+                    লিডস দেখুন
+                  </button>
+                  {liveSpinToast.mobileNumber && (
+                    <a
+                      href={`tel:${liveSpinToast.mobileNumber}`}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-black flex items-center gap-1"
+                    >
+                      <Phone size={11} />
+                      কল দিন
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

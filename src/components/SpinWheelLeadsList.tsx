@@ -6,6 +6,7 @@ import {
   Settings2, Sliders, ShieldCheck, Zap
 } from 'lucide-react';
 import { subscribeToVisitorSessions } from '../services/trackingService';
+import { subscribeToSpinNotifications, SpinNotification } from '../services/spinNotificationService';
 import { getAllOrders } from '../services/orderService';
 import { getBrandSettings, updateBrandSettings } from '../services/settingsService';
 import { VisitorSession, Order, BrandSettings } from '../types';
@@ -18,6 +19,7 @@ interface SpinWheelLeadsListProps {
 
 export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelLeadsListProps) {
   const [sessions, setSessions] = useState<VisitorSession[]>([]);
+  const [spinNotifications, setSpinNotifications] = useState<SpinNotification[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -150,8 +152,12 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
     }
 
     listen();
+    const unsubSpinNotifs = subscribeToSpinNotifications((list) => {
+      setSpinNotifications(list);
+    });
     return () => {
       if (unsubscribe) unsubscribe();
+      unsubSpinNotifs();
     };
   }, [refreshTrigger]);
 
@@ -204,7 +210,39 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
       }
     });
 
-    return spunSessions.map(s => {
+    // Merge in real-time spin notifications that may not yet exist in sessions
+    const seenSessionIds = new Set(spunSessions.map((s) => s.sessionId));
+    const combinedSpunSessions: VisitorSession[] = [...spunSessions];
+
+    spinNotifications.forEach((notif) => {
+      if (!notif) return;
+      const key = notif.sessionId || notif.id;
+      if (!seenSessionIds.has(key)) {
+        seenSessionIds.add(key);
+        combinedSpunSessions.push({
+          sessionId: key,
+          idSuffix: '#' + String(key).replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase().padStart(4, 'S'),
+          customerName: notif.customerName || 'Anonymous Visitor',
+          mobileNumber: notif.mobileNumber || '',
+          deviceInfo: notif.deviceInfo || '📱 Mobile',
+          currentStage: 'product_view',
+          currentStageLabel: `স্পিন অফার জিতেছেন: ${notif.wonCouponLabel} 🎁`,
+          views: [],
+          createdAt: notif.createdAt,
+          lastActiveAt: notif.createdAt,
+          hasSpun: true,
+          wonCouponCode: notif.wonCouponCode,
+          wonCouponLabel: notif.wonCouponLabel,
+          wonCouponDiscount: notif.wonCouponDiscount,
+        });
+      }
+    });
+
+    combinedSpunSessions.sort(
+      (a, b) => new Date(b.lastActiveAt || b.createdAt).getTime() - new Date(a.lastActiveAt || a.createdAt).getTime()
+    );
+
+    return combinedSpunSessions.map(s => {
       const p = cleanPhone(s.mobileNumber);
       const matchedOrders = p ? (ordersMap.get(p) || []) : [];
       const hasPurchased = matchedOrders.length > 0;
@@ -234,7 +272,7 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
         wonCouponDiscount: wonDiscount || 100
       };
     });
-  }, [sessions, orders]);
+  }, [sessions, spinNotifications, orders]);
 
   // Apply filters and searches
   const filteredLeads = useMemo(() => {
@@ -562,9 +600,9 @@ export default function SpinWheelLeadsList({ orders: initialOrders }: SpinWheelL
         <div className="flex bg-gray-100 p-1 rounded-xl shrink-0 border border-gray-200/50 w-full md:w-auto overflow-x-auto">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${statusFilter === 'ALL' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${statusFilter === 'ALL' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
           >
-            جميع স্পিনার্স ({leads.length})
+            সকল স্পিনার্স ({leads.length})
           </button>
           <button
             onClick={() => setStatusFilter('NO_ORDER')}

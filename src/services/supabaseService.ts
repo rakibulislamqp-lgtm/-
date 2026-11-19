@@ -438,6 +438,83 @@ export const supabaseSaveVisitorSession = async (session: VisitorSession): Promi
   }
 };
 
+const mapSupabaseVisitorRow = (row: any): VisitorSession => {
+  const raw = row?.raw_data || {};
+  const sessionId = row.session_id || raw.sessionId || '';
+  const cleanIdToken = String(sessionId).replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
+  return {
+    ...raw,
+    sessionId,
+    idSuffix: raw.idSuffix || (cleanIdToken ? `#${cleanIdToken}` : '#LIVE'),
+    customerName: row.customer_name || raw.customerName || 'Anonymous Visitor',
+    mobileNumber: row.mobile_number || raw.mobileNumber || '',
+    deviceInfo: raw.deviceInfo || '📱 Mobile',
+    currentStage: row.current_stage || raw.currentStage || 'browsing_home',
+    currentStageLabel: raw.currentStageLabel || (row.has_spun ? 'স্পিন অফার পেয়েছেন 🎁' : 'ওয়েবসাইট ভিজিট'),
+    district: row.district || raw.district || '',
+    upazila: row.upazila || raw.upazila || '',
+    views: Array.isArray(raw.views) ? raw.views : [],
+    events: Array.isArray(raw.events) ? raw.events : [],
+    createdAt: raw.createdAt || row.last_active_at || new Date().toISOString(),
+    lastActiveAt: row.last_active_at || raw.lastActiveAt || new Date().toISOString(),
+    hasSpun: Boolean(row.has_spun ?? raw.hasSpun ?? false),
+    wonCouponCode: raw.wonCouponCode,
+    wonCouponLabel: raw.wonCouponLabel,
+    wonCouponDiscount: raw.wonCouponDiscount,
+  };
+};
+
+export const supabaseFetchVisitorSessions = async (): Promise<VisitorSession[] | null> => {
+  try {
+    const [recentRes, spunRes] = await Promise.allSettled([
+      supabase
+        .from('visitor_sessions')
+        .select('*')
+        .order('last_active_at', { ascending: false })
+        .limit(150),
+      supabase
+        .from('visitor_sessions')
+        .select('*')
+        .eq('has_spun', true)
+        .order('last_active_at', { ascending: false })
+        .limit(150),
+    ]);
+
+    const map = new Map<string, VisitorSession>();
+    let anySuccess = false;
+
+    const ingest = (res: PromiseSettledResult<any>) => {
+      if (res.status === 'fulfilled' && !res.value.error && Array.isArray(res.value.data)) {
+        anySuccess = true;
+        res.value.data.forEach((row: any) => {
+          const mapped = mapSupabaseVisitorRow(row);
+          if (mapped.sessionId) {
+            const existing = map.get(mapped.sessionId);
+            if (
+              !existing ||
+              new Date(mapped.lastActiveAt).getTime() >= new Date(existing.lastActiveAt).getTime()
+            ) {
+              map.set(mapped.sessionId, mapped);
+            }
+          }
+        });
+      }
+    };
+
+    ingest(recentRes);
+    ingest(spunRes);
+
+    if (!anySuccess) return null;
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
+    );
+  } catch (err) {
+    console.warn('Supabase fetch visitor sessions error:', err);
+    return null;
+  }
+};
+
 // ==========================================
 // 6. REAL-TIME SUBSCRIPTIONS
 // ==========================================
@@ -490,6 +567,32 @@ export const subscribeSupabaseProducts = (onUpdate: () => void) => {
     };
   } catch (err) {
     console.warn('Supabase products realtime subscription error:', err);
+    return () => {};
+  }
+};
+
+export const subscribeSupabaseVisitorSessions = (onUpdate: (payload?: any) => void) => {
+  try {
+    const channelId = `visitor_sessions_rt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'visitor_sessions' }, (payload) => {
+        onUpdate(payload);
+      });
+
+    channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn('Supabase visitor_sessions realtime channel status:', status);
+      }
+    });
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {}
+    };
+  } catch (err) {
+    console.warn('Supabase visitor_sessions realtime subscription error:', err);
     return () => {};
   }
 };

@@ -4,7 +4,8 @@ import {
   Gift, X, CheckCircle, Copy, AlertCircle, ShoppingCart, 
   Sparkles, Trophy, CheckCircle2, ArrowRight, Tag, Award 
 } from 'lucide-react';
-import { updateVisitorSpinInfo, logVisitorEvent } from '../services/trackingService';
+import { updateVisitorSpinInfo, logVisitorEvent, getOrCreateSessionId } from '../services/trackingService';
+import { publishSpinNotification } from '../services/spinNotificationService';
 import { BrandSettings, SpinWheelItem } from '../types';
 import { DEFAULT_SPIN_WHEEL_ITEMS } from '../constants/spinWheelDefaults';
 
@@ -586,7 +587,8 @@ export default function SpinWheelModal({
       localStorage.setItem('sera_wheel_has_spun', 'true');
       localStorage.setItem('sera_wheel_won_coupon', JSON.stringify(wonObject));
 
-      // Track session spin details in real-time Firestore database for admin lead generation
+      // Track session spin details in real-time database & cross-device live notification hub
+      const sessionId = getOrCreateSessionId();
       updateVisitorSpinInfo({
         hasSpun: true,
         wonCouponCode: chosenSector.code,
@@ -594,9 +596,29 @@ export default function SpinWheelModal({
         wonCouponDiscount: chosenSector.discount,
         customerName: spinName,
         mobileNumber: spinPhone,
-      });
+      })
+        .then(() =>
+          logVisitorEvent('click', 'spin_wheel_completed', `স্পিন হুইল ঘুরিয়েছেন এবং "${chosenSector.labelBn}" জিতেছেন 🎁`, 'checkout')
+        )
+        .catch(() => {});
 
-      logVisitorEvent('click', 'spin_wheel_completed', `স্পিন হুইল ঘুরিয়েছেন এবং "${chosenSector.labelBn}" জিতেছেন 🎁`, 'checkout');
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+      const deviceInfo = /tablet|ipad|playbook|silk/i.test(ua)
+        ? '🌐 Tablet'
+        : /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Opera Mini/i.test(ua)
+        ? '📱 Mobile'
+        : '💻 Desktop';
+
+      publishSpinNotification({
+        sessionId,
+        customerName: spinName,
+        mobileNumber: spinPhone,
+        wonCouponCode: chosenSector.code,
+        wonCouponLabel: chosenSector.labelBn || chosenSector.label,
+        wonCouponDiscount: chosenSector.discount,
+        discountType: chosenSector.discountType === 'flat' ? 'flat' : 'percentage',
+        deviceInfo,
+      }).catch(() => {});
 
       // Apply to checkout form
       setValue('discount', chosenSector.discount);

@@ -1,7 +1,11 @@
 import { doc, setDoc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
 import { initializeFirebase, checkIsQuotaExhausted, markQuotaExhausted } from '../lib/firebase';
 import { VisitorSession, ProductView, VisitorStage, Product, TrackingEvent } from '../types';
-import { supabaseSaveVisitorSession } from './supabaseService';
+import {
+  supabaseSaveVisitorSession,
+  supabaseFetchVisitorSessions,
+  subscribeSupabaseVisitorSessions,
+} from './supabaseService';
 
 let currentSessionId: string | null = null;
 let currentSessionData: VisitorSession | null = null;
@@ -13,7 +17,28 @@ const trackingChannel = typeof window !== 'undefined' && 'BroadcastChannel' in w
   ? new BroadcastChannel('s_fashion_live_tracking_bc') 
   : null;
 
-const saveAndBroadcastSession = (session: VisitorSession) => {
+let lastServerSessionSyncAt = 0;
+
+const syncSessionToServer = (session: VisitorSession, immediate = false) => {
+  if (typeof window === 'undefined' || !session?.sessionId) return;
+  const now = Date.now();
+  if (!immediate && !session.hasSpun && now - lastServerSessionSyncAt < 4000) {
+    return;
+  }
+  lastServerSessionSyncAt = now;
+  try {
+    fetch('/api/visitor-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(session),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Ignore network failures silently
+  }
+};
+
+const saveAndBroadcastSession = (session: VisitorSession, immediateServerSync = false) => {
   if (!session || !session.sessionId) return;
   try {
     const cachedStr = localStorage.getItem('s_fashion_live_sessions_cache');
@@ -38,7 +63,8 @@ const saveAndBroadcastSession = (session: VisitorSession) => {
       trackingChannel.postMessage({ type: 'SESSION_UPDATE', session });
     }
 
-    // Sync to Supabase
+    // Sync to server & Supabase for cross-device live tracking
+    syncSessionToServer(session, immediateServerSync);
     supabaseSaveVisitorSession(session).catch(() => {});
   } catch {
     // Silently continue locally
@@ -53,19 +79,15 @@ const detectQuotaError = (error: any): boolean => {
   const isQuota = (
     errCode === 'resource-exhausted' ||
     errCode === 'quota-exceeded' ||
-    errCode === 'unavailable' ||
-    errCode === 'permission-denied' ||
     errMsg.includes('quota') ||
     errMsg.includes('resource-exhausted') ||
     errMsg.includes('limit exceeded') ||
-    errMsg.includes('exhausted') ||
-    errMsg.includes('offline') ||
-    errMsg.includes('denied')
+    errMsg.includes('exhausted')
   );
   if (isQuota) {
     markQuotaExhausted();
   }
-  return isQuota;
+  return isQuota || errCode === 'permission-denied' || errCode === 'unavailable' || errMsg.includes('offline');
 };
 
 // Helper to remove undefined fields recursively so Firestore doesn't reject writing them
@@ -170,6 +192,7 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
       const currentNow = new Date().toISOString();
       if (currentSessionData) {
         currentSessionData.lastActiveAt = currentNow;
+        syncSessionToServer(currentSessionData, false);
       }
 
       if (isOfflineTracking || checkIsQuotaExhausted()) return;
@@ -178,7 +201,7 @@ export const startVisitorSession = async (): Promise<VisitorSession> => {
         const { db: freshDb } = await initializeFirebase();
         if (!freshDb) return;
         const sessionDoc = doc(freshDb, 'visitor_sessions', sessionId);
-        await setDoc(sessionDoc, cleanUndefined({ lastActiveAt: currentNow }), { merge: true });
+        await setDoc(sessionDoc, cleanUndefined({ sessionId, lastActiveAt: currentNow }), { merge: true });
       } catch (e) {
         if (detectQuotaError(e)) {
           isOfflineTracking = true;
@@ -292,6 +315,7 @@ export const updateVisitorStage = async (stage: VisitorStage, stageLabel: string
     if (!db) return;
     const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
     await setDoc(docRef, cleanUndefined({
+      sessionId: currentSessionData.sessionId,
       currentStage: stage,
       currentStageLabel: stageLabel,
       lastActiveAt: currentSessionData.lastActiveAt
@@ -358,6 +382,7 @@ export const trackProductView = async (product: Product) => {
     if (!db) return;
     const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
     await setDoc(docRef, cleanUndefined({
+      sessionId: currentSessionData.sessionId,
       views: updatedViews,
       ...(shouldUpdateStage && {
         currentStage: 'product_view',
@@ -419,7 +444,7 @@ export const updateVisitorCustomerInfo = async (info: {
     const { db } = await initializeFirebase();
     if (!db) return;
     const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
-    await setDoc(docRef, cleanUndefined(updates), { merge: true });
+    await setDoc(docRef, cleanUndefined({ sessionId: currentSessionData.sessionId, ...updates }), { merge: true });
   } catch (err) {
     if (detectQuotaError(err)) {
       isOfflineTracking = true;
@@ -454,9 +479,10 @@ export const updateVisitorSpinInfo = async (spinData: {
   }
   currentSessionData.lastActiveAt = now;
 
-  saveAndBroadcastSession(currentSessionData);
+  saveAndBroadcastSession(currentSessionData, true);
 
   const updates: any = {
+    sessionId: currentSessionData.sessionId,
     hasSpun: spinData.hasSpun,
     wonCouponCode: spinData.wonCouponCode,
     wonCouponLabel: spinData.wonCouponLabel,
@@ -537,7 +563,7 @@ export const logVisitorEvent = async (
           const { db } = await initializeFirebase();
           if (!db) return;
           const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
-          await setDoc(docRef, cleanUndefined({ events: currentSessionData.events }), { merge: true });
+          await setDoc(docRef, cleanUndefined({ sessionId: currentSessionData.sessionId, events: currentSessionData.events }), { merge: true });
         } catch (e) {
           if (detectQuotaError(e)) {
             isOfflineTracking = true;
@@ -566,7 +592,7 @@ export const logVisitorEvent = async (
           const { db } = await initializeFirebase();
           if (!db) return;
           const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
-          await setDoc(docRef, cleanUndefined({ events: currentSessionData.events }), { merge: true });
+          await setDoc(docRef, cleanUndefined({ sessionId: currentSessionData.sessionId, events: currentSessionData.events }), { merge: true });
         } catch (e) {
           if (detectQuotaError(e)) {
             isOfflineTracking = true;
@@ -584,7 +610,7 @@ export const logVisitorEvent = async (
     currentSessionData.events = currentSessionData.events.slice(0, 60);
   }
 
-  saveAndBroadcastSession(currentSessionData);
+  saveAndBroadcastSession(currentSessionData, target === 'spin_wheel_completed');
 
   if (isOfflineTracking || checkIsQuotaExhausted()) return;
 
@@ -593,6 +619,7 @@ export const logVisitorEvent = async (
     if (!db) return;
     const docRef = doc(db, 'visitor_sessions', currentSessionData.sessionId);
     await setDoc(docRef, cleanUndefined({
+      sessionId: currentSessionData.sessionId,
       events: currentSessionData.events,
       lastActiveAt: now.toISOString()
     }), { merge: true });
@@ -603,9 +630,31 @@ export const logVisitorEvent = async (
   }
 };
 
-// Listen to all live visitor sessions (combining Firestore + Local Cross-Tab Broadcast)
+// Listen to all live visitor sessions (combining Firestore + Supabase + Server API + Local Cross-Tab Broadcast)
 export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSession[]) => void) => {
   let firestoreSessions: VisitorSession[] = [];
+  let serverSessions: VisitorSession[] = [];
+  let supabaseSessions: VisitorSession[] = [];
+
+  const mergeSessionEntry = (existing: VisitorSession | undefined, incoming: VisitorSession): VisitorSession => {
+    if (!existing) return incoming;
+    const incomingNewer =
+      new Date(incoming.lastActiveAt).getTime() >= new Date(existing.lastActiveAt).getTime();
+    const base = incomingNewer ? { ...existing, ...incoming } : { ...incoming, ...existing };
+    return {
+      ...base,
+      customerName:
+        (base.customerName && base.customerName !== 'Anonymous Visitor' ? base.customerName : '') ||
+        (existing.customerName && existing.customerName !== 'Anonymous Visitor' ? existing.customerName : '') ||
+        incoming.customerName ||
+        'Anonymous Visitor',
+      mobileNumber: base.mobileNumber || existing.mobileNumber || incoming.mobileNumber || '',
+      hasSpun: Boolean(existing.hasSpun || incoming.hasSpun),
+      wonCouponCode: base.wonCouponCode || existing.wonCouponCode || incoming.wonCouponCode,
+      wonCouponLabel: base.wonCouponLabel || existing.wonCouponLabel || incoming.wonCouponLabel,
+      wonCouponDiscount: base.wonCouponDiscount ?? existing.wonCouponDiscount ?? incoming.wonCouponDiscount,
+    };
+  };
 
   const getMergedSessions = (): VisitorSession[] => {
     const map = new Map<string, VisitorSession>();
@@ -617,7 +666,7 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
         const localMap: Record<string, VisitorSession> = JSON.parse(cachedStr);
         Object.values(localMap).forEach((sess) => {
           if (sess && sess.sessionId) {
-            map.set(sess.sessionId, sess);
+            map.set(sess.sessionId, mergeSessionEntry(map.get(sess.sessionId), sess));
           }
         });
       }
@@ -625,22 +674,30 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
       // Silently handle read cache issue
     }
 
-    // 2. Merge with Firestore sessions
-    firestoreSessions.forEach((sess) => {
+    // 2. Merge with Supabase Cloud sessions (works across ALL devices & deployments)
+    supabaseSessions.forEach((sess) => {
       if (sess && sess.sessionId) {
-        const existing = map.get(sess.sessionId);
-        if (!existing || new Date(sess.lastActiveAt).getTime() >= new Date(existing.lastActiveAt).getTime()) {
-          map.set(sess.sessionId, sess);
-        }
+        map.set(sess.sessionId, mergeSessionEntry(map.get(sess.sessionId), sess));
       }
     });
 
-    // 3. Ensure current local session is always present and updated
-    if (currentSessionData && currentSessionData.sessionId) {
-      const existing = map.get(currentSessionData.sessionId);
-      if (!existing || new Date(currentSessionData.lastActiveAt).getTime() >= new Date(existing.lastActiveAt).getTime()) {
-        map.set(currentSessionData.sessionId, currentSessionData);
+    // 3. Merge with Server cross-device sessions
+    serverSessions.forEach((sess) => {
+      if (sess && sess.sessionId) {
+        map.set(sess.sessionId, mergeSessionEntry(map.get(sess.sessionId), sess));
       }
+    });
+
+    // 4. Merge with Firestore sessions
+    firestoreSessions.forEach((sess) => {
+      if (sess && sess.sessionId) {
+        map.set(sess.sessionId, mergeSessionEntry(map.get(sess.sessionId), sess));
+      }
+    });
+
+    // 5. Ensure current local session is always present and updated
+    if (currentSessionData && currentSessionData.sessionId) {
+      map.set(currentSessionData.sessionId, mergeSessionEntry(map.get(currentSessionData.sessionId), currentSessionData));
     }
 
     const list = Array.from(map.values());
@@ -648,8 +705,46 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
     return list;
   };
 
-  // Immediate emission
+  const fetchServerSessions = async () => {
+    try {
+      const res = await fetch('/api/visitor-sessions', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          serverSessions = data;
+          callback(getMergedSessions());
+        }
+      }
+    } catch {
+      // Ignore network polling errors silently
+    }
+  };
+
+  const fetchSupabaseSessions = async () => {
+    try {
+      const data = await supabaseFetchVisitorSessions();
+      if (Array.isArray(data)) {
+        supabaseSessions = data;
+        callback(getMergedSessions());
+      }
+    } catch {
+      // Ignore network errors silently
+    }
+  };
+
+  // Immediate emission + initial cross-device fetches
   callback(getMergedSessions());
+  fetchSupabaseSessions();
+  fetchServerSessions();
+
+  const pollInterval = setInterval(() => {
+    fetchSupabaseSessions();
+    fetchServerSessions();
+  }, 8000);
+
+  const unsubscribeSupabase = subscribeSupabaseVisitorSessions(() => {
+    fetchSupabaseSessions();
+  });
 
   // Listen for BroadcastChannel updates
   const handleBcMessage = (event: MessageEvent) => {
@@ -685,7 +780,8 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
           });
           callback(getMergedSessions());
         }, (err) => {
-          if (detectQuotaError(err)) {
+          const code = String((err as any)?.code || '').toLowerCase();
+          if (code !== 'permission-denied' && detectQuotaError(err)) {
             isOfflineTracking = true;
           }
           callback(getMergedSessions());
@@ -700,6 +796,8 @@ export const subscribeToVisitorSessions = async (callback: (sessions: VisitorSes
   }
 
   return () => {
+    clearInterval(pollInterval);
+    unsubscribeSupabase();
     unsubscribeFirestore();
     if (trackingChannel) {
       trackingChannel.removeEventListener('message', handleBcMessage);

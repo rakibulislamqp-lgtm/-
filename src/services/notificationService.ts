@@ -148,3 +148,87 @@ export const dispatchOrderNotifications = async (order: any) => {
   // 3. Deliver instantly to Telegram-enabled phone
   await sendTelegramNotification(order);
 };
+
+// Send Telegram bot notification when a customer spins the wheel
+export const sendSpinTelegramNotification = async (spinData: {
+  customerName: string;
+  mobileNumber: string;
+  wonCouponCode: string;
+  wonCouponLabel: string;
+  wonCouponDiscount?: number;
+  discountType?: 'flat' | 'percentage';
+  deviceInfo?: string;
+}): Promise<boolean> => {
+  try {
+    const settings = await getBrandSettings();
+    if (!settings || !settings.telegramToken || !settings.telegramChatId) {
+      return false;
+    }
+    const token = settings.telegramToken.trim();
+    const chatId = settings.telegramChatId.trim();
+    if (!token || !chatId) return false;
+
+    const discountText = spinData.discountType === 'flat'
+      ? `${spinData.wonCouponDiscount || 0}৳`
+      : `${spinData.wonCouponDiscount || 0}%`;
+
+    const messageText = `🎰 *নতুন স্পিন হুইল উইনার! (LIVE SPIN)* 🎁
+-------------------------------------------
+👤 *কাস্টমার নাম:* _${spinData.customerName || 'Anonymous Visitor'}_
+📞 *মোবাইল নাম্বার:* \`${spinData.mobileNumber || 'N/A'}\`
+🏆 *বিজয়ী অফার:* *${spinData.wonCouponLabel}*
+🎟️ *কুপন কোড:* \`${spinData.wonCouponCode}\` (${discountText})
+${spinData.deviceInfo ? `📱 *ডিভাইস:* ${spinData.deviceInfo}` : ''}
+-------------------------------------------
+⚡ *Sera Live Spin Alert* ⚡`;
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: messageText,
+        parse_mode: 'Markdown',
+      }),
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.warn('Failed to send Spin Telegram notification:', err);
+    return false;
+  }
+};
+
+// Play chime & browser notification in Admin Dashboard when a customer spins
+export const dispatchAdminSpinAlert = async (spinData: {
+  id: string;
+  customerName: string;
+  mobileNumber: string;
+  wonCouponCode: string;
+  wonCouponLabel: string;
+}) => {
+  try {
+    const settings = await getBrandSettings();
+    if (!settings || settings.soundEnabled !== false) {
+      playNotificationSound();
+    }
+    if (!settings || settings.pushEnabled !== false) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const n = new Notification('🎁 নতুন কাস্টমার স্পিন করেছেন!', {
+            body: `${spinData.customerName || 'কাস্টমার'} (${spinData.mobileNumber || ''}) জিতেছেন: ${spinData.wonCouponLabel} (${spinData.wonCouponCode})`,
+            icon: '/favicon.ico',
+            tag: `spin-${spinData.id}`,
+          });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.warn('Admin spin alert error:', e);
+  }
+};
+
