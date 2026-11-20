@@ -73,61 +73,118 @@ export const DEFAULT_BANNERS: BannerItem[] = [
   },
 ];
 
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction >= 0 ? '99.5%' : '-99.5%',
+    zIndex: 2,
+  }),
+  center: {
+    x: '0%',
+    zIndex: 2,
+  },
+  exit: (direction: number) => ({
+    x: direction >= 0 ? '-99.5%' : '99.5%',
+    zIndex: 1,
+  }),
+};
+
 export default function BannerSlider({ banners, autoSlideInterval = 4000, onSelectCategory }: BannerSliderProps) {
   // Filter active banners or fallback to default 5 banners
   const activeBanners = (banners && banners.filter(b => b.isActive).length > 0)
     ? banners.filter(b => b.isActive).sort((a, b) => a.order - b.order)
     : DEFAULT_BANNERS;
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [[currentIndex, direction], setSlide] = useState<[number, number]>([0, 1]);
   const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
 
-  // Auto slide loop - continuously rotates without stopping on touch or hover
+  const safeIndex = activeBanners.length > 0 ? currentIndex % activeBanners.length : 0;
+
+  // Preload all active banner images so incoming slides never flash black on mobile/slow networks
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobileViewport = window.innerWidth < 640;
+
+    activeBanners.forEach((banner) => {
+      const primarySrc = isMobileViewport && banner.mobileImageUrl
+        ? banner.mobileImageUrl
+        : banner.desktopImageUrl;
+      if (primarySrc) {
+        const img = new Image();
+        img.referrerPolicy = 'no-referrer';
+        img.src = primarySrc;
+      }
+      if (banner.desktopImageUrl && banner.desktopImageUrl !== primarySrc) {
+        const desktopImg = new Image();
+        desktopImg.referrerPolicy = 'no-referrer';
+        desktopImg.src = banner.desktopImageUrl;
+      }
+    });
+  }, [activeBanners]);
+
+  // Auto slide loop - continuously slides right-to-left without dark gap
   useEffect(() => {
     if (activeBanners.length <= 1) return;
 
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
+      setSlide(([prev]) => [(prev + 1) % activeBanners.length, 1]);
     }, autoSlideInterval);
 
     return () => clearInterval(timer);
-  }, [activeBanners.length, autoSlideInterval]);
+  }, [activeBanners.length, autoSlideInterval, safeIndex]);
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
+    if (activeBanners.length <= 1) return;
+    setSlide(([prev]) => [(prev + 1) % activeBanners.length, 1]);
   };
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + activeBanners.length) % activeBanners.length);
+    if (activeBanners.length <= 1) return;
+    setSlide(([prev]) => [(prev - 1 + activeBanners.length) % activeBanners.length, -1]);
   };
 
-  // Touch handlers for mobile swipe
+  const handleGoToSlide = (idx: number) => {
+    if (idx === safeIndex) return;
+    setSlide([idx, idx > safeIndex ? 1 : -1]);
+  };
+
+  // Touch handlers for mobile swipe (horizontal gesture detection without blocking vertical scroll)
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
+    touchEndX.current = null;
+    touchEndY.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
-    const distance = touchStartX.current - touchEndX.current;
-    const isLeftSwipe = distance > 40;
-    const isRightSwipe = distance < -40;
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const distanceX = touchStartX.current - touchEndX.current;
+    const distanceY = (touchStartY.current !== null && touchEndY.current !== null)
+      ? Math.abs(touchStartY.current - touchEndY.current)
+      : 0;
 
-    if (isLeftSwipe) {
-      handleNext();
-    } else if (isRightSwipe) {
-      handlePrev();
+    if (Math.abs(distanceX) > distanceY && Math.abs(distanceX) > 35) {
+      if (distanceX > 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
     }
 
     touchStartX.current = null;
+    touchStartY.current = null;
     touchEndX.current = null;
+    touchEndY.current = null;
   };
 
-  const currentBanner = activeBanners[currentIndex] || activeBanners[0];
+  const currentBanner = activeBanners[safeIndex] || activeBanners[0];
 
   const handleCtaClick = () => {
     if (onSelectCategory && currentBanner.categoryLink) {
@@ -144,19 +201,24 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
     <div className="w-full">
       {/* Banner Carousel Container */}
       <div 
-        className="relative w-full h-52 sm:h-72 md:h-96 lg:h-[440px] overflow-hidden bg-slate-950 select-none group"
+        className="relative w-full h-52 sm:h-72 md:h-96 lg:h-[440px] overflow-hidden bg-slate-950 select-none group touch-pan-y"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false} custom={direction}>
           <motion.div
-            key={currentBanner.id || currentIndex}
-            initial={{ opacity: 0, scale: 1.03 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="absolute inset-0 w-full h-full"
+            key={currentBanner.id || safeIndex}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { duration: 0.65, ease: [0.32, 0.72, 0, 1] },
+            }}
+            style={{ willChange: 'transform' }}
+            className="absolute inset-0 w-full h-full backface-hidden"
           >
             {/* Mobile Viewport Image */}
             <picture className="w-full h-full block">
@@ -166,6 +228,8 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
               <img
                 src={currentBanner.desktopImageUrl}
                 alt={currentBanner.title || 'Sera Fashion Banner'}
+                loading="eager"
+                decoding="sync"
                 className="w-full h-full object-cover object-center"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
@@ -181,9 +245,9 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
                 {/* Badge Tag */}
                 {currentBanner.badge && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0.9, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
                     className="inline-flex items-center px-3.5 py-1 bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full shadow-lg mx-auto"
                   >
                     <span>{currentBanner.badge}</span>
@@ -192,9 +256,9 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
 
                 {/* Main Heading */}
                 <motion.h1
-                  initial={{ opacity: 0, y: 15 }}
+                  initial={{ opacity: 0.9, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
                   className="text-xl sm:text-3xl md:text-5xl font-serif text-white font-black drop-shadow-md tracking-tight leading-tight"
                 >
                   {currentBanner.title}
@@ -203,9 +267,9 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
                 {/* Subtitle */}
                 {currentBanner.subtitle && (
                   <motion.p
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0.9, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
                     className="text-amber-200 text-xs sm:text-sm md:text-base font-sans font-semibold max-w-2xl mx-auto drop-shadow-sm line-clamp-2"
                   >
                     {currentBanner.subtitle}
@@ -214,9 +278,9 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
 
                 {/* CTA Button */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0.95, scale: 0.97 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.5 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
                   className="pt-1 sm:pt-2"
                 >
                   <button
@@ -238,14 +302,14 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
           <>
             <button
               onClick={handlePrev}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg hidden sm:flex"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg hidden sm:flex z-10"
               aria-label="Previous Banner"
             >
               <ChevronLeft size={22} />
             </button>
             <button
               onClick={handleNext}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg hidden sm:flex"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg hidden sm:flex z-10"
               aria-label="Next Banner"
             >
               <ChevronRight size={22} />
@@ -259,9 +323,9 @@ export default function BannerSlider({ banners, autoSlideInterval = 4000, onSele
             {activeBanners.map((_, idx) => (
               <button
                 key={idx}
-                onClick={() => setCurrentIndex(idx)}
+                onClick={() => handleGoToSlide(idx)}
                 className={`transition-all rounded-full cursor-pointer ${
-                  currentIndex === idx
+                  safeIndex === idx
                     ? 'w-6 h-2 bg-amber-400'
                     : 'w-2 h-2 bg-white/50 hover:bg-white'
                 }`}
