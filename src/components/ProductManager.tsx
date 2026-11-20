@@ -2,17 +2,23 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getAllProducts, createProduct, updateProduct, deleteProduct, uploadImage } from '../services/productService';
 import { signInWithGoogle, initializeFirebase } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Product, Category, ProductCategoryItem } from '../types';
+import { Product, Category, ProductCategoryItem, ProductColorDesignVariant } from '../types';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
 import CategoryManagerModal from './CategoryManagerModal';
 import { 
   Plus, Search, Edit, Trash2, Package, Tag, Hash, 
   DollarSign, Image as ImageIcon, Check, X, AlertCircle, Loader2,
   Eye, EyeOff, Upload, Camera, ShieldCheck, LogIn, Video, Play, Film,
-  ChevronLeft, ChevronRight, Layers, ImagePlus, Star, Ruler
+  ChevronLeft, ChevronRight, Layers, ImagePlus, Star, Ruler, Palette, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ADMIN_PRESET_SIZES } from '../lib/productVariants';
+import {
+  ADMIN_PRESET_SIZES,
+  ADMIN_PRESET_COLORS,
+  ADMIN_PRESET_DESIGNS,
+  getProductImagesList,
+  toBanglaDigits,
+} from '../lib/productVariants';
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>(() => {
@@ -317,6 +323,10 @@ export default function ProductManager() {
       setFormEntries([{
         ...product,
         sizes: Array.isArray(product.sizes) ? [...product.sizes] : [],
+        colors: Array.isArray(product.colors) ? [...product.colors] : [],
+        colorDesigns: Array.isArray(product.colorDesigns)
+          ? product.colorDesigns.map(v => ({ ...v }))
+          : [],
         galleryImages: Array.isArray(product.galleryImages) ? [...product.galleryImages] : [],
         initialSalesCount: product.initialSalesCount ?? 0
       }]);
@@ -328,6 +338,8 @@ export default function ProductManager() {
         description: '',
         price: 0,
         sizes: [],
+        colors: [],
+        colorDesigns: [],
         imageUrl: '',
         galleryImages: [],
         category: 'THREE PIECE',
@@ -353,8 +365,8 @@ export default function ProductManager() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          // High quality 1080px resolution for sharp crisp 1080x1080 square product showcases
-          const MAX_SIZE = 1080;
+          // Crisp 900px resolution (~55-85KB JPEG) so multiple color/design photos fit cleanly in cloud & load fast on mobile
+          const MAX_SIZE = 900;
           if (width > height) {
             if (width > MAX_SIZE) {
               height = Math.round(height * (MAX_SIZE / width));
@@ -581,11 +593,242 @@ export default function ProductManager() {
     }
   };
 
+  const [uploadingVariantKey, setUploadingVariantKey] = useState<string | null>(null);
+
+  const addEmptyColorDesignVariant = (entryIndex: number) => {
+    setFormEntries(prev => {
+      const next = [...prev];
+      const current = Array.isArray(next[entryIndex]?.colorDesigns) ? [...next[entryIndex].colorDesigns!] : [];
+      current.push({
+        id: `cd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        colorName: '',
+        designName: `ডিজাইন ${toBanglaDigits(current.length + 1)}`,
+        colorHex: '',
+        imageUrl: '',
+      });
+      next[entryIndex] = { ...next[entryIndex], colorDesigns: current };
+      return next;
+    });
+  };
+
+  const updateColorDesignVariant = (
+    entryIndex: number,
+    variantIndex: number,
+    patch: Partial<ProductColorDesignVariant>
+  ) => {
+    setFormEntries(prev => {
+      const next = [...prev];
+      const current = Array.isArray(next[entryIndex]?.colorDesigns) ? [...next[entryIndex].colorDesigns!] : [];
+      if (!current[variantIndex]) return prev;
+      current[variantIndex] = { ...current[variantIndex], ...patch };
+      next[entryIndex] = { ...next[entryIndex], colorDesigns: current };
+      return next;
+    });
+  };
+
+  const removeColorDesignVariant = (entryIndex: number, variantIndex: number) => {
+    setFormEntries(prev => {
+      const next = [...prev];
+      const current = Array.isArray(next[entryIndex]?.colorDesigns) ? [...next[entryIndex].colorDesigns!] : [];
+      const removed = current[variantIndex];
+      current.splice(variantIndex, 1);
+      const updatedGallery = (next[entryIndex]?.galleryImages || []).filter(
+        (img) => !removed?.imageUrl || img !== removed.imageUrl
+      );
+      next[entryIndex] = {
+        ...next[entryIndex],
+        colorDesigns: current,
+        galleryImages: updatedGallery,
+      };
+      return next;
+    });
+  };
+
+  const syncGalleryToColorDesigns = (entryIndex: number) => {
+    const entry = formEntries[entryIndex];
+    if (!entry) return;
+    const allImgs = getProductImagesList(entry);
+    if (allImgs.length === 0) {
+      showNotification('প্রথমে কমপক্ষে একটি প্রোডাক্টের ছবি আপলোড করুন।', 'warning');
+      return;
+    }
+    const existing = Array.isArray(entry.colorDesigns) ? [...entry.colorDesigns] : [];
+    const existingUrls = new Set(existing.map(v => (v.imageUrl || '').trim()));
+    let added = 0;
+    allImgs.forEach((imgUrl, idx) => {
+      if (!existingUrls.has(imgUrl)) {
+        existing.push({
+          id: `cd_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+          colorName: '',
+          designName: `ডিজাইন ${toBanglaDigits(existing.length + 1)}`,
+          colorHex: '',
+          imageUrl: imgUrl,
+        });
+        existingUrls.add(imgUrl);
+        added++;
+      }
+    });
+    updateFormEntry(entryIndex, { colorDesigns: existing });
+    if (added > 0) {
+      showNotification(`${added}টি ছবির জন্য কালার ও ডিজাইন বক্স তৈরি করা হয়েছে!`, 'success');
+    } else {
+      showNotification('সবগুলো ছবি আগেই কালার ও ডিজাইন লিস্টে যুক্ত আছে।', 'info');
+    }
+  };
+
+  const handleBatchVariantUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    entryIndex: number
+  ) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const validFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) {
+      showNotification('শুধুমাত্র ছবি (Image) ফাইল আপলোড করা যাবে।', 'warning');
+      return;
+    }
+
+    setUploadingEntry(prev => ({ ...prev, [entryIndex]: true }));
+    try {
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        if (file.size > 15 * 1024 * 1024) continue;
+        const url = await uploadOrProcessImage(file, (p) => {
+          const stepPercent = Math.round(((i + p / 100) / validFiles.length) * 100);
+          setUploadProgress(prev => ({ ...prev, [entryIndex]: Math.max(10, stepPercent) }));
+        });
+        if (url) uploadedUrls.push(url);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setFormEntries(prev => {
+          const next = [...prev];
+          const entry = next[entryIndex];
+          const existingVariants = Array.isArray(entry?.colorDesigns) ? [...entry.colorDesigns!] : [];
+          const newVariants: ProductColorDesignVariant[] = uploadedUrls.map((url, idx) => ({
+            id: `cd_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+            colorName: '',
+            designName: `ডিজাইন ${toBanglaDigits(existingVariants.length + idx + 1)}`,
+            colorHex: '',
+            imageUrl: url,
+          }));
+          const updatedVariants = [...existingVariants, ...newVariants];
+          const currentMain = (entry?.imageUrl || '').trim();
+          const currentGallery = Array.isArray(entry?.galleryImages) ? [...entry.galleryImages!] : [];
+          const resolvedMain = currentMain || uploadedUrls[0];
+          const extraUrls = uploadedUrls.filter(u => u !== resolvedMain && !currentGallery.includes(u));
+          next[entryIndex] = {
+            ...entry,
+            imageUrl: resolvedMain,
+            galleryImages: [...currentGallery, ...extraUrls],
+            colorDesigns: updatedVariants,
+          };
+          return next;
+        });
+        showNotification(`${uploadedUrls.length}টি কালার/ডিজাইনের ছবি যুক্ত হয়েছে! এখন প্রতিটির কালার ও ডিজাইন নাম লিখুন।`, 'success');
+      }
+    } catch (err) {
+      showNotification('ছবি আপলোড করতে সমস্যা হয়েছে।', 'error');
+    } finally {
+      setUploadingEntry(prev => ({ ...prev, [entryIndex]: false }));
+      setUploadProgress(prev => ({ ...prev, [entryIndex]: 0 }));
+      e.target.value = '';
+    }
+  };
+
+  const handleSingleVariantPhotoChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    entryIndex: number,
+    variantIndex: number
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const key = `${entryIndex}_${variantIndex}`;
+    setUploadingVariantKey(key);
+    try {
+      const url = await uploadOrProcessImage(file);
+      if (url) {
+        setFormEntries(prev => {
+          const next = [...prev];
+          const entry = next[entryIndex];
+          const variants = Array.isArray(entry?.colorDesigns) ? [...entry.colorDesigns!] : [];
+          if (!variants[variantIndex]) return prev;
+          variants[variantIndex] = { ...variants[variantIndex], imageUrl: url };
+          const resolvedMain = (entry?.imageUrl || '').trim() || url;
+          const gallery = Array.isArray(entry?.galleryImages) ? [...entry.galleryImages!] : [];
+          if (url !== resolvedMain && !gallery.includes(url)) {
+            gallery.push(url);
+          }
+          next[entryIndex] = {
+            ...entry,
+            imageUrl: resolvedMain,
+            galleryImages: gallery,
+            colorDesigns: variants,
+          };
+          return next;
+        });
+        showNotification('কালার/ডিজাইনের ছবি আপলোড সম্পন্ন!', 'success');
+      }
+    } catch {
+      showNotification('ছবি প্রসেস করতে ব্যর্থ হয়েছে।', 'error');
+    } finally {
+      setUploadingVariantKey(null);
+      e.target.value = '';
+    }
+  };
+
+  const setVariantAsMainCover = (entryIndex: number, targetImgUrl: string) => {
+    if (!targetImgUrl) return;
+    const entry = formEntries[entryIndex];
+    if (!entry) return;
+    const oldMain = (entry.imageUrl || '').trim();
+    const gallery = (entry.galleryImages || []).filter(u => u !== targetImgUrl);
+    if (oldMain && oldMain !== targetImgUrl && !gallery.includes(oldMain)) {
+      gallery.unshift(oldMain);
+    }
+    updateFormEntry(entryIndex, { imageUrl: targetImgUrl, galleryImages: gallery });
+    showNotification('এই কালার/ডিজাইনের ছবিকে মূল কাভার ছবি হিসেবে সেট করা হয়েছে!', 'success');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const preparedEntries: Partial<Product>[] = formEntries.map((entry) => {
+      const validColorDesigns = (entry.colorDesigns || [])
+        .filter((v) => v && v.imageUrl && v.imageUrl.trim())
+        .map((v) => ({
+          ...v,
+          imageUrl: v.imageUrl.trim(),
+          colorName: (v.colorName || '').trim(),
+          designName: (v.designName || '').trim(),
+        }));
+
+      const resolvedMainImage = (entry.imageUrl || '').trim() || validColorDesigns[0]?.imageUrl || '';
+      const gallerySet = new Set<string>(
+        (entry.galleryImages || []).map((g) => (g || '').trim()).filter((g) => g && g !== resolvedMainImage)
+      );
+      validColorDesigns.forEach((v) => {
+        if (v.imageUrl !== resolvedMainImage) {
+          gallerySet.add(v.imageUrl);
+        }
+      });
+
+      const derivedColors = Array.from(
+        new Set(validColorDesigns.map((v) => v.colorName).filter(Boolean))
+      );
+
+      return {
+        ...entry,
+        imageUrl: resolvedMainImage,
+        galleryImages: Array.from(gallerySet),
+        colorDesigns: validColorDesigns,
+        colors: derivedColors.length > 0 ? derivedColors : (entry.colors || []),
+      };
+    });
+
     // Validation
-    const invalidEntries = formEntries.filter(entry => !entry.imageUrl || !entry.title || !entry.price);
+    const invalidEntries = preparedEntries.filter(entry => !entry.imageUrl || !entry.title || !entry.price);
     if (invalidEntries.length > 0) {
       showNotification("অসম্পূর্ণ তথ্য: সকল প্রোডাক্টের ছবি, নাম এবং মূল্য অবশ্যই দিতে হবে।", "warning");
       return;
@@ -593,7 +836,7 @@ export default function ProductManager() {
 
     setSubmitting(true);
     try {
-      for (const entry of formEntries) {
+      for (const entry of preparedEntries) {
         if (editingProduct?.id) {
           // Remove ID from the data to avoid Firestore update errors
           const { id, ...saveData } = entry as Product;
@@ -604,7 +847,7 @@ export default function ProductManager() {
       }
       setIsModalOpen(false);
       await fetchProducts();
-      showNotification(`সফল: ${formEntries.length} টি প্রোডাক্ট ক্যাটালগে সেভ করা হয়েছে।`, "success");
+      showNotification(`সফল: ${preparedEntries.length} টি প্রোডাক্ট ক্যাটালগে সেভ করা হয়েছে।`, "success");
     } catch (error: any) {
       console.error("Failed to save products:", error);
       showNotification(`প্রোডাক্ট সেভ করতে সমস্যা হয়েছে: ${error.message}`, "error");
@@ -784,12 +1027,22 @@ export default function ProductManager() {
                   </div>
                   <div className="text-rose-600 font-black text-lg tabular-nums">৳{product.price.toLocaleString()}</div>
                 </div>
-                <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase tracking-tighter">
-                    <Package size={12} className="text-rose-500" />
-                    <span>Stock: {product.stock}</span>
+                <div className="flex items-center justify-between pt-2 border-t border-gray-50 gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase tracking-tighter">
+                      <Package size={12} className="text-rose-500" />
+                      <span>Stock: {product.stock}</span>
+                    </div>
+                    {((product.colorDesigns?.length || 0) > 0 || getProductImagesList(product).length > 1) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[9px] font-black">
+                        <Palette size={10} />
+                        {product.colorDesigns && product.colorDesigns.length > 0
+                          ? `${toBanglaDigits(product.colorDesigns.length)} কালার/ডিজাইন`
+                          : `${toBanglaDigits(getProductImagesList(product).length)} ছবি`}
+                      </span>
+                    )}
                   </div>
-                  <div className={`text-[9px] font-black uppercase tracking-widest ${product.stock > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <div className={`text-[9px] font-black uppercase tracking-widest shrink-0 ${product.stock > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                     {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
                   </div>
                 </div>
@@ -860,11 +1113,11 @@ export default function ProductManager() {
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl relative z-10 overflow-hidden"
+              className="bg-white w-full max-w-2xl rounded-3xl sm:rounded-[3rem] shadow-2xl relative z-10 overflow-hidden"
             >
-              <div className="p-8 bg-brand-charcoal text-white flex justify-between items-center">
+              <div className="p-5 sm:p-8 bg-brand-charcoal text-white flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-black uppercase tracking-widest">{editingProduct ? 'প্রোডাক্ট এডিট করুন' : 'নতুন প্রোডাক্ট যোগ করুন'}</h2>
+                  <h2 className="text-base sm:text-xl font-black uppercase tracking-widest">{editingProduct ? 'প্রোডাক্ট এডিট করুন' : 'নতুন প্রোডাক্ট যোগ করুন'}</h2>
                   <p className="text-[10px] text-rose-500 font-bold uppercase tracking-[0.2em] mt-1">ক্যাটালগ ম্যানেজমেন্ট</p>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
@@ -872,7 +1125,7 @@ export default function ProductManager() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-8 space-y-10 max-h-[70vh] overflow-y-auto" id="modal-scroll-area">
+              <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-8 sm:space-y-10 max-h-[75vh] sm:max-h-[70vh] overflow-y-auto" id="modal-scroll-area">
                 {!editingProduct && (
                   <div className="bg-rose-50/70 border border-rose-100/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
@@ -936,7 +1189,7 @@ export default function ProductManager() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Auth Warning for Storage - Only show for first item or if not auth */}
                       {index === 0 && (!isAuthAuthorized || isAnonymous) && (
-                        <div className="col-span-2 bg-amber-50 border border-amber-200 p-4 rounded-3xl flex items-start gap-4">
+                        <div className="col-span-1 md:col-span-2 bg-amber-50 border border-amber-200 p-4 rounded-3xl flex items-start gap-4">
                           <div className="w-10 h-10 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 shrink-0">
                             <ShieldCheck size={20} />
                           </div>
@@ -961,7 +1214,7 @@ export default function ProductManager() {
                       )}
 
                       {/* Image & Video Upload Area (Side-by-Side) */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 col-span-2">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 col-span-1 md:col-span-2">
                         {/* 1. Image Upload Column */}
                         <div className="space-y-2">
                           <div className="flex justify-between items-center px-1">
@@ -1368,7 +1621,7 @@ export default function ProductManager() {
                       </div>
 
                       {/* Title & Brand */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 col-span-1 md:col-span-2">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">প্রোডাক্ট এর নাম (Title)</label>
                           <div className="relative">
@@ -1379,7 +1632,7 @@ export default function ProductManager() {
                               placeholder="যেমন: প্রিমিয়াম সিল্ক থ্রি পিস"
                               value={entry.title}
                               onChange={(e) => updateFormEntry(index, { title: e.target.value })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-medium"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-medium"
                             />
                           </div>
                         </div>
@@ -1393,14 +1646,14 @@ export default function ProductManager() {
                               placeholder="যেমন: SERA FASHION"
                               value={entry.brand}
                               onChange={(e) => updateFormEntry(index, { brand: e.target.value })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-medium"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-medium"
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Category & Product Code */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 col-span-1 md:col-span-2">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ক্যাটাগরি</label>
@@ -1422,7 +1675,7 @@ export default function ProductManager() {
                                 updateFormEntry(index, { category: e.target.value as Category });
                               }
                             }}
-                            className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-bold uppercase tracking-widest"
+                            className="w-full px-5 sm:px-6 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-bold uppercase tracking-widest"
                           >
                             {categoriesList.filter(c => c.id !== 'ALL').map(cat => (
                               <option key={cat.id} value={cat.id}>
@@ -1446,14 +1699,14 @@ export default function ProductManager() {
                               placeholder="SFH-101"
                               value={entry.productCode}
                               onChange={(e) => updateFormEntry(index, { productCode: e.target.value.toUpperCase() })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-bold tracking-widest"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-sm font-bold tracking-widest"
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Price & Stock & Discount */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 col-span-1 md:col-span-2">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">মূল্য (Price ৳)</label>
                           <div className="relative">
@@ -1464,7 +1717,7 @@ export default function ProductManager() {
                               placeholder="0"
                               value={entry.price}
                               onChange={(e) => updateFormEntry(index, { price: Number(e.target.value) })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums"
                             />
                           </div>
                         </div>
@@ -1478,7 +1731,7 @@ export default function ProductManager() {
                               placeholder="0"
                               value={entry.discount || 0}
                               onChange={(e) => updateFormEntry(index, { discount: Number(e.target.value) })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums text-rose-600"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums text-rose-600"
                             />
                           </div>
                         </div>
@@ -1493,88 +1746,342 @@ export default function ProductManager() {
                               placeholder="0"
                               value={entry.stock}
                               onChange={(e) => updateFormEntry(index, { stock: Number(e.target.value) })}
-                              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums"
+                              className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all text-lg font-black tabular-nums"
                             />
                           </div>
                         </div>
                       </div>
 
-                      {/* Sizes Configuration + Photo-Based Color Selection Note */}
-                      <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 bg-amber-50/35 p-5 rounded-3xl border border-amber-200/60">
-                        {/* Available Sizes */}
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <label className="text-[10.5px] font-black text-brand-charcoal uppercase tracking-wider flex items-center gap-1.5">
-                              <Ruler size={13} className="text-amber-600" />
-                              <span>সাইজ অপশন (Sizes)</span>
-                            </label>
-                            <span className="text-[9.5px] font-bold text-gray-500">
-                              {(entry.sizes?.length || 0) > 0 ? `${entry.sizes?.length}টি নির্বাচিত` : 'ডিফল্ট সাইজ চালু থাকবে'}
-                            </span>
+                      {/* Sizes Configuration */}
+                      <div className="col-span-1 md:col-span-2 bg-amber-50/35 p-4 sm:p-5 rounded-3xl border border-amber-200/60 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <label className="text-[10.5px] font-black text-brand-charcoal uppercase tracking-wider flex items-center gap-1.5">
+                            <Ruler size={13} className="text-amber-600" />
+                            <span>সাইজ অপশন (Sizes)</span>
+                          </label>
+                          <span className="text-[9.5px] font-bold text-gray-500">
+                            {(entry.sizes?.length || 0) > 0 ? `${entry.sizes?.length}টি নির্বাচিত` : 'ডিফল্ট সাইজ চালু থাকবে'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Array.from(new Set([...ADMIN_PRESET_SIZES, ...(entry.sizes || [])])).map((sz) => {
+                            const selected = (entry.sizes || []).includes(sz);
+                            return (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => toggleVariantOption(index, 'sizes', sz)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                                  selected
+                                    ? 'bg-brand-charcoal text-amber-300 border-brand-charcoal shadow-xs'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400'
+                                }`}
+                              >
+                                {sz}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="text"
+                            placeholder="কাস্টম সাইজ (যেমন: 42 বা Unstitched)"
+                            value={customSizeInputs[index] || ''}
+                            onChange={(e) => setCustomSizeInputs(prev => ({ ...prev, [index]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '');
+                              }
+                            }}
+                            className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold outline-none focus:border-amber-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '')}
+                            className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-[11px] font-black cursor-pointer shrink-0"
+                          >
+                            + যোগ
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 🎨 Color & Design Based Photo Upload System */}
+                      <div className="col-span-1 md:col-span-2 bg-gradient-to-br from-rose-50/60 via-amber-50/40 to-white p-4 sm:p-5 rounded-3xl border-2 border-amber-300/60 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                              <Palette size={17} />
+                            </div>
+                            <div>
+                              <h5 className="text-xs sm:text-sm font-black text-brand-charcoal flex items-center gap-1.5 flex-wrap">
+                                <span>কালার ও ডিজাইন অনুযায়ী ছবি আপলোড</span>
+                                <span className="text-[9.5px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  ফটো-টাচ সিলেকশন
+                                </span>
+                              </h5>
+                              <p className="text-[10.5px] text-gray-600 font-medium mt-0.5 leading-snug">
+                                প্রতিটি কালার ও ডিজাইনের আলাদা ছবি আপলোড করুন — কাস্টমার সরাসরি ছবির উপর টাচ করেই কালার ও ডিজাইন সিলেক্ট করতে পারবেন।
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Array.from(new Set([...ADMIN_PRESET_SIZES, ...(entry.sizes || [])])).map((sz) => {
-                              const selected = (entry.sizes || []).includes(sz);
-                              return (
-                                <button
-                                  key={sz}
-                                  type="button"
-                                  onClick={() => toggleVariantOption(index, 'sizes', sz)}
-                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                                    selected
-                                      ? 'bg-brand-charcoal text-amber-300 border-brand-charcoal shadow-xs'
-                                      : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400'
-                                  }`}
-                                >
-                                  {sz}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <div className="flex items-center gap-2 pt-1">
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
                             <input
-                              type="text"
-                              placeholder="কাস্টম সাইজ (যেমন: 42 বা Unstitched)"
-                              value={customSizeInputs[index] || ''}
-                              onChange={(e) => setCustomSizeInputs(prev => ({ ...prev, [index]: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '');
-                                }
-                              }}
-                              className="flex-1 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold outline-none focus:border-amber-500"
+                              type="file"
+                              id={`batch-variant-upload-${index}`}
+                              multiple
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleBatchVariantUpload(e, index)}
                             />
                             <button
                               type="button"
-                              onClick={() => addCustomVariantOption(index, 'sizes', customSizeInputs[index] || '')}
-                              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-[11px] font-black cursor-pointer shrink-0"
+                              onClick={() => document.getElementById(`batch-variant-upload-${index}`)?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-black shadow-sm transition-all cursor-pointer active:scale-95"
                             >
-                              + যোগ
+                              <ImagePlus size={14} />
+                              <span>ছবি আপলোড করুন</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addEmptyColorDesignVariant(index)}
+                              className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-amber-50 text-brand-charcoal border border-amber-300 rounded-xl text-[11px] font-black shadow-2xs transition-all cursor-pointer active:scale-95"
+                            >
+                              <Plus size={13} />
+                              <span>নতুন কালার/ডিজাইন</span>
                             </button>
                           </div>
                         </div>
 
-                        {/* Photo-Touch Color & Design Guidance */}
-                        <div className="flex flex-col justify-center bg-white/80 p-4 rounded-2xl border border-amber-200/70 space-y-2">
-                          <div className="flex items-center gap-2 text-brand-charcoal">
-                            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                              <Camera size={16} />
-                            </div>
-                            <div>
-                              <h5 className="text-xs font-black">কালার ও ডিজাইন (ছবি ভিত্তিক)</h5>
-                              <p className="text-[10px] font-bold text-emerald-700">অটোমেটিক ফটো সিলেকশন সক্রিয়</p>
-                            </div>
+                        {getProductImagesList(entry).length > 0 && (!entry.colorDesigns || entry.colorDesigns.length < getProductImagesList(entry).length) && (
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/90 px-3.5 py-2.5 rounded-2xl border border-amber-200/80">
+                            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                              <Sparkles size={13} className="text-amber-600 shrink-0" />
+                              উপরে আপলোড করা {toBanglaDigits(getProductImagesList(entry).length)}টি ছবিকে এক ক্লিকেই কালার ও ডিজাইনের নাম দিন
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => syncGalleryToColorDesigns(index)}
+                              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-[10.5px] font-black transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+                            >
+                              উপরের ছবিগুলো আনুন
+                            </button>
                           </div>
-                          <p className="text-[11px] text-gray-600 leading-relaxed">
-                            উপরে প্রতিটি কালার বা ডিজাইনের জন্য প্রোডাক্টের ছবি আপলোড করুন। কাস্টমার অর্ডার করার সময় সরাসরি <strong className="text-brand-charcoal">প্রোডাক্টের ছবির উপর টাচ করেই</strong> পছন্দের কালার ও ডিজাইন সিলেক্ট করতে পারবেন।
-                          </p>
-                        </div>
+                        )}
+
+                        {(!entry.colorDesigns || entry.colorDesigns.length === 0) ? (
+                          <div
+                            onClick={() => document.getElementById(`batch-variant-upload-${index}`)?.click()}
+                            className="border-2 border-dashed border-amber-300 hover:border-rose-400 bg-white/70 hover:bg-rose-50/30 rounded-2xl p-5 text-center cursor-pointer transition-all space-y-1.5"
+                          >
+                            <Palette size={24} className="mx-auto text-rose-500" />
+                            <p className="text-xs font-black text-gray-800">
+                              এখানে ক্লিক করে কালার ও ডিজাইনের ছবি সিলেক্ট করুন
+                            </p>
+                            <p className="text-[10.5px] text-gray-500 font-medium">
+                              একসাথে একাধিক ছবি সিলেক্ট করলে প্রতিটির জন্য কালার ও ডিজাইন বক্স অটোমেটিক তৈরি হবে
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {entry.colorDesigns.map((variant, vIdx) => {
+                              const isVariantMain = Boolean(variant.imageUrl && entry.imageUrl === variant.imageUrl);
+                              const isUploadingThis = uploadingVariantKey === `${index}_${vIdx}`;
+                              return (
+                                <div
+                                  key={variant.id || vIdx}
+                                  className="bg-white rounded-2xl border border-gray-200/90 p-3 sm:p-4 shadow-2xs space-y-3"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    {/* Variant Photo Slot */}
+                                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-gray-200 bg-gray-50 shrink-0 group/vimg">
+                                      <input
+                                        type="file"
+                                        id={`variant-photo-${index}-${vIdx}`}
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => handleSingleVariantPhotoChange(e, index, vIdx)}
+                                      />
+                                      {variant.imageUrl ? (
+                                        <img
+                                          src={variant.imageUrl}
+                                          alt={variant.colorName || variant.designName || `Variant ${vIdx + 1}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => document.getElementById(`variant-photo-${index}-${vIdx}`)?.click()}
+                                          className="w-full h-full flex flex-col items-center justify-center text-rose-500 hover:bg-rose-50/50 transition-colors cursor-pointer p-1 text-center"
+                                        >
+                                          <Camera size={18} />
+                                          <span className="text-[9px] font-black mt-1 leading-tight">ছবি দিন</span>
+                                        </button>
+                                      )}
+
+                                      {isUploadingThis && (
+                                        <div className="absolute inset-0 bg-white/85 flex items-center justify-center z-20">
+                                          <Loader2 size={18} className="animate-spin text-rose-600" />
+                                        </div>
+                                      )}
+
+                                      {variant.imageUrl && (
+                                        <button
+                                          type="button"
+                                          onClick={() => document.getElementById(`variant-photo-${index}-${vIdx}`)?.click()}
+                                          className="absolute bottom-1 inset-x-1 py-0.5 bg-black/70 hover:bg-black text-white text-[8.5px] font-bold rounded-md text-center cursor-pointer backdrop-blur-xs"
+                                        >
+                                          পরিবর্তন
+                                        </button>
+                                      )}
+                                      <span className="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-brand-charcoal/85 text-amber-300 text-[8.5px] font-black">
+                                        #{toBanglaDigits(vIdx + 1)}
+                                      </span>
+                                    </div>
+
+                                    {/* Color & Design Inputs */}
+                                    <div className="flex-1 min-w-0 space-y-2">
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-1.5">
+                                          {variant.colorHex && (
+                                            <span
+                                              className="w-3.5 h-3.5 rounded-full border border-gray-300 shrink-0"
+                                              style={{ backgroundColor: variant.colorHex }}
+                                            />
+                                          )}
+                                          <span className="text-[11px] font-black text-brand-charcoal">
+                                            কালার ও ডিজাইন #{toBanglaDigits(vIdx + 1)}
+                                          </span>
+                                          {isVariantMain && (
+                                            <span className="text-[9px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full border border-amber-300">
+                                              ★ মূল ছবি
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                          {variant.imageUrl && !isVariantMain && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setVariantAsMainCover(index, variant.imageUrl)}
+                                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[9.5px] font-black cursor-pointer"
+                                            >
+                                              ★ মূল ছবি বানান
+                                            </button>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => removeColorDesignVariant(index, vIdx)}
+                                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                            title="ভ্যারিয়েন্ট মুছুন"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="text-[9.5px] font-bold text-gray-500 block mb-0.5">
+                                            কালারের নাম (Color):
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="যেমন: মেরুন / লাল / কালো"
+                                            value={variant.colorName}
+                                            onChange={(e) => updateColorDesignVariant(index, vIdx, { colorName: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold outline-none focus:border-rose-500 focus:bg-white"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9.5px] font-bold text-gray-500 block mb-0.5">
+                                            ডিজাইনের নাম (Design):
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="যেমন: ডিজাইন ১ / ফ্লোরাল"
+                                            value={variant.designName}
+                                            onChange={(e) => updateColorDesignVariant(index, vIdx, { designName: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Optional direct photo URL input */}
+                                      {showUrlInput && (
+                                        <input
+                                          type="url"
+                                          placeholder="অথবা ছবির URL দিন (https://...)"
+                                          value={variant.imageUrl}
+                                          onChange={(e) => updateColorDesignVariant(index, vIdx, { imageUrl: e.target.value })}
+                                          className="w-full px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-[11px] font-medium outline-none focus:border-rose-500"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Quick 1-Tap Color & Design Chips for fast mobile entry */}
+                                  <div className="pt-1 border-t border-gray-100 space-y-1.5">
+                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                                      <span className="text-[9px] font-black text-gray-400 shrink-0 uppercase">কালার:</span>
+                                      {ADMIN_PRESET_COLORS.map((preset) => {
+                                        const active = variant.colorName === preset.name;
+                                        return (
+                                          <button
+                                            key={preset.name}
+                                            type="button"
+                                            onClick={() => updateColorDesignVariant(index, vIdx, {
+                                              colorName: preset.name,
+                                              colorHex: preset.hex,
+                                            })}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 border transition-all cursor-pointer ${
+                                              active
+                                                ? 'bg-brand-charcoal text-white border-brand-charcoal shadow-2xs'
+                                                : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+                                            }`}
+                                          >
+                                            <span
+                                              className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                              style={{ backgroundColor: preset.hex }}
+                                            />
+                                            <span>{preset.name}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                                      <span className="text-[9px] font-black text-gray-400 shrink-0 uppercase">ডিজাইন:</span>
+                                      {ADMIN_PRESET_DESIGNS.map((designLabel) => {
+                                        const active = variant.designName === designLabel;
+                                        return (
+                                          <button
+                                            key={designLabel}
+                                            type="button"
+                                            onClick={() => updateColorDesignVariant(index, vIdx, { designName: designLabel })}
+                                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 border transition-all cursor-pointer ${
+                                              active
+                                                ? 'bg-amber-400 text-slate-950 border-amber-500 font-black shadow-2xs'
+                                                : 'bg-gray-50 hover:bg-amber-50 text-gray-700 border-gray-200'
+                                            }`}
+                                          >
+                                            {designLabel}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Description */}
-                      <div className="space-y-3 col-span-2 bg-rose-50/35 p-6 rounded-3xl border border-rose-100/50">
-                        <div className="flex items-center justify-between">
+                      <div className="space-y-3 col-span-1 md:col-span-2 bg-rose-50/35 p-4 sm:p-6 rounded-3xl border border-rose-100/50">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <label className="text-xs font-black text-brand-charcoal uppercase tracking-widest flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                             পণ্যর বিস্তারিত বিবরণ / ডিটেইলস (Detailed Description)
@@ -1584,11 +2091,11 @@ export default function ProductManager() {
                           </span>
                         </div>
                         <textarea 
-                          rows={10}
+                          rows={8}
                           placeholder={`উদাহরণস্বরূপ:\n\n✅ প্রিমিয়াম কোয়ালিটি ১০০% সিল্ক ফেব্রিক\n✅ আকর্ষণীয় মেরুন ও গোল্ডেন কালার কম্বিনেশন\n✅ প্রিমিয়াম ডাবল-স্টিচ ফিনিশিং\n✅ আরামদায়ক এবং দীর্ঘস্থায়ী শাড়ি\n✅ বিবাহ, উৎসব, পার্টি বা বিশেষ অনুষ্ঠানের জন্য উপযোগী`}
                           value={entry.description}
                           onChange={(e) => updateFormEntry(index, { description: e.target.value })}
-                          className="w-full px-6 py-4 rounded-2xl bg-white border border-gray-250 focus:ring-4 focus:ring-rose-550/20 focus:border-rose-500 outline-none transition-all text-sm font-semibold leading-relaxed shadow-inner placeholder-gray-400"
+                          className="w-full px-4 sm:px-6 py-4 rounded-2xl bg-white border border-gray-250 focus:ring-4 focus:ring-rose-550/20 focus:border-rose-500 outline-none transition-all text-sm font-semibold leading-relaxed shadow-inner placeholder-gray-400"
                         />
                         <div className="flex items-start gap-1.5 text-[11px] text-gray-500 leading-normal pl-1">
                           <span className="animate-pulse text-amber-500">💡</span>
@@ -1598,7 +2105,7 @@ export default function ProductManager() {
                       </div>
 
                       {/* Social Proof & Live Sales Customization segment */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 col-span-2 bg-[#f9fafb] p-6 rounded-[2rem] border border-gray-100">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 col-span-1 md:col-span-2 bg-[#f9fafb] p-5 sm:p-6 rounded-[2rem] border border-gray-100">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Plus size={12} className="text-rose-500 font-extrabold" />
@@ -1622,7 +2129,7 @@ export default function ProductManager() {
                       </div>
 
                       {/* Visibility */}
-                      <div className="col-span-2 pt-2">
+                      <div className="col-span-1 md:col-span-2 pt-2">
                         <label className="flex items-center gap-4 p-4 bg-gray-50 border border-gray-100 rounded-2xl cursor-pointer hover:bg-gray-100 transition-all">
                           <input 
                             type="checkbox"

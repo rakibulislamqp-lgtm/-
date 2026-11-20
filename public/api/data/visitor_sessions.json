@@ -1,0 +1,47 @@
+[
+  {
+    "sessionId": "sess_u243x7tu_mtbiio6e",
+    "idSuffix": "#U243",
+    "customerName": "রাকিব ",
+    "mobileNumber": "01917231722",
+    "deviceInfo": "📱 Mobile",
+    "currentStage": "product_view",
+    "currentStageLabel": "প্রোডাক্ট দেখছেন: প্রিমিয়াম সুতি গর্জিয়াস থ্রি-পিস কালেকশন (Sera Designer Three Piece)",
+    "views": [
+      {
+        "productCode": "SFH-3P01",
+        "productTitle": "প্রিমিয়াম সুতি গর্জিয়াস থ্রি-পিস কালেকশন (Sera Designer Three Piece)",
+        "category": "THREE PIECE",
+        "price": 1350,
+        "imageUrl": "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=600&q=80",
+        "viewedAt": "2026-11-20T16:42:20.010Z"
+      }
+    ],
+    "createdAt": "2026-11-20T16:40:49.470Z",
+    "lastActiveAt": "2026-11-20T16:43:02.739Z",
+    "hasSpun": true,
+    "wonCouponCode": "SERAGIFT",
+    "wonCouponLabel": "ফ্রি গিফ্ট",
+    "wonCouponDiscount": 12,
+    "events": [
+      {
+        "id": "evt_ai56qtb",
+        "type": "page_view",
+        "description": "প্রোডাক্ট বিস্তারিত দেখছেন: \"প্রিমিয়াম সুতি গর্জিয়াস থ্রি-পিস কালেকশন (Sera Designer Three Piece)\" 🔍",
+        "target": "view_SFH-3P01",
+        "path": "product_details",
+        "timestamp": "2026-11-20T16:42:20.012Z",
+        "elapsedTime": 91
+      },
+      {
+        "id": "evt_t539ab9",
+        "type": "page_view",
+        "description": "হোম পেজ ব্রাউজ করছেন 🛍️",
+        "target": "home",
+        "path": "home",
+        "timestamp": "2026-11-20T16:41:02.561Z",
+        "elapsedTime": 13
+      }
+    ]
+  }
+]

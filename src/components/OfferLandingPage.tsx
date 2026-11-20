@@ -15,6 +15,7 @@ import {
   getDefaultSizeForProduct,
   getDefaultColorForProduct,
   getProductImagesList,
+  getProductPhotoVariants,
   getPhotoVariantLabel,
   toBanglaDigits,
 } from '../lib/productVariants';
@@ -147,9 +148,16 @@ export default function OfferLandingPage({
     });
   };
 
-  const handlePhotoSelect = (product: Product, imgUrl: string, imgIdx: number, totalImages: number) => {
+  const handlePhotoSelect = (
+    product: Product,
+    imgUrl: string,
+    imgIdx: number,
+    totalImages: number,
+    customLabel?: string
+  ) => {
     const productId = product.id || product.productCode;
-    const colorLabel = getPhotoVariantLabel(imgIdx, totalImages);
+    const resolvedVariants = getProductPhotoVariants(product);
+    const colorLabel = customLabel || resolvedVariants[imgIdx]?.label || getPhotoVariantLabel(imgIdx, totalImages);
     setSelectedImageUrls(prev => ({ ...prev, [productId]: imgUrl }));
     setSelectedColors(prev => ({ ...prev, [productId]: colorLabel }));
     setPieceVariants(prev => {
@@ -215,14 +223,22 @@ export default function OfferLandingPage({
     }
   };
 
-  const handlePiecePhotoChange = (product: Product, pieceIdx: number, imgUrl: string, imgIdx: number, totalImages: number) => {
+  const handlePiecePhotoChange = (
+    product: Product,
+    pieceIdx: number,
+    imgUrl: string,
+    imgIdx: number,
+    totalImages: number,
+    customLabel?: string
+  ) => {
     const productId = product.id || product.productCode;
     const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
     const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
     const availImages = getProductImagesList(product);
     const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
     const qty = selectedQuantities[productId] || 1;
-    const colorLabel = getPhotoVariantLabel(imgIdx, totalImages);
+    const resolvedVariants = getProductPhotoVariants(product);
+    const colorLabel = customLabel || resolvedVariants[imgIdx]?.label || getPhotoVariantLabel(imgIdx, totalImages);
     setPieceVariants(prev => {
       const base = prev[productId] && prev[productId].length === qty
         ? [...prev[productId]]
@@ -465,11 +481,14 @@ export default function OfferLandingPage({
             {filteredProducts.map((product) => {
               const pId = product.id || product.productCode;
               const availableSizes = getProductSizes(product);
-              const rawImages = getProductImagesList(product);
-              const cardImages = rawImages.length > 0 ? rawImages : [product.imageUrl].filter(Boolean);
+              const rawVariants = getProductPhotoVariants(product);
+              const cardVariants = rawVariants.length > 0
+                ? rawVariants
+                : (product.imageUrl ? [{ imageUrl: product.imageUrl, label: getPhotoVariantLabel(0, 1) }] : []);
+              const cardImages = cardVariants.map((v) => v.imageUrl);
               const hasSizes = availableSizes.length > 1 || product.category !== 'SAREE';
               const currentSize = selectedSizes[pId] || getDefaultSizeForProduct(product);
-              const currentColor = selectedColors[pId] || getDefaultColorForProduct(product);
+              const currentColor = selectedColors[pId] || cardVariants[0]?.label || getDefaultColorForProduct(product);
               const currentImageUrl = selectedImageUrls[pId] || cardImages[0] || product.imageUrl;
               const currentQty = selectedQuantities[pId] || 1;
               const currentPieces = pieceVariants[pId] && pieceVariants[pId].length === currentQty
@@ -610,23 +629,23 @@ export default function OfferLandingPage({
                               </span>
                             </label>
                             <div className="flex flex-wrap gap-2">
-                              {cardImages.map((imgUrl, imgIdx) => {
-                                const isSelected = currentImageUrl === imgUrl;
+                              {cardVariants.map((variant, imgIdx) => {
+                                const isSelected = currentImageUrl === variant.imageUrl;
                                 return (
                                   <button
                                     key={imgIdx}
                                     type="button"
-                                    onClick={() => handlePhotoSelect(product, imgUrl, imgIdx, cardImages.length)}
+                                    onClick={() => handlePhotoSelect(product, variant.imageUrl, imgIdx, cardVariants.length, variant.label)}
                                     className={`relative w-12 h-12 rounded-xl overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
                                       isSelected
                                         ? 'border-2 border-amber-400 ring-2 ring-amber-400/35 shadow-lg scale-105'
                                         : 'border border-white/15 opacity-75 hover:opacity-100 hover:border-white/40'
                                     }`}
-                                    title={`ডিজাইন ${toBanglaDigits(imgIdx + 1)} সিলেক্ট করুন`}
+                                    title={variant.label}
                                   >
                                     <img
-                                      src={imgUrl}
-                                      alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                      src={variant.imageUrl}
+                                      alt={variant.label}
                                       className="w-full h-full object-cover rounded-[9px]"
                                     />
                                     {isSelected && (
@@ -634,7 +653,13 @@ export default function OfferLandingPage({
                                         <Check size={9} strokeWidth={3} />
                                       </span>
                                     )}
-                                    {cardImages.length > 1 && (
+                                    {variant.colorHex && (
+                                      <span
+                                        className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
+                                        style={{ backgroundColor: variant.colorHex }}
+                                      />
+                                    )}
+                                    {cardVariants.length > 1 && (
                                       <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
                                         isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
                                       }`}>
@@ -695,23 +720,23 @@ export default function OfferLandingPage({
                                 <div className="space-y-1">
                                   <span className="text-[9.5px] text-slate-400 block">ছবিতে টাচ করে ডিজাইন নিন:</span>
                                   <div className="flex flex-wrap gap-1.5">
-                                    {cardImages.map((imgUrl, imgIdx) => {
-                                      const isSelected = (piece.imageUrl || cardImages[0]) === imgUrl;
+                                    {cardVariants.map((variant, imgIdx) => {
+                                      const isSelected = (piece.imageUrl || cardImages[0]) === variant.imageUrl;
                                       return (
                                         <button
                                           key={imgIdx}
                                           type="button"
-                                          onClick={() => handlePiecePhotoChange(product, idx, imgUrl, imgIdx, cardImages.length)}
+                                          onClick={() => handlePiecePhotoChange(product, idx, variant.imageUrl, imgIdx, cardVariants.length, variant.label)}
                                           className={`relative w-10 h-10 rounded-lg overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
                                             isSelected
                                               ? 'border-2 border-amber-400 ring-1 ring-amber-400/40 scale-105'
                                               : 'border border-white/15 opacity-70 hover:opacity-100'
                                           }`}
-                                          title={`পিস ${toBanglaDigits(idx + 1)} - ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                          title={`পিস ${toBanglaDigits(idx + 1)} - ${variant.label}`}
                                         >
                                           <img
-                                            src={imgUrl}
-                                            alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                            src={variant.imageUrl}
+                                            alt={variant.label}
                                             className="w-full h-full object-cover rounded-[5px]"
                                           />
                                           {isSelected && (
@@ -719,7 +744,13 @@ export default function OfferLandingPage({
                                               <Check size={8} strokeWidth={3} />
                                             </span>
                                           )}
-                                          {cardImages.length > 1 && (
+                                          {variant.colorHex && (
+                                            <span
+                                              className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
+                                              style={{ backgroundColor: variant.colorHex }}
+                                            />
+                                          )}
+                                          {cardVariants.length > 1 && (
                                             <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[7.5px] font-black ${
                                               isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
                                             }`}>

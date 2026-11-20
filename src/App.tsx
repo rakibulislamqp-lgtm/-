@@ -29,7 +29,7 @@ import {
   getProductSizes,
   getDefaultSizeForProduct,
   getDefaultColorForProduct,
-  getProductImagesList,
+  getProductPhotoVariants,
   getPhotoVariantLabel,
   toBanglaDigits,
 } from './lib/productVariants';
@@ -470,7 +470,7 @@ export default function App() {
       
       const referralCodeUsed = sessionStorage.getItem('sera_referral_code_used') || undefined;
 
-      const sanitizedItems = cart.map(({ availableSizes, availableColors, availableImages, ...rest }) => ({
+      const sanitizedItems = cart.map(({ availableSizes, availableColors, availableImages, availablePhotoVariants, ...rest }) => ({
         ...rest,
         color: rest.color || 'ছবির কালার ও ডিজাইন',
       }));
@@ -665,9 +665,12 @@ export default function App() {
     variants?: Array<{ size: string; color: string; imageUrl?: string }>
   ) => {
     const resolvedDefaultSize = orderSize || getDefaultSizeForProduct(product);
-    const availImages = getProductImagesList(product);
+    const availPhotoVariants = getProductPhotoVariants(product);
+    const availImages = availPhotoVariants.length > 0
+      ? availPhotoVariants.map((v) => v.imageUrl)
+      : [product.imageUrl].filter(Boolean);
     const defaultImg = availImages[0] || product.imageUrl;
-    const resolvedDefaultColor = orderColor || getDefaultColorForProduct(product);
+    const resolvedDefaultColor = orderColor || availPhotoVariants[0]?.label || getDefaultColorForProduct(product);
     const availSizes = getProductSizes(product);
 
     // Record view activity
@@ -684,7 +687,10 @@ export default function App() {
     if (variants && variants.length > 0) {
       variants.forEach((v) => {
         const s = v.size || resolvedDefaultSize;
-        const c = v.color || resolvedDefaultColor;
+        const matchedVariant = v.imageUrl
+          ? availPhotoVariants.find((pv) => pv.imageUrl === v.imageUrl)
+          : undefined;
+        const c = v.color || matchedVariant?.label || resolvedDefaultColor;
         const img = v.imageUrl || defaultImg;
         const found = entriesToAdd.find((e) => e.size === s && e.imageUrl === img && e.color === c);
         if (found) {
@@ -713,6 +719,9 @@ export default function App() {
             quantity: newCart[existingIndex].quantity + entry.qty,
             availableSizes: newCart[existingIndex].availableSizes || availSizes,
             availableImages: newCart[existingIndex].availableImages || availImages,
+            availablePhotoVariants: availPhotoVariants.length > 0
+              ? availPhotoVariants
+              : newCart[existingIndex].availablePhotoVariants,
           };
         } else {
           newCart.push({
@@ -728,6 +737,7 @@ export default function App() {
             color: entry.color,
             availableSizes: availSizes,
             availableImages: availImages,
+            availablePhotoVariants: availPhotoVariants.length > 0 ? availPhotoVariants : undefined,
           });
         }
       });
@@ -757,14 +767,22 @@ export default function App() {
     );
   };
 
-  const updateCartItemPhoto = (itemId: string, imgUrl: string, imgIndex: number, totalImages: number) => {
-    const colorLabel = getPhotoVariantLabel(imgIndex, totalImages);
+  const updateCartItemPhoto = (
+    itemId: string,
+    imgUrl: string,
+    imgIndex: number,
+    totalImages: number,
+    customLabel?: string
+  ) => {
     setCart(prev =>
-      prev.map(item =>
-        item.id === itemId
-          ? { ...item, productImage: imgUrl, color: colorLabel }
-          : item
-      )
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const variantLabel =
+          customLabel ||
+          item.availablePhotoVariants?.[imgIndex]?.label ||
+          getPhotoVariantLabel(imgIndex, totalImages);
+        return { ...item, productImage: imgUrl, color: variantLabel };
+      })
     );
   };
 
@@ -1167,10 +1185,27 @@ export default function App() {
                               const itemImages = item.availableImages && item.availableImages.length > 0
                                 ? item.availableImages
                                 : [item.productImage].filter(Boolean);
-                              const currentColorLabel = item.color || getPhotoVariantLabel(
-                                Math.max(0, itemImages.indexOf(item.productImage)),
-                                itemImages.length
-                              );
+                              const itemVariants: Array<{
+                                imageUrl: string;
+                                label: string;
+                                colorName?: string;
+                                designName?: string;
+                                colorHex?: string;
+                              }> =
+                                item.availablePhotoVariants && item.availablePhotoVariants.length > 0
+                                  ? item.availablePhotoVariants
+                                  : itemImages.map((imgUrl, idx) => ({
+                                      imageUrl: imgUrl,
+                                      label: getPhotoVariantLabel(idx, itemImages.length),
+                                    }));
+                              const matchedVariant = itemVariants.find((v) => v.imageUrl === item.productImage);
+                              const currentColorLabel =
+                                item.color ||
+                                matchedVariant?.label ||
+                                getPhotoVariantLabel(
+                                  Math.max(0, itemImages.indexOf(item.productImage)),
+                                  itemImages.length
+                                );
 
                               return (
                                 <div 
@@ -1216,6 +1251,12 @@ export default function App() {
                                             alt={currentColorLabel}
                                             className="w-3 h-3 rounded object-cover border border-emerald-300 shrink-0"
                                           />
+                                          {matchedVariant?.colorHex && (
+                                            <span
+                                              className="w-2 h-2 rounded-full border border-emerald-700/30 shrink-0"
+                                              style={{ backgroundColor: matchedVariant.colorHex }}
+                                            />
+                                          )}
                                           <span>{currentColorLabel}</span>
                                         </span>
                                       </div>
@@ -1252,23 +1293,23 @@ export default function App() {
                                             ছবিতে টাচ করে কালার/ডিজাইন বেছে নিন:
                                           </span>
                                           <div className="flex flex-wrap gap-1.5">
-                                            {itemImages.map((imgUrl, imgIdx) => {
-                                              const isSelected = item.productImage === imgUrl;
+                                            {itemVariants.map((variant, imgIdx) => {
+                                              const isSelected = item.productImage === variant.imageUrl;
                                               return (
                                                 <button
                                                   key={imgIdx}
                                                   type="button"
-                                                  onClick={() => updateCartItemPhoto(item.id, imgUrl, imgIdx, itemImages.length)}
+                                                  onClick={() => updateCartItemPhoto(item.id, variant.imageUrl, imgIdx, itemVariants.length, variant.label)}
                                                   className={`relative w-11 h-11 xs:w-12 xs:h-12 rounded-xl overflow-hidden transition-all cursor-pointer p-0.5 bg-white ${
                                                     isSelected
                                                       ? 'border-2 border-brand-gold ring-2 ring-amber-400/35 shadow-md scale-105'
                                                       : 'border border-stone-200 opacity-75 hover:opacity-100'
                                                   }`}
-                                                  title={`ডিজাইন ${toBanglaDigits(imgIdx + 1)} সিলেক্ট করুন`}
+                                                  title={variant.label}
                                                 >
                                                   <img
-                                                    src={imgUrl}
-                                                    alt={`ডিজাইন ${toBanglaDigits(imgIdx + 1)}`}
+                                                    src={variant.imageUrl}
+                                                    alt={variant.label}
                                                     className="w-full h-full object-cover rounded-[8px]"
                                                   />
                                                   {isSelected && (
@@ -1276,7 +1317,13 @@ export default function App() {
                                                       <Check size={9} strokeWidth={3} />
                                                     </span>
                                                   )}
-                                                  {itemImages.length > 1 && (
+                                                  {variant.colorHex && (
+                                                    <span
+                                                      className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
+                                                      style={{ backgroundColor: variant.colorHex }}
+                                                    />
+                                                  )}
+                                                  {itemVariants.length > 1 && (
                                                     <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
                                                       isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
                                                     }`}>

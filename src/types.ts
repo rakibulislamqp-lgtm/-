@@ -42,6 +42,15 @@ export type DeliveryArea = 'Inside Dhaka' | 'Outside Dhaka';
 export type PaymentMethod = 'Cash On Delivery' | 'bKash' | 'Nagad' | 'Rocket';
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
 
+export interface ProductColorDesignVariant {
+  id: string;
+  colorName: string;
+  designName: string;
+  colorHex?: string;
+  imageUrl: string;
+  extraImages?: string[];
+}
+
 export interface CartItem {
   id: string;
   productId: string;
@@ -56,6 +65,13 @@ export interface CartItem {
   availableSizes?: string[];
   availableColors?: string[];
   availableImages?: string[];
+  availablePhotoVariants?: Array<{
+    imageUrl: string;
+    label: string;
+    colorName?: string;
+    designName?: string;
+    colorHex?: string;
+  }>;
 }
 
 export interface Order {
@@ -127,6 +143,7 @@ export interface Product {
   regularPrice?: number;
   sizes?: string[];
   colors?: string[];
+  colorDesigns?: ProductColorDesignVariant[];
   imageUrl: string;
   galleryImages?: string[]; // Multiple photos (photo 2, photo 3, etc.)
   videoUrl?: string;

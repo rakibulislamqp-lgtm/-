@@ -18,7 +18,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   getProductSizes,
   getDefaultSizeForProduct,
-  getProductImagesList,
+  getDefaultColorForProduct,
+  getProductPhotoVariants,
   getPhotoVariantLabel,
 } from '../lib/productVariants';
 
@@ -87,29 +88,22 @@ export default function ProductShowcase({
   const [activeMediaTab, setActiveMediaTab] = useState<'photo' | 'video'>('photo');
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
-  // Extract all photos (handles 1, 2, 3 or more photos seamlessly)
-  const allProductImages = useMemo(() => {
+  // Extract all photos with optional Admin Color & Design metadata
+  const photoVariants = useMemo(() => {
     if (!selectedProduct) return [];
-    const list: string[] = [];
-    if (selectedProduct.imageUrl && selectedProduct.imageUrl.trim()) {
-      if (selectedProduct.imageUrl.includes(',') || selectedProduct.imageUrl.includes('\n')) {
-        const splits = selectedProduct.imageUrl.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
-        splits.forEach(s => {
-          if (!list.includes(s)) list.push(s);
-        });
-      } else {
-        list.push(selectedProduct.imageUrl.trim());
-      }
-    }
-    if (Array.isArray(selectedProduct.galleryImages)) {
-      selectedProduct.galleryImages.forEach(img => {
-        if (img && typeof img === 'string' && img.trim() && !list.includes(img.trim())) {
-          list.push(img.trim());
-        }
-      });
-    }
-    return list.length > 0 ? list : ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=900'];
+    const list = getProductPhotoVariants(selectedProduct);
+    return list.length > 0
+      ? list
+      : [{
+          imageUrl: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=900',
+          label: getPhotoVariantLabel(0, 1),
+        }];
   }, [selectedProduct]);
+
+  const allProductImages = useMemo(
+    () => photoVariants.map((v) => v.imageUrl),
+    [photoVariants]
+  );
 
   const activeImageUrl = allProductImages[activeImageIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
   const [activeCategory, setActiveCategory] = useState<string>(selectedCategory || 'ALL');
@@ -260,13 +254,15 @@ export default function ProductShowcase({
 
   useEffect(() => {
     if (selectedProduct) {
-      const imgs = getProductImagesList(selectedProduct);
-      const firstImg = imgs[0] || selectedProduct.imageUrl;
+      const variants = getProductPhotoVariants(selectedProduct);
+      const firstVariant = variants[0];
+      const firstImg = firstVariant?.imageUrl || selectedProduct.imageUrl;
+      const firstColor = firstVariant?.label || getDefaultColorForProduct(selectedProduct);
       setQuantity(1);
       setPieceSelections([
         {
           size: getDefaultSizeForProduct(selectedProduct),
-          color: getPhotoVariantLabel(0, imgs.length),
+          color: firstColor,
           imageUrl: firstImg,
         },
       ]);
@@ -352,8 +348,9 @@ export default function ProductShowcase({
     setActiveImageIndex(imgIndex);
     setActiveMediaTab('photo');
     if (quantity === 1) {
-      const chosenImg = allProductImages[imgIndex] || activeImageUrl;
-      const chosenLabel = getPhotoVariantLabel(imgIndex, allProductImages.length);
+      const variant = photoVariants[imgIndex];
+      const chosenImg = variant?.imageUrl || allProductImages[imgIndex] || activeImageUrl;
+      const chosenLabel = variant?.label || getPhotoVariantLabel(imgIndex, allProductImages.length);
       setPieceSelections((prev) =>
         prev.map((piece, idx) =>
           idx === 0 ? { ...piece, imageUrl: chosenImg, color: chosenLabel } : piece
@@ -368,10 +365,11 @@ export default function ProductShowcase({
     setPieceSelections((prev) => {
       if (clampedQty === prev.length) return prev;
       if (clampedQty < prev.length) return prev.slice(0, clampedQty);
-      const fallbackImg = allProductImages[activeImageIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
+      const fallbackVariant = photoVariants[activeImageIndex] || photoVariants[0];
+      const fallbackImg = fallbackVariant?.imageUrl || allProductImages[activeImageIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
       const template = prev[prev.length - 1] || {
         size: getDefaultSizeForProduct(selectedProduct),
-        color: getPhotoVariantLabel(activeImageIndex, allProductImages.length),
+        color: fallbackVariant?.label || getPhotoVariantLabel(activeImageIndex, allProductImages.length),
         imageUrl: fallbackImg,
       };
       return [
@@ -388,8 +386,9 @@ export default function ProductShowcase({
   };
 
   const updatePiecePhoto = (pieceIndex: number, imgIndex: number) => {
-    const chosenImg = allProductImages[imgIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
-    const chosenLabel = getPhotoVariantLabel(imgIndex, allProductImages.length);
+    const variant = photoVariants[imgIndex];
+    const chosenImg = variant?.imageUrl || allProductImages[imgIndex] || allProductImages[0] || selectedProduct?.imageUrl || '';
+    const chosenLabel = variant?.label || getPhotoVariantLabel(imgIndex, allProductImages.length);
     setPieceSelections((prev) =>
       prev.map((piece, idx) =>
         idx === pieceIndex ? { ...piece, imageUrl: chosenImg, color: chosenLabel } : piece
@@ -401,10 +400,11 @@ export default function ProductShowcase({
 
   const applyFirstPieceToAll = () => {
     setPieceSelections((prev) => {
+      const firstVariant = photoVariants[0];
       const first = prev[0] || {
         size: getDefaultSizeForProduct(selectedProduct),
-        color: getPhotoVariantLabel(0, allProductImages.length),
-        imageUrl: allProductImages[0] || selectedProduct?.imageUrl || '',
+        color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
+        imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct?.imageUrl || '',
       };
       return prev.map(() => ({ ...first }));
     });
@@ -412,10 +412,11 @@ export default function ProductShowcase({
 
   const handleOrder = () => {
     if (selectedProduct) {
+      const firstVariant = photoVariants[0];
       const first = pieceSelections[0] || {
         size: getDefaultSizeForProduct(selectedProduct),
-        color: getPhotoVariantLabel(0, allProductImages.length),
-        imageUrl: allProductImages[0] || selectedProduct.imageUrl,
+        color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
+        imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
       };
       onOrderNow(selectedProduct, quantity, first.size, first.color, pieceSelections);
       setSelectedProduct(null);
@@ -1041,8 +1042,8 @@ export default function ProductShowcase({
                 {/* Media Gallery Thumbnails: Visible ONLY when 2 or more photos exist OR video exists */}
                 {(allProductImages.length > 1 || selectedProduct.videoUrl) && (
                   <div className="flex items-center gap-2.5 mt-3 overflow-x-auto pb-1 custom-scrollbar">
-                    {/* Render each photo in the 2-3 photos gallery */}
-                    {allProductImages.map((imgUrl, idx) => (
+                    {/* Render each photo in gallery with optional color swatch indicator */}
+                    {photoVariants.map((variant, idx) => (
                       <button 
                         key={idx}
                         type="button"
@@ -1052,9 +1053,15 @@ export default function ProductShowcase({
                             ? 'border-brand-gold ring-2 ring-amber-400/40 shadow-md scale-105' 
                             : 'border-gray-200 opacity-70 hover:opacity-100 hover:border-gray-300'
                         }`}
-                        title={`ছবি ${idx + 1}`}
+                        title={variant.label}
                       >
-                        <img src={imgUrl} className="w-full h-full object-cover rounded-lg" alt={`ছবি ${idx + 1}`} />
+                        <img src={variant.imageUrl} className="w-full h-full object-cover rounded-lg" alt={variant.label} />
+                        {variant.colorHex && (
+                          <span
+                            className="absolute bottom-1 left-1 w-2.5 h-2.5 rounded-full border border-white shadow-xs"
+                            style={{ backgroundColor: variant.colorHex }}
+                          />
+                        )}
                         <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-black px-1 rounded ${
                           activeMediaTab === 'photo' && activeImageIndex === idx 
                             ? 'bg-brand-gold text-slate-950' 
@@ -1233,9 +1240,9 @@ export default function ProductShowcase({
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-2.5">
-                          {allProductImages.map((imgUrl, imgIdx) => {
+                          {photoVariants.map((variant, imgIdx) => {
                             const selectedImg = pieceSelections[0]?.imageUrl || allProductImages[0];
-                            const isSelected = selectedImg === imgUrl;
+                            const isSelected = selectedImg === variant.imageUrl;
                             return (
                               <button
                                 key={imgIdx}
@@ -1246,11 +1253,11 @@ export default function ProductShowcase({
                                     ? 'border-2 border-brand-gold ring-2 ring-amber-400/40 shadow-lg scale-105'
                                     : 'border-2 border-gray-200 opacity-80 hover:opacity-100 hover:border-gray-300'
                                 }`}
-                                title={`ডিজাইন ${toBengaliNumber(imgIdx + 1)} সিলেক্ট করুন`}
+                                title={variant.label}
                               >
                                 <img
-                                  src={imgUrl}
-                                  alt={`ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                  src={variant.imageUrl}
+                                  alt={variant.label}
                                   className="w-full h-full object-cover rounded-[12px]"
                                 />
                                 {isSelected && (
@@ -1258,7 +1265,13 @@ export default function ProductShowcase({
                                     <Check size={10} strokeWidth={3} />
                                   </span>
                                 )}
-                                {allProductImages.length > 1 && (
+                                {variant.colorHex && (
+                                  <span
+                                    className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-white shadow-xs"
+                                    style={{ backgroundColor: variant.colorHex }}
+                                  />
+                                )}
+                                {photoVariants.length > 1 && (
                                   <span className={`absolute bottom-1 left-1 px-1.5 py-0.2 rounded text-[9px] font-black shadow-xs ${
                                     isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
                                   }`}>
@@ -1337,8 +1350,8 @@ export default function ProductShowcase({
                                 পছন্দের কালার/ডিজাইনের ছবিতে টাচ করুন:
                               </span>
                               <div className="flex flex-wrap gap-2">
-                                {allProductImages.map((imgUrl, imgIdx) => {
-                                  const isSelected = (piece.imageUrl || allProductImages[0]) === imgUrl;
+                                {photoVariants.map((variant, imgIdx) => {
+                                  const isSelected = (piece.imageUrl || allProductImages[0]) === variant.imageUrl;
                                   return (
                                     <button
                                       key={imgIdx}
@@ -1349,11 +1362,11 @@ export default function ProductShowcase({
                                           ? 'border-2 border-brand-gold ring-2 ring-amber-400/35 shadow-md scale-105'
                                           : 'border border-gray-200 opacity-75 hover:opacity-100'
                                       }`}
-                                      title={`পিস ${toBengaliNumber(idx + 1)} - ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                      title={`পিস ${toBengaliNumber(idx + 1)} - ${variant.label}`}
                                     >
                                       <img
-                                        src={imgUrl}
-                                        alt={`ডিজাইন ${toBengaliNumber(imgIdx + 1)}`}
+                                        src={variant.imageUrl}
+                                        alt={variant.label}
                                         className="w-full h-full object-cover rounded-lg"
                                       />
                                       {isSelected && (
@@ -1361,7 +1374,13 @@ export default function ProductShowcase({
                                           <Check size={8} strokeWidth={3} />
                                         </span>
                                       )}
-                                      {allProductImages.length > 1 && (
+                                      {variant.colorHex && (
+                                        <span
+                                          className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
+                                          style={{ backgroundColor: variant.colorHex }}
+                                        />
+                                      )}
+                                      {photoVariants.length > 1 && (
                                         <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[8px] font-black ${
                                           isSelected ? 'bg-brand-charcoal text-brand-gold' : 'bg-black/65 text-white'
                                         }`}>
@@ -1384,10 +1403,11 @@ export default function ProductShowcase({
                     <button 
                       type="button"
                       onClick={() => {
+                        const firstVariant = photoVariants[0];
                         const first = pieceSelections[0] || {
                           size: getDefaultSizeForProduct(selectedProduct),
-                          color: getPhotoVariantLabel(0, allProductImages.length),
-                          imageUrl: allProductImages[0] || selectedProduct.imageUrl,
+                          color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
+                          imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
                         };
                         onAddToCart?.(selectedProduct, quantity, first.size, first.color, pieceSelections);
                         setSelectedProduct(null);
@@ -1672,7 +1692,10 @@ export default function ProductShowcase({
                   <>
                     <button
                       type="button"
-                      onClick={() => setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allProductImages.length - 1))}
+                      onClick={() => {
+                        const nextIdx = activeImageIndex > 0 ? activeImageIndex - 1 : allProductImages.length - 1;
+                        selectPhotoForMainPreviewAndSinglePiece(nextIdx);
+                      }}
                       className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/75 hover:bg-black text-white flex items-center justify-center backdrop-blur-md shadow-lg active:scale-90 z-20 cursor-pointer"
                       title="পূর্বের ছবি"
                     >
@@ -1680,7 +1703,10 @@ export default function ProductShowcase({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveImageIndex(prev => (prev < allProductImages.length - 1 ? prev + 1 : 0))}
+                      onClick={() => {
+                        const nextIdx = activeImageIndex < allProductImages.length - 1 ? activeImageIndex + 1 : 0;
+                        selectPhotoForMainPreviewAndSinglePiece(nextIdx);
+                      }}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/75 hover:bg-black text-white flex items-center justify-center backdrop-blur-md shadow-lg active:scale-90 z-20 cursor-pointer"
                       title="পরের ছবি"
                     >

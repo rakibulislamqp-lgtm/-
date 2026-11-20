@@ -23,6 +23,9 @@ export const supabaseFetchProducts = async (): Promise<Product[] | null> => {
     return data.map((row: any): Product => {
       const raw = row.raw_data || {};
       const img = raw.imageUrl || (Array.isArray(row.images) && row.images[0]) || '';
+      const rawGallery = Array.isArray(raw.galleryImages)
+        ? raw.galleryImages
+        : (Array.isArray(row.images) && row.images.length > 1 ? row.images.slice(1) : undefined);
       return {
         ...raw,
         id: row.id,
@@ -33,6 +36,8 @@ export const supabaseFetchProducts = async (): Promise<Product[] | null> => {
         regularPrice: row.regular_price ? Number(row.regular_price) : raw.regularPrice,
         sizes: Array.isArray(row.sizes) && row.sizes.length > 0 ? row.sizes : (Array.isArray(raw.sizes) ? raw.sizes : undefined),
         colors: Array.isArray(raw.colors) ? raw.colors : (Array.isArray(row.colors) ? row.colors : undefined),
+        colorDesigns: Array.isArray(raw.colorDesigns) ? raw.colorDesigns : undefined,
+        galleryImages: rawGallery,
         category: row.category || raw.category || 'THREE PIECE',
         imageUrl: img,
         productCode: row.code || raw.productCode || '',
@@ -50,6 +55,13 @@ export const supabaseFetchProducts = async (): Promise<Product[] | null> => {
 export const supabaseSaveProduct = async (product: Partial<Product> & Record<string, any>): Promise<boolean> => {
   try {
     const id = product.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const allImages = Array.from(
+      new Set([
+        ...(product.imageUrl ? [product.imageUrl] : []),
+        ...(Array.isArray(product.galleryImages) ? product.galleryImages : []),
+        ...(Array.isArray(product.colorDesigns) ? product.colorDesigns.map((v: any) => v?.imageUrl).filter(Boolean) : []),
+      ])
+    );
     const row = {
       id,
       title: product.title || 'Untitled Product',
@@ -59,7 +71,7 @@ export const supabaseSaveProduct = async (product: Partial<Product> & Record<str
       regular_price: product.regularPrice ? Number(product.regularPrice) : null,
       sizes: product.sizes || ['Free Size'],
       category: product.category || 'THREE PIECE',
-      images: product.images || (product.imageUrl ? [product.imageUrl] : []),
+      images: product.images || allImages,
       code: product.productCode || product.code || '',
       is_active: product.isActive ?? true,
       is_featured: product.isFeatured ?? false,
