@@ -1,12 +1,14 @@
 // SERA FASHION - Progressive Web App & Push Notification Service Worker
-const CACHE_NAME = 'sera-fashion-cache-v1';
+const CACHE_NAME = 'sera-fashion-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/pwa-192x192.png',
-  '/pwa-512x512.png',
-  '/favicon.svg'
+  '/manifest.json?v=2',
+  '/pwa-192x192.png?v=2',
+  '/pwa-512x512.png?v=2',
+  '/pwa-maskable-512x512.png?v=2',
+  '/apple-touch-icon.png?v=2',
+  '/favicon.png?v=2'
 ];
 
 // Install: Cache critical static assets
@@ -62,6 +64,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Manifest & PWA icon assets: network-first so icon/manifest updates propagate immediately
+  if (
+    url.pathname === '/manifest.json' ||
+    url.pathname.startsWith('/pwa-') ||
+    url.pathname === '/apple-touch-icon.png' ||
+    url.pathname === '/favicon.png'
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   // Static assets (images, css, js)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
@@ -85,8 +108,8 @@ self.addEventListener('push', (event) => {
     title: 'SERA FASHION – বিশেষ অফার!',
     body: 'নতুন কালেকশন ও এক্সক্লুসিভ ডিসকাউন্ট দেখতে এখনই ট্যাপ করুন 🛍️',
     url: '/',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
+    icon: '/pwa-192x192.png?v=2',
+    badge: '/pwa-192x192.png?v=2',
     image: ''
   };
 
@@ -101,8 +124,8 @@ self.addEventListener('push', (event) => {
 
   const notificationOptions = {
     body: data.body,
-    icon: data.icon || '/pwa-192x192.png',
-    badge: data.badge || '/pwa-192x192.png',
+    icon: data.icon || '/pwa-192x192.png?v=2',
+    badge: data.badge || '/pwa-192x192.png?v=2',
     image: data.image || undefined, // 🖼️ Large expandable banner picture in Android notification shade
     tag: data.tag || 'sera-promo-' + (data.id || Date.now()),
     renotify: true,
@@ -126,8 +149,8 @@ self.addEventListener('message', (event) => {
     const data = event.data.payload || {};
     const notificationOptions = {
       body: data.body || 'সেরা ফ্যাশনের নতুন কালেকশন ও বিশেষ অফার দেখতে ট্যাপ করুন।',
-      icon: data.icon || '/pwa-192x192.png',
-      badge: data.badge || '/pwa-192x192.png',
+      icon: data.icon || '/pwa-192x192.png?v=2',
+      badge: data.badge || '/pwa-192x192.png?v=2',
       image: data.image || undefined, // 🖼️ Large banner image
       tag: data.tag || 'sera-promo-' + Date.now(),
       renotify: true,

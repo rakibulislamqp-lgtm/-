@@ -237,9 +237,9 @@ export default function App() {
           if (settings.facebookUrl) {
             setFacebookUrl(settings.facebookUrl);
           }
-          if (settings.faviconUrl || settings.logoUrl) {
+          if (settings.faviconUrl) {
             const { applyFaviconToHead } = await import('./services/settingsService');
-            applyFaviconToHead(settings.faviconUrl || settings.logoUrl);
+            applyFaviconToHead(settings.faviconUrl);
           }
           syncPixelFromSettings(settings);
         }

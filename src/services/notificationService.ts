@@ -45,7 +45,7 @@ export const sendBrowserNotification = (title: string, body: string, icon?: stri
   try {
     const n = new Notification(title, {
       body,
-      icon: icon || '/favicon.ico',
+      icon: icon || '/pwa-192x192.png?v=2',
       tag: 'new-order',
       requireInteraction: true
     });
@@ -222,7 +222,7 @@ export const dispatchAdminSpinAlert = async (spinData: {
         try {
           const n = new Notification('🎁 নতুন কাস্টমার স্পিন করেছেন!', {
             body: `${spinData.customerName || 'কাস্টমার'} (${spinData.mobileNumber || ''}) জিতেছেন: ${spinData.wonCouponLabel} (${spinData.wonCouponCode})`,
-            icon: '/favicon.ico',
+            icon: '/pwa-192x192.png?v=2',
             tag: `spin-${spinData.id}`,
           });
           n.onclick = () => {

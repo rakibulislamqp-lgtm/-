@@ -351,7 +351,7 @@ export type LogoSlot = 'logoUrl' | 'invoiceLogoUrl' | 'footerLogoUrl' | 'heroLog
 
 export const updateSpecificLogoSettings = async (slot: LogoSlot, url: string): Promise<void> => {
   await updateBrandSettings({ [slot]: url });
-  if (slot === 'faviconUrl' || slot === 'logoUrl') {
+  if (slot === 'faviconUrl') {
     applyFaviconToHead(url);
   }
 };
@@ -369,7 +369,7 @@ export const uploadAndSaveSpecificLogo = async (slot: LogoSlot, file: File): Pro
 export const applyFaviconToHead = (iconUrl: string) => {
   if (!iconUrl || typeof document === 'undefined') return;
   try {
-    const links = document.querySelectorAll("link[rel~='icon'], link[rel='apple-touch-icon'], link[rel='shortcut icon']");
+    const links = document.querySelectorAll("link[rel~='icon'], link[rel='shortcut icon']");
     if (links.length > 0) {
       links.forEach((el) => {
         (el as HTMLLinkElement).href = iconUrl;
