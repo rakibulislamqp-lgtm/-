@@ -1,14 +1,14 @@
 // SERA FASHION - Progressive Web App & Push Notification Service Worker
-const CACHE_NAME = 'sera-fashion-cache-v2';
+const CACHE_NAME = 'sera-fashion-cache-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json?v=2',
-  '/pwa-192x192.png?v=2',
-  '/pwa-512x512.png?v=2',
-  '/pwa-maskable-512x512.png?v=2',
-  '/apple-touch-icon.png?v=2',
-  '/favicon.png?v=2'
+  '/manifest.json?v=3',
+  '/pwa-192x192.png?v=3',
+  '/pwa-512x512.png?v=3',
+  '/pwa-maskable-512x512.png?v=3',
+  '/apple-touch-icon.png?v=3',
+  '/favicon.png?v=3'
 ];
 
 // Install: Cache critical static assets
@@ -108,8 +108,8 @@ self.addEventListener('push', (event) => {
     title: 'SERA FASHION – বিশেষ অফার!',
     body: 'নতুন কালেকশন ও এক্সক্লুসিভ ডিসকাউন্ট দেখতে এখনই ট্যাপ করুন 🛍️',
     url: '/',
-    icon: '/pwa-192x192.png?v=2',
-    badge: '/pwa-192x192.png?v=2',
+    icon: '/pwa-192x192.png?v=3',
+    badge: '/pwa-192x192.png?v=3',
     image: ''
   };
 
@@ -124,8 +124,8 @@ self.addEventListener('push', (event) => {
 
   const notificationOptions = {
     body: data.body,
-    icon: data.icon || '/pwa-192x192.png?v=2',
-    badge: data.badge || '/pwa-192x192.png?v=2',
+    icon: data.icon || '/pwa-192x192.png?v=3',
+    badge: data.badge || '/pwa-192x192.png?v=3',
     image: data.image || undefined, // 🖼️ Large expandable banner picture in Android notification shade
     tag: data.tag || 'sera-promo-' + (data.id || Date.now()),
     renotify: true,
@@ -149,8 +149,8 @@ self.addEventListener('message', (event) => {
     const data = event.data.payload || {};
     const notificationOptions = {
       body: data.body || 'সেরা ফ্যাশনের নতুন কালেকশন ও বিশেষ অফার দেখতে ট্যাপ করুন।',
-      icon: data.icon || '/pwa-192x192.png?v=2',
-      badge: data.badge || '/pwa-192x192.png?v=2',
+      icon: data.icon || '/pwa-192x192.png?v=3',
+      badge: data.badge || '/pwa-192x192.png?v=3',
       image: data.image || undefined, // 🖼️ Large banner image
       tag: data.tag || 'sera-promo-' + Date.now(),
       renotify: true,

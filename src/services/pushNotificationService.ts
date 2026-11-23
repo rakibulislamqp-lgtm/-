@@ -197,8 +197,8 @@ export const showRichSystemNotification = async (payload: PushCampaignPayload): 
   const title = payload.title || 'SERA FASHION';
   const options: NotificationOptions = {
     body: payload.body || 'নতুন কালেকশন ও এক্সক্লুসিভ অফার দেখতে ট্যাপ করুন!',
-    icon: payload.icon || '/pwa-192x192.png?v=2',
-    badge: payload.badge || '/pwa-192x192.png?v=2',
+    icon: payload.icon || '/pwa-192x192.png?v=3',
+    badge: payload.badge || '/pwa-192x192.png?v=3',
     // @ts-ignore - 'image' is standard in Chromium / Android NotificationOptions
     image: payload.image || undefined,
     tag: `sera-push-${payload.id || Date.now()}`,
@@ -254,8 +254,8 @@ export const broadcastPushCampaign = async (payload: Omit<PushCampaignPayload, '
     id: `push_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     createdAt: new Date().toISOString(),
     sentCount: Math.max(1, count),
-    icon: payload.icon || '/pwa-192x192.png?v=2',
-    badge: payload.badge || '/pwa-192x192.png?v=2',
+    icon: payload.icon || '/pwa-192x192.png?v=3',
+    badge: payload.badge || '/pwa-192x192.png?v=3',
   };
 
   // 1. Save to Local Storage Cache

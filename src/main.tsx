@@ -98,3 +98,7 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
+requestAnimationFrame(() => {
+  (window as any).__dismissSeraSplash?.();
+});
+

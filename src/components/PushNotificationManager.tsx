@@ -159,8 +159,8 @@ export default function PushNotificationManager({ onRefreshStats }: PushNotifica
         title: title || 'Small Details, Big Style 😍',
         body: body || 'কালকের ফ্যাশন কালেকশন চোখে লেগেছিল মনে আছে? 👀 এখনই দেখুন।',
         image: imageUrl || undefined,
-        icon: '/pwa-192x192.png?v=2',
-        badge: '/pwa-192x192.png?v=2',
+        icon: '/pwa-192x192.png?v=3',
+        badge: '/pwa-192x192.png?v=3',
         url: targetUrl || '/',
         createdAt: new Date().toISOString()
       };
@@ -196,8 +196,8 @@ export default function PushNotificationManager({ onRefreshStats }: PushNotifica
         title,
         body,
         image: imageUrl || undefined,
-        icon: '/pwa-192x192.png?v=2',
-        badge: '/pwa-192x192.png?v=2',
+        icon: '/pwa-192x192.png?v=3',
+        badge: '/pwa-192x192.png?v=3',
         url: targetUrl || '/',
         targetAudience
       });
