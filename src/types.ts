@@ -51,6 +51,14 @@ export interface ProductColorDesignVariant {
   extraImages?: string[];
 }
 
+export interface BodyMeasurements {
+  chest: string;
+  waist?: string;
+  length?: string;
+  sleeve?: string;
+  note?: string;
+}
+
 export interface CartItem {
   id: string;
   productId: string;
@@ -62,6 +70,8 @@ export interface CartItem {
   quantity: number;
   size: string;
   color?: string;
+  isCustomTailored?: boolean;
+  customMeasurements?: BodyMeasurements;
   availableSizes?: string[];
   availableColors?: string[];
   availableImages?: string[];
@@ -89,6 +99,10 @@ export interface Order {
   items?: CartItem[];
   deliveryCharge: number;
   totalAmount: number;
+  advanceAmount?: number;
+  dueAmount?: number;
+  hasCustomTailoring?: boolean;
+  customMeasurementsSummary?: string;
   discount?: number;
   discountAmount?: number;
   discountType?: 'percentage' | 'flat';
@@ -97,7 +111,10 @@ export interface Order {
   paymentMethod: PaymentMethod;
   sessionId?: string;
   transactionId?: string;
+  paymentSenderNumber?: string;
   paymentScreenshotUrl?: string;
+  advanceVerified?: boolean;
+  advanceVerifiedAt?: string;
   productScreenshotUrl?: string;
   status: OrderStatus;
   note?: string;

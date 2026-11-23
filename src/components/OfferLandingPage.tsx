@@ -4,9 +4,9 @@ import {
   ShoppingBag, Sparkles, Clock, Truck, RotateCcw, ShieldCheck, 
   CheckCircle2, ChevronDown, ChevronUp, Star, Phone, MessageCircle, 
   ArrowRight, Tag, Flame, Zap, Award, HelpCircle, ExternalLink, 
-  Store, Check, AlertCircle, Eye, X, Plus, Minus, Camera
+  Store, Check, AlertCircle, Eye, X, Plus, Minus, Camera, Scissors
 } from 'lucide-react';
-import { Product, BrandSettings, LandingPageSectionId } from '../types';
+import { Product, BrandSettings, LandingPageSectionId, BodyMeasurements } from '../types';
 import { getAllProducts } from '../services/productService';
 import { DEFAULT_LANDING_PAGE_CONFIG } from '../services/landingPageDefaults';
 import defaultLogo from '../assets/images/sfh_logo_1779435027377.png';
@@ -17,12 +17,22 @@ import {
   getProductImagesList,
   getProductPhotoVariants,
   getPhotoVariantLabel,
+  isThreePieceCategory,
+  CUSTOM_TAILORING_ADVANCE_BDT,
   toBanglaDigits,
 } from '../lib/productVariants';
 
+export interface OfferVariantSelection {
+  size: string;
+  color: string;
+  imageUrl?: string;
+  isCustomTailored?: boolean;
+  customMeasurements?: BodyMeasurements;
+}
+
 interface OfferLandingPageProps {
-  onBuyNow: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
-  onAddToCart?: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
+  onBuyNow: (product: Product, quantity: number, size: string, color?: string, variants?: OfferVariantSelection[]) => void;
+  onAddToCart?: (product: Product, quantity: number, size: string, color?: string, variants?: OfferVariantSelection[]) => void;
   onGoToStore: () => void;
   brandSettings?: BrandSettings | null;
   logoUrl?: string;
@@ -63,7 +73,8 @@ export default function OfferLandingPage({
   const [selectedColors, setSelectedColors] = useState<Record<string, string>>({});
   const [selectedImageUrls, setSelectedImageUrls] = useState<Record<string, string>>({});
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
-  const [pieceVariants, setPieceVariants] = useState<Record<string, Array<{ size: string; color: string; imageUrl?: string }>>>({});
+  const [pieceVariants, setPieceVariants] = useState<Record<string, OfferVariantSelection[]>>({});
+  const [tailoringErrors, setTailoringErrors] = useState<Record<string, string>>({});
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
 
   // FAQ Accordion active index
@@ -134,17 +145,99 @@ export default function OfferLandingPage({
     const availImages = getProductImagesList(product);
     const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
     setSelectedSizes(prev => ({ ...prev, [productId]: size }));
+    setTailoringErrors(prev => {
+      if (!prev[productId]) return prev;
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
     setPieceVariants(prev => {
       const existing = prev[productId];
       if (!existing || existing.length === 0) {
         return {
           ...prev,
-          [productId]: [{ size, color: selectedColors[productId] || getDefaultColorForProduct(product), imageUrl: defImage }],
+          [productId]: [{ size, color: selectedColors[productId] || getDefaultColorForProduct(product), imageUrl: defImage, isCustomTailored: false }],
         };
       }
       const next = [...existing];
-      next[0] = { ...next[0], size };
+      next[0] = { ...next[0], size, isCustomTailored: false };
       return { ...prev, [productId]: next };
+    });
+  };
+
+  const handleToggleTailoringMode = (product: Product, pieceIdx: number, useCustom: boolean) => {
+    const productId = product.id || product.productCode;
+    const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+    const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    const qty = selectedQuantities[productId] || 1;
+    setTailoringErrors(prev => {
+      if (!prev[productId]) return prev;
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+    setPieceVariants(prev => {
+      const base: OfferVariantSelection[] = prev[productId] && prev[productId].length === qty
+        ? [...prev[productId]]
+        : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
+      const target = base[pieceIdx];
+      if (useCustom) {
+        const chest = (target.customMeasurements?.chest || '').trim();
+        base[pieceIdx] = {
+          ...target,
+          isCustomTailored: true,
+          size: chest ? `বডির মাপ (${chest})` : 'বডির মাপ (Custom)',
+          customMeasurements: target.customMeasurements || { chest: '' },
+        };
+      } else {
+        base[pieceIdx] = {
+          ...target,
+          isCustomTailored: false,
+          size: getDefaultSizeForProduct(product),
+        };
+      }
+      return { ...prev, [productId]: base };
+    });
+  };
+
+  const handleMeasurementChange = (
+    product: Product,
+    pieceIdx: number,
+    field: keyof BodyMeasurements,
+    value: string
+  ) => {
+    const productId = product.id || product.productCode;
+    const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
+    const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
+    const availImages = getProductImagesList(product);
+    const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
+    const qty = selectedQuantities[productId] || 1;
+    setTailoringErrors(prev => {
+      if (!prev[productId]) return prev;
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+    setPieceVariants(prev => {
+      const base: OfferVariantSelection[] = prev[productId] && prev[productId].length === qty
+        ? [...prev[productId]]
+        : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
+      const target = base[pieceIdx];
+      const nextMeasurements: BodyMeasurements = {
+        chest: target.customMeasurements?.chest || '',
+        ...(target.customMeasurements || {}),
+        [field]: value,
+      };
+      const chestTrim = (nextMeasurements.chest || '').trim();
+      base[pieceIdx] = {
+        ...target,
+        isCustomTailored: true,
+        size: chestTrim ? `বডির মাপ (${chestTrim})` : 'বডির মাপ (Custom)',
+        customMeasurements: nextMeasurements,
+      };
+      return { ...prev, [productId]: base };
     });
   };
 
@@ -188,7 +281,7 @@ export default function OfferLandingPage({
     setPieceVariants(prev => {
       const defSize = selectedSizes[productId] || getDefaultSizeForProduct(product);
       const defColor = selectedColors[productId] || getDefaultColorForProduct(product);
-      const currentList = prev[productId] || [{ size: defSize, color: defColor, imageUrl: defImage }];
+      const currentList: OfferVariantSelection[] = prev[productId] || [{ size: defSize, color: defColor, imageUrl: defImage }];
       if (nextQty === currentList.length) return prev;
       if (nextQty < currentList.length) {
         return { ...prev, [productId]: currentList.slice(0, nextQty) };
@@ -198,7 +291,10 @@ export default function OfferLandingPage({
         ...prev,
         [productId]: [
           ...currentList,
-          ...Array.from({ length: nextQty - currentList.length }, () => ({ ...template })),
+          ...Array.from({ length: nextQty - currentList.length }, () => ({
+            ...template,
+            customMeasurements: template.customMeasurements ? { ...template.customMeasurements } : undefined,
+          })),
         ],
       };
     });
@@ -211,11 +307,17 @@ export default function OfferLandingPage({
     const availImages = getProductImagesList(product);
     const defImage = selectedImageUrls[productId] || availImages[0] || product.imageUrl;
     const qty = selectedQuantities[productId] || 1;
+    setTailoringErrors(prev => {
+      if (!prev[productId]) return prev;
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
     setPieceVariants(prev => {
-      const base = prev[productId] && prev[productId].length === qty
+      const base: OfferVariantSelection[] = prev[productId] && prev[productId].length === qty
         ? [...prev[productId]]
         : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
-      base[pieceIdx] = { ...base[pieceIdx], size: value };
+      base[pieceIdx] = { ...base[pieceIdx], size: value, isCustomTailored: false };
       return { ...prev, [productId]: base };
     });
     if (pieceIdx === 0) {
@@ -240,7 +342,7 @@ export default function OfferLandingPage({
     const resolvedVariants = getProductPhotoVariants(product);
     const colorLabel = customLabel || resolvedVariants[imgIdx]?.label || getPhotoVariantLabel(imgIdx, totalImages);
     setPieceVariants(prev => {
-      const base = prev[productId] && prev[productId].length === qty
+      const base: OfferVariantSelection[] = prev[productId] && prev[productId].length === qty
         ? [...prev[productId]]
         : Array.from({ length: qty }, () => ({ size: defSize, color: defColor, imageUrl: defImage }));
       base[pieceIdx] = { ...base[pieceIdx], color: colorLabel, imageUrl: imgUrl };
@@ -262,21 +364,42 @@ export default function OfferLandingPage({
     setPieceVariants(prev => {
       const current = prev[productId] || [];
       const first = current[0] || { size: defSize, color: defColor, imageUrl: defImage };
-      return { ...prev, [productId]: Array.from({ length: qty }, () => ({ ...first })) };
+      return {
+        ...prev,
+        [productId]: Array.from({ length: qty }, () => ({
+          ...first,
+          customMeasurements: first.customMeasurements ? { ...first.customMeasurements } : undefined,
+        })),
+      };
     });
   };
 
-  const handleProductBuy = (product: Product) => {
+  const handleProductBuy = (product: Product): boolean => {
     const pId = product.id || product.productCode;
     const size = selectedSizes[pId] || getDefaultSizeForProduct(product);
     const color = selectedColors[pId] || getDefaultColorForProduct(product);
     const availImages = getProductImagesList(product);
     const defImage = selectedImageUrls[pId] || availImages[0] || product.imageUrl;
     const quantity = selectedQuantities[pId] || 1;
-    const variants = pieceVariants[pId] && pieceVariants[pId].length === quantity
+    const variants: OfferVariantSelection[] = pieceVariants[pId] && pieceVariants[pId].length === quantity
       ? pieceVariants[pId]
       : Array.from({ length: quantity }, () => ({ size, color, imageUrl: defImage }));
+
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      if (v.isCustomTailored && !(v.customMeasurements?.chest || '').trim()) {
+        setTailoringErrors(prev => ({
+          ...prev,
+          [pId]: variants.length > 1
+            ? `পিস ${toBanglaDigits(i + 1)}-এর জন্য বডি / ছাতির মাপ (ইঞ্চি) লিখুন।`
+            : 'বডির মাপে বানিয়ে নিতে বডি / ছাতির মাপ (ইঞ্চি) লিখুন।',
+        }));
+        return false;
+      }
+    }
+
     onBuyNow(product, quantity, variants[0]?.size || size, variants[0]?.color || color, variants);
+    return true;
   };
 
   const filteredProducts = products.filter(p => {
@@ -491,7 +614,7 @@ export default function OfferLandingPage({
               const currentColor = selectedColors[pId] || cardVariants[0]?.label || getDefaultColorForProduct(product);
               const currentImageUrl = selectedImageUrls[pId] || cardImages[0] || product.imageUrl;
               const currentQty = selectedQuantities[pId] || 1;
-              const currentPieces = pieceVariants[pId] && pieceVariants[pId].length === currentQty
+              const currentPieces: OfferVariantSelection[] = pieceVariants[pId] && pieceVariants[pId].length === currentQty
                 ? pieceVariants[pId]
                 : Array.from({ length: currentQty }, () => ({ size: currentSize, color: currentColor, imageUrl: currentImageUrl }));
 
@@ -499,6 +622,11 @@ export default function OfferLandingPage({
               const discountPercent = regularPrice > product.price 
                 ? Math.round(((regularPrice - product.price) / regularPrice) * 100)
                 : 20;
+
+              const isThreePiece = isThreePieceCategory(product.category);
+              const firstPieceCustom = Boolean(currentPieces[0]?.isCustomTailored);
+              const firstMeasurements = currentPieces[0]?.customMeasurements || { chest: '' };
+              const productTailoringError = tailoringErrors[pId];
 
               return (
                 <div 
@@ -589,27 +717,109 @@ export default function OfferLandingPage({
                       {currentQty === 1 ? (
                         <>
                           {hasSizes && (
-                            <div className="mt-3.5 space-y-1.5">
+                            <div className="mt-3.5 space-y-2">
                               <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
-                                <span>সাইজ বেছে নিন:</span>
-                                <span className="text-amber-300 font-bold">{currentSize}</span>
+                                <span>সাইজ / সেলাই অপশন:</span>
+                                <span className="text-amber-300 font-bold">
+                                  {firstPieceCustom ? '✂️ বডির মাপে' : currentSize}
+                                </span>
                               </label>
-                              <div className="flex flex-wrap gap-1.5">
-                                {availableSizes.map(s => (
+
+                              {isThreePiece && (
+                                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-white/10">
                                   <button
-                                    key={s}
                                     type="button"
-                                    onClick={() => handleSizeSelect(product, s)}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                      currentSize === s
+                                    onClick={() => handleToggleTailoringMode(product, 0, false)}
+                                    className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                                      !firstPieceCustom
                                         ? 'bg-amber-400 text-slate-950 shadow-sm'
-                                        : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                                        : 'text-slate-300 hover:text-white'
                                     }`}
                                   >
-                                    {s}
+                                    রেডিমেড সাইজ
                                   </button>
-                                ))}
-                              </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleTailoringMode(product, 0, true)}
+                                    className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                      firstPieceCustom
+                                        ? 'bg-rose-500 text-white shadow-sm'
+                                        : 'text-amber-300 hover:text-white'
+                                    }`}
+                                  >
+                                    <Scissors size={11} />
+                                    <span>বডির মাপে বানান</span>
+                                  </button>
+                                </div>
+                              )}
+
+                              {!firstPieceCustom ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {availableSizes.map(s => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => handleSizeSelect(product, s)}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        currentSize === s
+                                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                                          : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                                      }`}
+                                    >
+                                      {s}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-2.5 rounded-xl bg-slate-950 border border-rose-500/35 space-y-2">
+                                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                                    <span className="font-bold text-amber-300 flex items-center gap-1">
+                                      <Scissors size={11} />
+                                      বডির মাপ লিখুন (ইঞ্চি)
+                                    </span>
+                                    <span className="text-rose-300 font-bold">
+                                      ৳{toBanglaDigits(CUSTOM_TAILORING_ADVANCE_BDT)} অগ্রিম প্রযোজ্য
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <input
+                                      type="text"
+                                      placeholder="বডি / ছাতি * (যেমন: 38)"
+                                      value={firstMeasurements.chest || ''}
+                                      onChange={(e) => handleMeasurementChange(product, 0, 'chest', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="কোমর (যেমন: 34)"
+                                      value={firstMeasurements.waist || ''}
+                                      onChange={(e) => handleMeasurementChange(product, 0, 'waist', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="লম্বা (যেমন: 42)"
+                                      value={firstMeasurements.length || ''}
+                                      onChange={(e) => handleMeasurementChange(product, 0, 'length', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="হাতা (যেমন: 18)"
+                                      value={firstMeasurements.sleeve || ''}
+                                      onChange={(e) => handleMeasurementChange(product, 0, 'sleeve', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                    />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    placeholder="অতিরিক্ত সেলাই নোট (যদি থাকে)"
+                                    value={firstMeasurements.note || ''}
+                                    onChange={(e) => handleMeasurementChange(product, 0, 'note', e.target.value)}
+                                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                  />
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -688,83 +898,161 @@ export default function OfferLandingPage({
                             </button>
                           </div>
                           <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
-                            {currentPieces.map((piece, idx) => (
-                              <div key={idx} className="p-2 rounded-xl bg-white/[0.04] border border-white/10 space-y-1.5">
-                                <div className="flex items-center justify-between text-[10px] font-bold gap-2">
-                                  <span className="text-amber-300">পিস {toBanglaDigits(idx + 1)}</span>
-                                  <span className="text-slate-300 inline-flex items-center gap-1.5 truncate max-w-[175px]">
-                                    <img
-                                      src={piece.imageUrl || currentImageUrl}
-                                      alt={`পিস ${idx + 1}`}
-                                      className="w-3.5 h-3.5 rounded object-cover border border-amber-400/50 shrink-0"
-                                    />
-                                    <span>{piece.size} • {piece.color}</span>
-                                  </span>
-                                </div>
-                                {hasSizes && (
-                                  <div className="flex flex-wrap gap-1">
-                                    {availableSizes.map(s => (
+                            {currentPieces.map((piece, idx) => {
+                              const pieceCustom = Boolean(piece.isCustomTailored);
+                              const pMeas = piece.customMeasurements || { chest: '' };
+                              return (
+                                <div key={idx} className="p-2 rounded-xl bg-white/[0.04] border border-white/10 space-y-1.5">
+                                  <div className="flex items-center justify-between text-[10px] font-bold gap-2">
+                                    <span className="text-amber-300">পিস {toBanglaDigits(idx + 1)}</span>
+                                    <span className="text-slate-300 inline-flex items-center gap-1.5 truncate max-w-[175px]">
+                                      <img
+                                        src={piece.imageUrl || currentImageUrl}
+                                        alt={`পিস ${idx + 1}`}
+                                        className="w-3.5 h-3.5 rounded object-cover border border-amber-400/50 shrink-0"
+                                      />
+                                      <span>{piece.size} • {piece.color}</span>
+                                    </span>
+                                  </div>
+                                  {isThreePiece && (
+                                    <div className="grid grid-cols-2 gap-1">
                                       <button
-                                        key={s}
                                         type="button"
-                                        onClick={() => handlePieceSizeChange(product, idx, s)}
-                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                                          piece.size === s ? 'bg-amber-400 text-slate-950' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                                        onClick={() => handleToggleTailoringMode(product, idx, false)}
+                                        className={`py-1 rounded text-[9.5px] font-bold cursor-pointer ${
+                                          !pieceCustom ? 'bg-amber-400 text-slate-950' : 'bg-white/5 text-slate-300'
                                         }`}
                                       >
-                                        {s}
+                                        রেডিমেড সাইজ
                                       </button>
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="space-y-1">
-                                  <span className="text-[9.5px] text-slate-400 block">ছবিতে টাচ করে ডিজাইন নিন:</span>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {cardVariants.map((variant, imgIdx) => {
-                                      const isSelected = (piece.imageUrl || cardImages[0]) === variant.imageUrl;
-                                      return (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleTailoringMode(product, idx, true)}
+                                        className={`py-1 rounded text-[9.5px] font-bold cursor-pointer flex items-center justify-center gap-1 ${
+                                          pieceCustom ? 'bg-rose-500 text-white' : 'bg-white/5 text-amber-300'
+                                        }`}
+                                      >
+                                        <Scissors size={9} />
+                                        <span>বডির মাপে বানান</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                  {hasSizes && !pieceCustom && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {availableSizes.map(s => (
                                         <button
-                                          key={imgIdx}
+                                          key={s}
                                           type="button"
-                                          onClick={() => handlePiecePhotoChange(product, idx, variant.imageUrl, imgIdx, cardVariants.length, variant.label)}
-                                          className={`relative w-10 h-10 rounded-lg overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
-                                            isSelected
-                                              ? 'border-2 border-amber-400 ring-1 ring-amber-400/40 scale-105'
-                                              : 'border border-white/15 opacity-70 hover:opacity-100'
+                                          onClick={() => handlePieceSizeChange(product, idx, s)}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                            piece.size === s ? 'bg-amber-400 text-slate-950' : 'bg-white/5 text-slate-300 hover:bg-white/10'
                                           }`}
-                                          title={`পিস ${toBanglaDigits(idx + 1)} - ${variant.label}`}
                                         >
-                                          <img
-                                            src={variant.imageUrl}
-                                            alt={variant.label}
-                                            className="w-full h-full object-cover rounded-[5px]"
-                                          />
-                                          {isSelected && (
-                                            <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow">
-                                              <Check size={8} strokeWidth={3} />
-                                            </span>
-                                          )}
-                                          {variant.colorHex && (
-                                            <span
-                                              className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
-                                              style={{ backgroundColor: variant.colorHex }}
-                                            />
-                                          )}
-                                          {cardVariants.length > 1 && (
-                                            <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[7.5px] font-black ${
-                                              isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
-                                            }`}>
-                                              {toBanglaDigits(imgIdx + 1)}
-                                            </span>
-                                          )}
+                                          {s}
                                         </button>
-                                      );
-                                    })}
+                                      ))}
+                                    </div>
+                                  )}
+                                  {pieceCustom && (
+                                    <div className="p-2 rounded-lg bg-slate-950 border border-rose-500/35 space-y-1.5">
+                                      <span className="text-[9.5px] font-bold text-rose-300 block">
+                                        বডির মাপ (৳{toBanglaDigits(CUSTOM_TAILORING_ADVANCE_BDT)} অগ্রিম প্রযোজ্য)
+                                      </span>
+                                      <div className="grid grid-cols-2 gap-1">
+                                        <input
+                                          type="text"
+                                          placeholder="বডি/ছাতি *"
+                                          value={pMeas.chest || ''}
+                                          onChange={(e) => handleMeasurementChange(product, idx, 'chest', e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-slate-900 border border-white/15 text-[10px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="কোমর"
+                                          value={pMeas.waist || ''}
+                                          onChange={(e) => handleMeasurementChange(product, idx, 'waist', e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-slate-900 border border-white/15 text-[10px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="লম্বা"
+                                          value={pMeas.length || ''}
+                                          onChange={(e) => handleMeasurementChange(product, idx, 'length', e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-slate-900 border border-white/15 text-[10px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="হাতা"
+                                          value={pMeas.sleeve || ''}
+                                          onChange={(e) => handleMeasurementChange(product, idx, 'sleeve', e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-slate-900 border border-white/15 text-[10px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        placeholder="অতিরিক্ত নোট"
+                                        value={pMeas.note || ''}
+                                        onChange={(e) => handleMeasurementChange(product, idx, 'note', e.target.value)}
+                                        className="w-full px-2 py-1 rounded bg-slate-900 border border-white/15 text-[10px] text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="space-y-1">
+                                    <span className="text-[9.5px] text-slate-400 block">ছবিতে টাচ করে ডিজাইন নিন:</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {cardVariants.map((variant, imgIdx) => {
+                                        const isSelected = (piece.imageUrl || cardImages[0]) === variant.imageUrl;
+                                        return (
+                                          <button
+                                            key={imgIdx}
+                                            type="button"
+                                            onClick={() => handlePiecePhotoChange(product, idx, variant.imageUrl, imgIdx, cardVariants.length, variant.label)}
+                                            className={`relative w-10 h-10 rounded-lg overflow-hidden transition-all cursor-pointer p-0.5 bg-slate-900 ${
+                                              isSelected
+                                                ? 'border-2 border-amber-400 ring-1 ring-amber-400/40 scale-105'
+                                                : 'border border-white/15 opacity-70 hover:opacity-100'
+                                            }`}
+                                            title={`পিস ${toBanglaDigits(idx + 1)} - ${variant.label}`}
+                                          >
+                                            <img
+                                              src={variant.imageUrl}
+                                              alt={variant.label}
+                                              className="w-full h-full object-cover rounded-[5px]"
+                                            />
+                                            {isSelected && (
+                                              <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow">
+                                                <Check size={8} strokeWidth={3} />
+                                              </span>
+                                            )}
+                                            {variant.colorHex && (
+                                              <span
+                                                className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white shadow-xs"
+                                                style={{ backgroundColor: variant.colorHex }}
+                                              />
+                                            )}
+                                            {cardVariants.length > 1 && (
+                                              <span className={`absolute bottom-0.5 left-0.5 px-1 rounded text-[7.5px] font-black ${
+                                                isSelected ? 'bg-amber-400 text-slate-950' : 'bg-black/75 text-white'
+                                              }`}>
+                                                {toBanglaDigits(imgIdx + 1)}
+                                              </span>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
+                        </div>
+                      )}
+
+                      {productTailoringError && (
+                        <div className="mt-2.5 p-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-[11px] font-bold flex items-center gap-1.5">
+                          <AlertCircle size={13} className="shrink-0" />
+                          <span>{productTailoringError}</span>
                         </div>
                       )}
                     </div>
@@ -1061,8 +1349,11 @@ export default function OfferLandingPage({
                 <button
                   type="button"
                   onClick={() => {
-                    handleProductBuy(previewProduct);
-                    setPreviewProduct(null);
+                    if (handleProductBuy(previewProduct)) {
+                      setPreviewProduct(null);
+                    } else {
+                      setPreviewProduct(null);
+                    }
                   }}
                   className="px-6 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-xl text-xs uppercase cursor-pointer"
                 >

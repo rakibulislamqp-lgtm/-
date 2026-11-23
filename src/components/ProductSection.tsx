@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ruler, Hash, Palette, Layers, Upload, Minus, Plus, Star, Gift, Check, ChevronDown, ChevronUp, Sparkles, X, Ticket } from 'lucide-react';
+import { Gift, Check, ChevronDown, ChevronUp, Sparkles, X, Ticket, Scissors } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
 import { Product } from '../types';
+import { CUSTOM_TAILORING_ADVANCE_BDT } from '../lib/productVariants';
 
 interface ProductSectionProps {
   register: any;
@@ -10,7 +11,7 @@ interface ProductSectionProps {
   control: any;
   setValue: any;
   cart: any[];
-  onAddToCart: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string }>) => void;
+  onAddToCart: (product: Product, quantity: number, size: string, color?: string, variants?: Array<{ size: string; color: string; imageUrl?: string; isCustomTailored?: boolean; customMeasurements?: any }>) => void;
 }
 
 const CODE_TO_DISCOUNT: Record<string, number> = {
@@ -58,6 +59,9 @@ export default function ProductSection({ register, errors, control, setValue, ca
   const deliveryCharge = deliveryArea === 'Inside Dhaka' ? 80 : (deliveryArea === 'Outside Dhaka' ? 130 : 0);
   const discountAmount = discountType === 'flat' ? Math.min(subtotal, discount) : (subtotal * discount) / 100;
   const totalAmount = (subtotal - discountAmount) + deliveryCharge;
+  const hasCustomTailoring = cart.some((item) => Boolean(item.isCustomTailored));
+  const advanceAmount = hasCustomTailoring ? Math.min(totalAmount, CUSTOM_TAILORING_ADVANCE_BDT) : 0;
+  const dueAmount = Math.max(0, totalAmount - advanceAmount);
 
   // Read saved coupon from spin wheel
   useEffect(() => {
@@ -462,11 +466,29 @@ export default function ProductSection({ register, errors, control, setValue, ca
 
           <div className="pt-6 border-t-2 border-brand-gold/20">
             <p className="text-[10px] font-serif font-black text-gray-400 uppercase tracking-[0.4em] mb-2 text-center">Order Summary</p>
-            <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-inner border border-gold-100">
-              <span className="text-[10px] font-serif font-black text-brand-charcoal uppercase tracking-widest">Net Total:</span>
-              <span className="text-2xl font-serif font-black text-brand-gold italic tracking-tight tabular-nums px-2 border-l-2 border-brand-gold/10 ml-4 pl-4 drop-shadow-sm">
-                {totalAmount.toLocaleString('en-US')} ৳
-              </span>
+            <div className="bg-white p-5 rounded-2xl shadow-inner border border-gold-100 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-serif font-black text-brand-charcoal uppercase tracking-widest">Net Total:</span>
+                <span className="text-2xl font-serif font-black text-brand-gold italic tracking-tight tabular-nums px-2 border-l-2 border-brand-gold/10 ml-4 pl-4 drop-shadow-sm">
+                  {totalAmount.toLocaleString('en-US')} ৳
+                </span>
+              </div>
+
+              {hasCustomTailoring && advanceAmount > 0 && (
+                <div className="pt-3 border-t border-dashed border-amber-200 space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center font-bold text-rose-700">
+                    <span className="flex items-center gap-1.5">
+                      <Scissors size={13} className="shrink-0" />
+                      <span>অগ্রিম পেমেন্ট (বডির মাপ):</span>
+                    </span>
+                    <span className="font-mono font-black tabular-nums">{advanceAmount.toLocaleString('en-US')} ৳</span>
+                  </div>
+                  <div className="flex justify-between items-center font-bold text-emerald-700">
+                    <span>ডেলিভারিতে বাকি (COD Due):</span>
+                    <span className="font-mono font-black tabular-nums">{dueAmount.toLocaleString('en-US')} ৳</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

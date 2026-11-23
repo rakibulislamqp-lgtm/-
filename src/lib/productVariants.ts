@@ -1,6 +1,7 @@
-import { Product, ProductColorDesignVariant } from '../types';
+import { BodyMeasurements, Product, ProductColorDesignVariant } from '../types';
 
 export const DEFAULT_PRODUCT_SIZES = ['36', '38', '40', '42', '44', 'Free Size'];
+export const CUSTOM_TAILORING_ADVANCE_BDT = 300;
 
 export const ADMIN_PRESET_SIZES = [
   '34', '36', '38', '40', '42', '44', '46', '48',
@@ -162,4 +163,27 @@ export function getDefaultColorForProduct(product?: Partial<Product> | null): st
   const variants = getProductPhotoVariants(product);
   if (variants.length > 0) return variants[0].label;
   return getPhotoVariantLabel(0, 1);
+}
+
+export function isThreePieceCategory(category?: string | null): boolean {
+  if (!category) return false;
+  const normalized = category.trim().toUpperCase();
+  return (
+    normalized.includes('THREE') ||
+    normalized.includes('3 PIECE') ||
+    normalized.includes('3-PIECE') ||
+    normalized.includes('3PIECE') ||
+    category.includes('থ্রি')
+  );
+}
+
+export function formatBodyMeasurements(m?: BodyMeasurements | null): string {
+  if (!m) return '';
+  const parts: string[] = [];
+  if (m.chest && m.chest.trim()) parts.push(`বডি: ${m.chest.trim()}`);
+  if (m.waist && m.waist.trim()) parts.push(`কোমর: ${m.waist.trim()}`);
+  if (m.length && m.length.trim()) parts.push(`লম্বা: ${m.length.trim()}`);
+  if (m.sleeve && m.sleeve.trim()) parts.push(`হাতা: ${m.sleeve.trim()}`);
+  if (m.note && m.note.trim()) parts.push(`নোট: ${m.note.trim()}`);
+  return parts.join(', ');
 }

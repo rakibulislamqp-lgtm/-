@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { motion, AnimatePresence } from 'motion/react';
 import FormHeader from './components/FormHeader';
 import CustomerInfo from './components/CustomerInfo';
@@ -23,14 +23,17 @@ import BannerSlider from './components/BannerSlider';
 import Footer from './components/Footer';
 import { createOrder } from './services/orderService';
 import { dispatchOrderNotifications } from './services/notificationService';
-import { Order, CartItem, BrandSettings, CustomerUser } from './types';
-import { ShoppingBag, Loader2, Database, RefreshCcw, ArrowDown, ArrowLeft, ShoppingCart, Trash2, Plus, Minus, CheckCircle2, User, AlertCircle, X, Eye, EyeOff, Lock, LayoutDashboard, Camera, Layers, Check } from 'lucide-react';
+import { Order, CartItem, BrandSettings, CustomerUser, BodyMeasurements } from './types';
+import { ShoppingBag, Loader2, Database, RefreshCcw, ArrowDown, ArrowLeft, ShoppingCart, Trash2, Plus, Minus, CheckCircle2, User, AlertCircle, X, Eye, EyeOff, Lock, LayoutDashboard, Camera, Layers, Check, Scissors } from 'lucide-react';
 import {
   getProductSizes,
   getDefaultSizeForProduct,
   getDefaultColorForProduct,
   getProductPhotoVariants,
   getPhotoVariantLabel,
+  isThreePieceCategory,
+  formatBodyMeasurements,
+  CUSTOM_TAILORING_ADVANCE_BDT,
   toBanglaDigits,
 } from './lib/productVariants';
 import BANNER_IMAGE from './assets/images/sera_fashion_banner_1779021192580.png';
@@ -321,9 +324,36 @@ export default function App() {
       productImage: '',
       productCode: '',
       size: '38',
+      transactionId: '',
+      paymentSenderNumber: '',
+      paymentScreenshotUrl: '',
       agreement: true
     }
   });
+
+  const watchedDeliveryArea = useWatch({ control, name: 'deliveryArea' });
+  const watchedDiscount = useWatch({ control, name: 'discount' }) || 0;
+  const watchedDiscountType = useWatch({ control, name: 'discountType' }) || 'percentage';
+  const watchedPaymentMethod = useWatch({ control, name: 'paymentMethod' });
+
+  const cartHasCustomTailoring = cart.some(item => Boolean(item.isCustomTailored));
+  const computedSubtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const computedDeliveryCharge = watchedDeliveryArea === 'Inside Dhaka' ? 80 : 130;
+  const computedDiscountAmount =
+    watchedDiscountType === 'flat'
+      ? Math.min(computedSubtotal, watchedDiscount)
+      : (computedSubtotal * watchedDiscount) / 100;
+  const computedTotalAmount = Math.max(0, (computedSubtotal - computedDiscountAmount) + computedDeliveryCharge);
+  const computedAdvanceAmount = cartHasCustomTailoring
+    ? Math.min(computedTotalAmount, CUSTOM_TAILORING_ADVANCE_BDT)
+    : 0;
+  const computedDueAmount = Math.max(0, computedTotalAmount - computedAdvanceAmount);
+
+  useEffect(() => {
+    if (cartHasCustomTailoring && watchedPaymentMethod === 'Cash On Delivery') {
+      setValue('paymentMethod', 'bKash');
+    }
+  }, [cartHasCustomTailoring, watchedPaymentMethod, setValue]);
 
   // Dynamically track billing form typing fields without triggering re-renders on every keystroke
   useEffect(() => {
@@ -394,6 +424,28 @@ export default function App() {
   const onSubmit = async (data: any) => {
     if (cart.length === 0) {
       showToast("আপনার ব্যাগে কোনো প্রোডাক্ট নেই। অনুগ্রহ করে পছন্দের প্রোডাক্ট নির্বাচন করুন।", "error");
+      return;
+    }
+
+    const missingChestItem = cart.find(
+      (item) => item.isCustomTailored && !(item.customMeasurements?.chest || '').trim()
+    );
+    if (missingChestItem) {
+      showToast("থ্রি-পিস বডির মাপে বানিয়ে নিতে অনুগ্রহ করে বডি / ছাতি (ইঞ্চি) লিখুন।", "error");
+      return;
+    }
+
+    const requiresCustomAdvance = cart.some((item) => Boolean(item.isCustomTailored));
+    if (
+      requiresCustomAdvance &&
+      (
+        !data.paymentMethod ||
+        data.paymentMethod === 'Cash On Delivery' ||
+        !(data.paymentSenderNumber || '').trim() ||
+        !(data.transactionId || '').trim()
+      )
+    ) {
+      showToast("বডির মাপে বানানোর জন্য অনুগ্রহ করে ৳৩০০ টাকা অগ্রিম পাঠিয়ে প্রেরকের নম্বর ও ট্রানজেকশন নম্বর (TrxID) দিন।", "error");
       return;
     }
 
@@ -475,11 +527,30 @@ export default function App() {
         color: rest.color || 'ছবির কালার ও ডিজাইন',
       }));
 
+      const hasCustomTailoring = sanitizedItems.some((item) => Boolean(item.isCustomTailored));
+      const advanceAmount = hasCustomTailoring
+        ? Math.min(totalAmount, CUSTOM_TAILORING_ADVANCE_BDT)
+        : 0;
+      const dueAmount = Math.max(0, totalAmount - advanceAmount);
+      const customMeasurementsSummary = sanitizedItems
+        .filter((item) => item.isCustomTailored)
+        .map((item) => `${item.productTitle}: ${formatBodyMeasurements(item.customMeasurements) || 'Custom Tailoring'}`)
+        .join(' | ');
+
+      const cleanSenderNumber = (data.paymentSenderNumber || '').trim();
+      const cleanPaymentScreenshot = (data.paymentScreenshotUrl || '').trim();
+
       const result = await createOrder({
         ...data,
+        ...(cleanSenderNumber ? { paymentSenderNumber: cleanSenderNumber } : {}),
+        ...(cleanPaymentScreenshot ? { paymentScreenshotUrl: cleanPaymentScreenshot } : {}),
         items: sanitizedItems,
         sessionId: getOrCreateSessionId(),
         referralCodeUsed,
+        hasCustomTailoring,
+        advanceAmount,
+        dueAmount,
+        ...(customMeasurementsSummary ? { customMeasurementsSummary } : {}),
         // Attach Courier Fraud & Return Intelligence
         riskLevel: fraudProfile.riskLevel,
         fraudScore: fraudProfile.fraudScore,
@@ -604,7 +675,7 @@ export default function App() {
     orderQuantity: number = 1,
     orderSize?: string,
     orderColor?: string,
-    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+    variants?: Array<{ size: string; color: string; imageUrl?: string; isCustomTailored?: boolean; customMeasurements?: BodyMeasurements }>
   ) => {
     const resolvedSize = orderSize || getDefaultSizeForProduct(product);
     const resolvedColor = orderColor || getDefaultColorForProduct(product);
@@ -625,7 +696,7 @@ export default function App() {
     orderQuantity: number = 1,
     orderSize?: string,
     orderColor?: string,
-    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+    variants?: Array<{ size: string; color: string; imageUrl?: string; isCustomTailored?: boolean; customMeasurements?: BodyMeasurements }>
   ) => {
     handleShowcaseOrder(product, orderQuantity, orderSize, orderColor, variants);
     setView('form');
@@ -641,7 +712,7 @@ export default function App() {
     orderQuantity: number = 1,
     orderSize?: string,
     orderColor?: string,
-    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+    variants?: Array<{ size: string; color: string; imageUrl?: string; isCustomTailored?: boolean; customMeasurements?: BodyMeasurements }>
   ) => {
     handleAddToCart(product, orderQuantity, orderSize, orderColor, variants);
     setShowAddSuccess(true);
@@ -662,7 +733,7 @@ export default function App() {
     orderQuantity: number = 1,
     orderSize?: string,
     orderColor?: string,
-    variants?: Array<{ size: string; color: string; imageUrl?: string }>
+    variants?: Array<{ size: string; color: string; imageUrl?: string; isCustomTailored?: boolean; customMeasurements?: BodyMeasurements }>
   ) => {
     const resolvedDefaultSize = orderSize || getDefaultSizeForProduct(product);
     const availPhotoVariants = getProductPhotoVariants(product);
@@ -683,7 +754,14 @@ export default function App() {
 
     trackPixelAddToCart(product, orderQuantity);
 
-    const entriesToAdd: Array<{ size: string; color: string; imageUrl: string; qty: number }> = [];
+    const entriesToAdd: Array<{
+      size: string;
+      color: string;
+      imageUrl: string;
+      qty: number;
+      isCustomTailored?: boolean;
+      customMeasurements?: BodyMeasurements;
+    }> = [];
     if (variants && variants.length > 0) {
       variants.forEach((v) => {
         const s = v.size || resolvedDefaultSize;
@@ -692,11 +770,26 @@ export default function App() {
           : undefined;
         const c = v.color || matchedVariant?.label || resolvedDefaultColor;
         const img = v.imageUrl || defaultImg;
-        const found = entriesToAdd.find((e) => e.size === s && e.imageUrl === img && e.color === c);
+        const measKey = JSON.stringify(v.customMeasurements || {});
+        const found = entriesToAdd.find(
+          (e) =>
+            e.size === s &&
+            e.imageUrl === img &&
+            e.color === c &&
+            Boolean(e.isCustomTailored) === Boolean(v.isCustomTailored) &&
+            JSON.stringify(e.customMeasurements || {}) === measKey
+        );
         if (found) {
           found.qty += 1;
         } else {
-          entriesToAdd.push({ size: s, color: c, imageUrl: img, qty: 1 });
+          entriesToAdd.push({
+            size: s,
+            color: c,
+            imageUrl: img,
+            qty: 1,
+            isCustomTailored: Boolean(v.isCustomTailored),
+            customMeasurements: v.isCustomTailored ? v.customMeasurements : undefined,
+          });
         }
       });
     } else {
@@ -706,11 +799,14 @@ export default function App() {
     setCart((prevCart) => {
       const newCart = [...prevCart];
       entriesToAdd.forEach((entry) => {
+        const entryMeasKey = JSON.stringify(entry.customMeasurements || {});
         const existingIndex = newCart.findIndex(
           (item) =>
             item.productId === product.id &&
             item.size === entry.size &&
-            item.productImage === entry.imageUrl
+            item.productImage === entry.imageUrl &&
+            Boolean(item.isCustomTailored) === Boolean(entry.isCustomTailored) &&
+            JSON.stringify(item.customMeasurements || {}) === entryMeasKey
         );
 
         if (existingIndex > -1) {
@@ -735,6 +831,8 @@ export default function App() {
             quantity: entry.qty,
             size: entry.size,
             color: entry.color,
+            isCustomTailored: entry.isCustomTailored || false,
+            customMeasurements: entry.customMeasurements,
             availableSizes: availSizes,
             availableImages: availImages,
             availablePhotoVariants: availPhotoVariants.length > 0 ? availPhotoVariants : undefined,
@@ -763,7 +861,49 @@ export default function App() {
 
   const updateCartItemSize = (itemId: string, size: string) => {
     setCart(prev =>
-      prev.map(item => (item.id === itemId ? { ...item, size } : item))
+      prev.map(item => (item.id === itemId ? { ...item, size, isCustomTailored: false } : item))
+    );
+  };
+
+  const toggleCartItemTailoring = (itemId: string, useCustom: boolean) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        if (useCustom) {
+          const chestTrim = (item.customMeasurements?.chest || '').trim();
+          return {
+            ...item,
+            isCustomTailored: true,
+            size: chestTrim ? `বডির মাপ (${chestTrim})` : 'বডির মাপ (Custom)',
+            customMeasurements: item.customMeasurements || { chest: '' },
+          };
+        }
+        return {
+          ...item,
+          isCustomTailored: false,
+          size: getDefaultSizeForProduct({ category: item.category, sizes: item.availableSizes }),
+        };
+      })
+    );
+  };
+
+  const updateCartItemMeasurement = (itemId: string, field: keyof BodyMeasurements, value: string) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const nextMeas: BodyMeasurements = {
+          chest: item.customMeasurements?.chest || '',
+          ...(item.customMeasurements || {}),
+          [field]: value,
+        };
+        const chestTrim = (nextMeas.chest || '').trim();
+        return {
+          ...item,
+          isCustomTailored: true,
+          size: chestTrim ? `বডির মাপ (${chestTrim})` : 'বডির মাপ (Custom)',
+          customMeasurements: nextMeas,
+        };
+      })
     );
   };
 
@@ -796,6 +936,7 @@ export default function App() {
               ...item,
               id: `${item.id}_${i}_${Math.random().toString(36).substr(2, 5)}`,
               quantity: 1,
+              customMeasurements: item.customMeasurements ? { ...item.customMeasurements } : undefined,
             });
           }
         } else {
@@ -1261,30 +1402,107 @@ export default function App() {
                                         </span>
                                       </div>
 
-                                      {/* Per-Product Size & Photo-Touch Design Selectors */}
+                                      {/* Per-Product Size / Custom Tailoring & Photo-Touch Design Selectors */}
                                       <div className="mt-2.5 space-y-2 bg-white/90 p-2 xs:p-2.5 rounded-xl border border-stone-200/70">
-                                        {(itemSizes.length > 1 || item.category !== 'SAREE') && (
-                                          <div className="space-y-1">
-                                            <span className="text-[9.5px] font-black text-stone-500 uppercase tracking-wider block">
-                                              সাইজ পরিবর্তন করুন:
-                                            </span>
-                                            <div className="flex flex-wrap gap-1">
-                                              {itemSizes.map((sz) => (
-                                                <button
-                                                  key={sz}
-                                                  type="button"
-                                                  onClick={() => updateCartItemSize(item.id, sz)}
-                                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                                                    item.size === sz
-                                                      ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-2xs'
-                                                      : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
-                                                  }`}
-                                                >
-                                                  {sz}
-                                                </button>
-                                              ))}
-                                            </div>
+                                        {isThreePieceCategory(item.category) && (
+                                          <div className="grid grid-cols-2 gap-1 p-1 bg-stone-100 rounded-xl border border-stone-200">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleCartItemTailoring(item.id, false)}
+                                              className={`py-1 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                !item.isCustomTailored
+                                                  ? 'bg-brand-charcoal text-brand-gold shadow-2xs'
+                                                  : 'text-stone-600 hover:text-stone-900'
+                                              }`}
+                                            >
+                                              রেডিমেড সাইজ
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleCartItemTailoring(item.id, true)}
+                                              className={`py-1 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                                item.isCustomTailored
+                                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                                  : 'text-rose-700 hover:bg-rose-50'
+                                              }`}
+                                            >
+                                              <Scissors size={10} />
+                                              <span>বডির মাপে বানান</span>
+                                            </button>
                                           </div>
+                                        )}
+
+                                        {item.isCustomTailored ? (
+                                          <div className="p-2 rounded-xl bg-amber-50/70 border border-rose-200 space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2 text-[9.5px] font-black">
+                                              <span className="text-brand-charcoal flex items-center gap-1">
+                                                <Scissors size={10} className="text-rose-600" />
+                                                বডির মাপ লিখুন (ইঞ্চি)
+                                              </span>
+                                              <span className="text-rose-700">৳{toBanglaDigits(CUSTOM_TAILORING_ADVANCE_BDT)} অগ্রিম</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                              <input
+                                                type="text"
+                                                placeholder="বডি / ছাতি * (38)"
+                                                value={item.customMeasurements?.chest || ''}
+                                                onChange={(e) => updateCartItemMeasurement(item.id, 'chest', e.target.value)}
+                                                className="w-full px-2 py-1 rounded-lg border border-stone-300 bg-white text-[10.5px] font-bold text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-brand-gold"
+                                              />
+                                              <input
+                                                type="text"
+                                                placeholder="কোমর (34)"
+                                                value={item.customMeasurements?.waist || ''}
+                                                onChange={(e) => updateCartItemMeasurement(item.id, 'waist', e.target.value)}
+                                                className="w-full px-2 py-1 rounded-lg border border-stone-300 bg-white text-[10.5px] font-bold text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-brand-gold"
+                                              />
+                                              <input
+                                                type="text"
+                                                placeholder="লম্বা (42)"
+                                                value={item.customMeasurements?.length || ''}
+                                                onChange={(e) => updateCartItemMeasurement(item.id, 'length', e.target.value)}
+                                                className="w-full px-2 py-1 rounded-lg border border-stone-300 bg-white text-[10.5px] font-bold text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-brand-gold"
+                                              />
+                                              <input
+                                                type="text"
+                                                placeholder="হাতা (18)"
+                                                value={item.customMeasurements?.sleeve || ''}
+                                                onChange={(e) => updateCartItemMeasurement(item.id, 'sleeve', e.target.value)}
+                                                className="w-full px-2 py-1 rounded-lg border border-stone-300 bg-white text-[10.5px] font-bold text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-brand-gold"
+                                              />
+                                            </div>
+                                            <input
+                                              type="text"
+                                              placeholder="অতিরিক্ত সেলাই নোট (যদি থাকে)"
+                                              value={item.customMeasurements?.note || ''}
+                                              onChange={(e) => updateCartItemMeasurement(item.id, 'note', e.target.value)}
+                                              className="w-full px-2 py-1 rounded-lg border border-stone-300 bg-white text-[10.5px] font-bold text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-brand-gold"
+                                            />
+                                          </div>
+                                        ) : (
+                                          (itemSizes.length > 1 || item.category !== 'SAREE') && (
+                                            <div className="space-y-1">
+                                              <span className="text-[9.5px] font-black text-stone-500 uppercase tracking-wider block">
+                                                সাইজ পরিবর্তন করুন:
+                                              </span>
+                                              <div className="flex flex-wrap gap-1">
+                                                {itemSizes.map((sz) => (
+                                                  <button
+                                                    key={sz}
+                                                    type="button"
+                                                    onClick={() => updateCartItemSize(item.id, sz)}
+                                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                      item.size === sz
+                                                        ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-2xs'
+                                                        : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
+                                                    }`}
+                                                  >
+                                                    {sz}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )
                                         )}
 
                                         <div className="space-y-1.5">
@@ -1423,7 +1641,15 @@ export default function App() {
                         </section>
 
                         <section id="payment">
-                          <PaymentSection register={register} errors={errors} control={control} />
+                          <PaymentSection
+                            register={register}
+                            errors={errors}
+                            control={control}
+                            setValue={setValue}
+                            requiresAdvance300={cartHasCustomTailoring}
+                            advanceAmount={computedAdvanceAmount}
+                            dueAmount={computedDueAmount}
+                          />
                         </section>
 
                         {/* Inline Error Helper */}

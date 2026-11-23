@@ -19,6 +19,7 @@ import {
   cancelCustomerOrder 
 } from '../services/orderService';
 import { DigitalInvoice } from './DigitalInvoice';
+import { formatBodyMeasurements } from '../lib/productVariants';
 
 interface OrderTrackingModalProps {
   isOpen: boolean;
@@ -506,6 +507,11 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                               <span>•</span>
                               <span>কোয়ান্টিটি: <strong className="text-slate-900 font-bold">{item.quantity} টি</strong></span>
                             </div>
+                            {item.isCustomTailored && (
+                              <p className="text-[10.5px] font-bold text-rose-700 mt-1">
+                                ✂️ বডির মাপ: {formatBodyMeasurements(item.customMeasurements) || 'কাস্টম সেলাই'}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-xs text-slate-500 font-medium">৳{item.price} × {item.quantity}</p>
@@ -527,6 +533,11 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                           <p className="text-[11px] text-slate-600 font-semibold mt-1">
                             কোড: <strong className="font-mono">{order.productCode}</strong> • সাইজ: <strong className="text-amber-800">{(order as any).size || '38'}</strong>{(order as any).color ? <> • কালার: <strong className="text-emerald-800">{(order as any).color}</strong></> : ''} • কোয়ান্টিটি: <strong className="text-slate-900">{order.quantity} টি</strong>
                           </p>
+                          {order.hasCustomTailoring && order.customMeasurementsSummary && (
+                            <p className="text-[10.5px] font-bold text-rose-700 mt-1">
+                              ✂️ বডির মাপ: {order.customMeasurementsSummary}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-black text-emerald-800 font-serif">৳{order.price}</p>
@@ -589,6 +600,21 @@ export default function OrderTrackingModal({ isOpen, onClose, initialOrderId }: 
                         ৳{order.totalAmount}
                       </span>
                     </div>
+
+                    {(order.advanceAmount || 0) > 0 && (
+                      <>
+                        <div className="flex justify-between items-center text-rose-700 font-bold">
+                          <span>অগ্রিম পরিশোধিত ({order.paymentMethod || 'Mobile'}):</span>
+                          <span className="font-mono font-black">-৳{order.advanceAmount}</span>
+                        </div>
+                        <div className="flex justify-between items-center font-black text-amber-900 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                          <span>ডেলিভারিতে প্রদেয় (COD Due):</span>
+                          <span className="font-mono text-sm">
+                            ৳{order.dueAmount ?? Math.max(0, order.totalAmount - (order.advanceAmount || 0))}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 

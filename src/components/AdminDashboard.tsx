@@ -15,12 +15,13 @@ import {
   CheckCircle2, Package, Truck, XCircle, Send, Filter, MoreVertical, ChevronDown,
   Box, AlertCircle, Sparkles, X, Phone, MapPin, User, Save, Heart, Quote,
   Database, ListChecks, Grid, Settings, Shield, ShieldAlert, ShieldCheck,
-  Copy, Check, Bell, BellOff, BellRing
+  Copy, Check, Bell, BellOff, BellRing, Scissors, ZoomIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useReactToPrint } from 'react-to-print';
 import { toPng } from 'html-to-image';
 import { downloadAsPng } from '../lib/downloadUtils';
+import { formatBodyMeasurements } from '../lib/productVariants';
 import {
   PrintFormat,
   PRINT_FORMAT_OPTIONS,
@@ -47,6 +48,7 @@ import ReferralLoyaltyManager from './ReferralLoyaltyManager';
 import LandingPageManager from './LandingPageManager';
 import PushNotificationManager from './PushNotificationManager';
 import SupabaseManager from './SupabaseManager';
+import CustomTailoringOrdersPanel from './CustomTailoringOrdersPanel';
 import { Activity, MessageSquare, MessageCircle, Target, Image as ImageIcon, BarChart3, LayoutTemplate, Users, Flame } from 'lucide-react';
 
 export interface CourierStat {
@@ -301,9 +303,10 @@ export const getCustomerTrust = (
 
 export default function AdminDashboard() {
   const [visitorSessions, setVisitorSessions] = useState<VisitorSession[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'custom_tailoring' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub'>('orders');
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
     orders: true,
+    custom_tailoring: true,
     products: true,
     settings: true,
     banners: true,
@@ -324,6 +327,7 @@ export default function AdminDashboard() {
   const [spinNotifications, setSpinNotifications] = useState<SpinNotification[]>([]);
   const [liveSpinToast, setLiveSpinToast] = useState<SpinNotification | null>(null);
   const [isSpinNotifDrawerOpen, setIsSpinNotifDrawerOpen] = useState(false);
+  const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
   const liveSpinToastTimerRef = useRef<any>(null);
 
   const unreadSpinCount = useMemo(
@@ -331,7 +335,7 @@ export default function AdminDashboard() {
     [spinNotifications]
   );
 
-  const handleSelectTab = (tab: 'orders' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub') => {
+  const handleSelectTab = (tab: 'orders' | 'custom_tailoring' | 'products' | 'banners' | 'settings' | 'live_visitors' | 'reviews' | 'spin_leads' | 'retargeting' | 'marketing' | 'fraud_shield' | 'footer' | 'registered_customers' | 'loyalty_referrals' | 'landing_page' | 'push_notifications' | 'supabase_hub') => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
     if (tab === 'spin_leads') {
@@ -353,9 +357,16 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [cancelSourceFilter, setCancelSourceFilter] = useState<'ALL' | 'CUSTOMER' | 'ADMIN'>('ALL');
+  const [discountOnlyFilter, setDiscountOnlyFilter] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState('');
+  const ordersFilterSectionRef = useRef<HTMLElement>(null);
+  const scrollToOrdersList = () => {
+    setTimeout(() => {
+      ordersFilterSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
   
   // Monthly sales target goal state
   const [salesTarget, setSalesTarget] = useState<number>(() => {
@@ -438,13 +449,20 @@ export default function AdminDashboard() {
     // Generate order products note
     let orderProductNote = '';
     if (order.items && order.items.length > 0) {
-      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
+      orderProductNote = order.items.map(item => {
+        const meas = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+        return `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''}${meas ? `, Body: ${meas}` : ''})`;
+      }).join(', ');
     } else {
-      orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
+      orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1}${order.customMeasurementsSummary ? `, Body: ${order.customMeasurementsSummary}` : ''})`;
     }
     if (order.note) {
       orderProductNote += ` | Note: ${order.note}`;
     }
+
+    const codAmount = (order.advanceAmount || 0) > 0
+      ? (order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - Number(order.advanceAmount || 0)))
+      : Number(order.totalAmount || 0);
 
     setBookingOrder(order);
     setBookingForm({
@@ -452,7 +470,7 @@ export default function AdminDashboard() {
       recipient_name: order.customerName,
       recipient_phone: order.mobileNumber,
       recipient_address: `${order.address}, ${order.upazila || ''}, ${order.district || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
-      cod_amount: order.totalAmount,
+      cod_amount: codAmount,
       note: orderProductNote,
       weight: 0.5
     });
@@ -462,13 +480,20 @@ export default function AdminDashboard() {
   const startPathaoBooking = (order: Order) => {
     let orderProductNote = '';
     if (order.items && order.items.length > 0) {
-      orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
+      orderProductNote = order.items.map(item => {
+        const meas = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+        return `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''}${meas ? `, Body: ${meas}` : ''})`;
+      }).join(', ');
     } else {
-      orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
+      orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1}${order.customMeasurementsSummary ? `, Body: ${order.customMeasurementsSummary}` : ''})`;
     }
     if (order.note) {
       orderProductNote += ` | Note: ${order.note}`;
     }
+
+    const codAmount = (order.advanceAmount || 0) > 0
+      ? (order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - Number(order.advanceAmount || 0)))
+      : Number(order.totalAmount || 0);
 
     setPathaoBookingOrder(order);
     setPathaoBookingForm({
@@ -476,7 +501,7 @@ export default function AdminDashboard() {
       recipient_name: order.customerName,
       recipient_phone: order.mobileNumber,
       recipient_address: `${order.address}, ${order.upazila || ''}, ${order.district || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
-      cod_amount: order.totalAmount,
+      cod_amount: codAmount,
       note: orderProductNote,
       weight: 0.5,
       recipient_city: '1',
@@ -791,6 +816,48 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleToggleAdvanceVerified = async (order: Order) => {
+    const targetId = order.id || order.orderId;
+    if (!targetId) return;
+    const nextVerified = !order.advanceVerified;
+    const verifiedAt = nextVerified ? new Date().toISOString() : '';
+
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === targetId || o.orderId === targetId
+          ? { ...o, advanceVerified: nextVerified, advanceVerifiedAt: verifiedAt }
+          : o
+      )
+    );
+    setViewingOrder(prev =>
+      prev && (prev.id === targetId || prev.orderId === targetId)
+        ? { ...prev, advanceVerified: nextVerified, advanceVerifiedAt: verifiedAt }
+        : prev
+    );
+
+    await updateOrder(targetId, {
+      advanceVerified: nextVerified,
+      advanceVerifiedAt: verifiedAt,
+    });
+  };
+
+  const customTailoringOrders = useMemo(() => {
+    return orders.filter(
+      (o) =>
+        Boolean(o.hasCustomTailoring) ||
+        (Number(o.advanceAmount) || 0) > 0 ||
+        Boolean(o.items?.some((i) => i.isCustomTailored))
+    );
+  }, [orders]);
+
+  const unverifiedAdvanceCount = useMemo(
+    () =>
+      customTailoringOrders.filter(
+        (o) => o.status !== 'Cancelled' && !o.advanceVerified
+      ).length,
+    [customTailoringOrders]
+  );
+
   const handleRealDelete = async () => {
     if (deletingOrderId) {
       const idToDelete = deletingOrderId;
@@ -851,13 +918,19 @@ export default function AdminDashboard() {
 
       let orderProductNote = '';
       if (order.items && order.items.length > 0) {
-        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
+        orderProductNote = order.items.map(item => {
+          const meas = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+          return `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''}${meas ? `, Body: ${meas}` : ''})`;
+        }).join(', ');
       } else {
-        orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
+        orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1}${order.customMeasurementsSummary ? `, Body: ${order.customMeasurementsSummary}` : ''})`;
       }
       if (order.note) {
         orderProductNote += ` | Note: ${order.note}`;
       }
+      const codAmount = (order.advanceAmount || 0) > 0
+        ? (order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - Number(order.advanceAmount || 0)))
+        : Number(order.totalAmount || 0);
 
       try {
         const response = await fetch("/api/steadfast/create-order", {
@@ -872,7 +945,7 @@ export default function AdminDashboard() {
             recipient_name: order.customerName,
             recipient_phone: order.mobileNumber,
             recipient_address: `${order.address}, ${order.upazila || ''}, ${order.district || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
-            cod_amount: Number(order.totalAmount),
+            cod_amount: codAmount,
             note: orderProductNote,
             weight: 0.5
           })
@@ -931,13 +1004,19 @@ export default function AdminDashboard() {
 
       let orderProductNote = '';
       if (order.items && order.items.length > 0) {
-        orderProductNote = order.items.map(item => `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''})`).join(', ');
+        orderProductNote = order.items.map(item => {
+          const meas = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+          return `${item.productTitle} (Code: ${item.productCode}, Qty: ${item.quantity}, Size: ${item.size}${item.color ? `, Color: ${item.color}` : ''}${meas ? `, Body: ${meas}` : ''})`;
+        }).join(', ');
       } else {
-        orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1})`;
+        orderProductNote = `${order.category || 'Product'} (Code: ${order.productCode || 'N/A'}, Qty: ${order.quantity || 1}${order.customMeasurementsSummary ? `, Body: ${order.customMeasurementsSummary}` : ''})`;
       }
       if (order.note) {
         orderProductNote += ` | Note: ${order.note}`;
       }
+      const codAmount = (order.advanceAmount || 0) > 0
+        ? (order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - Number(order.advanceAmount || 0)))
+        : Number(order.totalAmount || 0);
 
       try {
         const response = await fetch("/api/pathao/create-order", {
@@ -955,7 +1034,7 @@ export default function AdminDashboard() {
             recipient_name: order.customerName,
             recipient_phone: order.mobileNumber,
             recipient_address: `${order.address}, ${order.upazila || ''}, ${order.district || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
-            cod_amount: Number(order.totalAmount),
+            cod_amount: codAmount,
             note: orderProductNote,
             weight: 0.5,
             recipient_city: 1, // Dhaka by default
@@ -1122,10 +1201,11 @@ export default function AdminDashboard() {
         (cancelSourceFilter === 'CUSTOMER' ? o.cancelledBy === 'customer' : o.cancelledBy !== 'customer');
       const matchesCategory = categoryFilter === 'ALL' || ((o.category || '').toUpperCase() === categoryFilter);
       const matchesDate = !dateFilter || ((o.createdAt || '').startsWith(dateFilter));
+      const matchesDiscount = !discountOnlyFilter || (Number(o.discountAmount || 0) > 0 && o.status !== 'Cancelled');
 
-      return matchesSearch && matchesStatus && matchesCancelSource && matchesCategory && matchesDate;
+      return matchesSearch && matchesStatus && matchesCancelSource && matchesCategory && matchesDate && matchesDiscount;
     });
-  }, [orders, searchTerm, statusFilter, cancelSourceFilter, categoryFilter, dateFilter]);
+  }, [orders, searchTerm, statusFilter, cancelSourceFilter, categoryFilter, dateFilter, discountOnlyFilter]);
 
   const categoryStats = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1333,6 +1413,37 @@ export default function AdminDashboard() {
                     <span className="text-[9px] bg-slate-950/40 text-rose-300 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
                       {orders.length}
                     </span>
+                  </button>
+
+                  {/* Option 1B: Custom Tailoring & ৳300 Advance Proofs */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('custom_tailoring');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-xl text-xs font-extrabold transition-all group cursor-pointer ${
+                      activeTab === 'custom_tailoring'
+                        ? 'bg-gradient-to-r from-amber-500 via-rose-600 to-rose-700 text-white shadow-md shadow-rose-900/30'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Scissors size={16} className={activeTab === 'custom_tailoring' ? 'text-white' : 'text-amber-400 group-hover:scale-110 transition-transform shrink-0'} />
+                      <div className="text-left">
+                        <span className="block font-sans text-xs">বডির মাপে সেলাই ও অগ্রিম প্রমাণ</span>
+                        <span className="block text-[8px] opacity-80 font-semibold tracking-wide">মাপ, প্রেরক নম্বর, TrxID ও স্ক্রিনশট</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {unverifiedAdvanceCount > 0 && (
+                        <span className="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-black text-[9px] rounded-full animate-pulse">
+                          {unverifiedAdvanceCount} বাকি
+                        </span>
+                      )}
+                      <span className="text-[9px] bg-slate-950/40 text-rose-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                        {customTailoringOrders.length}
+                      </span>
+                    </div>
                   </button>
 
                   {/* Option 2: Products (পণ্য সমূহ) */}
@@ -1777,6 +1888,22 @@ export default function AdminDashboard() {
               Orders
             </button>
             <button 
+              onClick={() => setActiveTab('custom_tailoring')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative whitespace-nowrap ${activeTab === 'custom_tailoring' ? 'bg-amber-500 text-slate-950 shadow-lg' : 'text-amber-300 hover:text-white'}`}
+            >
+              <Scissors size={13} />
+              Custom Fit
+              {unverifiedAdvanceCount > 0 ? (
+                <span className="px-1.5 py-0.5 bg-rose-600 text-white rounded-full text-[9px] font-black leading-none animate-bounce">
+                  {unverifiedAdvanceCount}
+                </span>
+              ) : customTailoringOrders.length > 0 ? (
+                <span className="px-1.5 py-0.5 bg-white/15 text-white rounded-full text-[9px] font-black leading-none">
+                  {customTailoringOrders.length}
+                </span>
+              ) : null}
+            </button>
+            <button 
               onClick={() => setActiveTab('products')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'products' ? 'bg-rose-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
             >
@@ -1961,6 +2088,38 @@ export default function AdminDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Tab 1: Orders (Instant Persistent Display) */}
         <div className={activeTab === 'orders' ? 'space-y-6' : 'hidden'}>
+          {/* Custom Tailoring & ৳300 Advance Quick Jump Banner */}
+          {customTailoringOrders.length > 0 && (
+            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 border-2 border-amber-300 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-rose-600 text-white shadow shrink-0">
+                  <Scissors size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    বডির মাপে পোশাক অর্ডার ({customTailoringOrders.length}টি)
+                    {unverifiedAdvanceCount > 0 && (
+                      <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black">
+                        {unverifiedAdvanceCount}টি অগ্রিম যাচাই বাকি
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-amber-900 font-semibold mt-0.5">
+                    কাস্টমারের বডির মাপ, টাকা পাঠানোর নম্বর, TrxID ও পেমেন্ট স্ক্রিনশট দেখতে এক ক্লিকে ওপেন করুন।
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('custom_tailoring')}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow"
+              >
+                <Scissors size={14} />
+                <span>মাপ ও পেমেন্ট প্রমাণ দেখুন</span>
+              </button>
+            </div>
+          )}
+
           {/* Marketing Analysis Section */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between gap-4">
@@ -2170,42 +2329,104 @@ export default function AdminDashboard() {
 
         {/* Small Analytics Indicator row */}
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          <div className="bg-white px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between text-[10px] font-bold shadow-sm">
-            <span className="text-gray-400 uppercase tracking-widest pl-1">Total Active Orders (মোট অর্ডার)</span>
-            <span className="text-xs font-black text-gray-800 tabular-nums">{stats.total}</span>
-          </div>
-          <div className="bg-white px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between text-[10px] font-bold shadow-sm">
-            <span className="text-gray-400 uppercase tracking-widest pl-1 text-amber-500">Pending Verify (পেন্ডিং যাচাই)</span>
-            <span className="text-xs font-black text-amber-500 tabular-nums">{stats.pending}</span>
-          </div>
-          <div className="bg-white px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between text-[10px] font-bold shadow-sm">
-            <span className="text-gray-400 uppercase tracking-widest pl-1 text-emerald-500 font-extrabold flex items-center gap-1">Completion Rate (সাকসেস রেট)</span>
-            <span className="text-xs font-black text-emerald-500 tabular-nums">{stats.successRate}%</span>
-          </div>
-          <div className="bg-white px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between text-[10px] font-bold shadow-sm">
-            <span className="text-gray-400 uppercase tracking-widest pl-1 text-indigo-500">Total Discounts Out (মোট ছাড়)</span>
-            <span className="text-xs font-black text-indigo-500 tabular-nums">৳{stats.totalDiscounts.toLocaleString('en-US')}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('ALL');
+              setCancelSourceFilter('ALL');
+              setDiscountOnlyFilter(false);
+              scrollToOrdersList();
+            }}
+            className={`bg-white px-4 sm:px-5 py-4 rounded-2xl border flex items-center justify-between gap-2 text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-[0.98] text-left ${
+              statusFilter === 'ALL' && !discountOnlyFilter
+                ? 'border-gray-800 ring-2 ring-gray-900/10'
+                : 'border-gray-100 hover:border-gray-300'
+            }`}
+            title="ক্লিক করে সব অর্ডার দেখুন"
+          >
+            <span className="text-gray-400 uppercase tracking-wider leading-tight min-w-0">Total Active Orders (মোট অর্ডার)</span>
+            <span className="text-xs font-black text-gray-800 tabular-nums shrink-0">{stats.total}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(prev => (prev === 'PENDING' ? 'ALL' : 'PENDING'));
+              setCancelSourceFilter('ALL');
+              setDiscountOnlyFilter(false);
+              scrollToOrdersList();
+            }}
+            className={`bg-white px-4 sm:px-5 py-4 rounded-2xl border flex items-center justify-between gap-2 text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-[0.98] text-left ${
+              statusFilter === 'PENDING' && !discountOnlyFilter
+                ? 'border-amber-400 bg-amber-50/40 ring-2 ring-amber-400/20'
+                : 'border-gray-100 hover:border-amber-200'
+            }`}
+            title="ক্লিক করে পেন্ডিং অর্ডারগুলো দেখুন"
+          >
+            <span className="uppercase tracking-wider leading-tight min-w-0 text-amber-500">Pending Verify (পেন্ডিং যাচাই)</span>
+            <span className="text-xs font-black text-amber-500 tabular-nums shrink-0">{stats.pending}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(prev => (prev === 'DELIVERED' ? 'ALL' : 'DELIVERED'));
+              setCancelSourceFilter('ALL');
+              setDiscountOnlyFilter(false);
+              scrollToOrdersList();
+            }}
+            className={`bg-white px-4 sm:px-5 py-4 rounded-2xl border flex items-center justify-between gap-2 text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-[0.98] text-left ${
+              statusFilter === 'DELIVERED' && !discountOnlyFilter
+                ? 'border-emerald-400 bg-emerald-50/40 ring-2 ring-emerald-400/20'
+                : 'border-gray-100 hover:border-emerald-200'
+            }`}
+            title="ক্লিক করে সম্পন্ন হওয়া ডেলিভারি অর্ডার দেখুন"
+          >
+            <span className="uppercase tracking-wider leading-tight min-w-0 text-emerald-500 font-extrabold">Completion Rate (সাকসেস রেট)</span>
+            <span className="text-xs font-black text-emerald-500 tabular-nums shrink-0">{stats.successRate}%</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('ALL');
+              setCancelSourceFilter('ALL');
+              setDiscountOnlyFilter(prev => !prev);
+              scrollToOrdersList();
+            }}
+            className={`bg-white px-4 sm:px-5 py-4 rounded-2xl border flex items-center justify-between gap-2 text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-[0.98] text-left ${
+              discountOnlyFilter
+                ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-500/20'
+                : 'border-gray-100 hover:border-indigo-200'
+            }`}
+            title="ক্লিক করে ডিসকাউন্ট ও কুপন ছাড় পাওয়া অর্ডারগুলো দেখুন"
+          >
+            <span className="uppercase tracking-wider leading-tight min-w-0 text-indigo-500">Total Discounts Out (মোট ছাড়)</span>
+            <span className="text-xs font-black text-indigo-500 tabular-nums shrink-0">৳{stats.totalDiscounts.toLocaleString('en-US')}</span>
+          </button>
+
           {/* Quick-Access Customer Cancelled Indicator Card */}
           <button
             type="button"
             onClick={() => {
               setStatusFilter('CANCELLED');
               setCancelSourceFilter('CUSTOMER');
+              setDiscountOnlyFilter(false);
+              scrollToOrdersList();
             }}
-            className={`px-5 py-4 rounded-2xl border flex items-center justify-between text-[10px] font-bold shadow-sm transition-all cursor-pointer ${
+            className={`px-4 sm:px-5 py-4 rounded-2xl border flex items-center justify-between gap-2 text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-[0.98] ${
               statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
                 ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30'
                 : 'bg-rose-50/80 border-rose-200 text-rose-950 hover:bg-rose-100'
             }`}
             title="ক্লিক করে কাস্টমারদের বাতিল করা অর্ডারগুলো দেখুন"
           >
-            <div className="flex flex-col text-left">
+            <div className="flex flex-col text-left min-w-0">
               <span className={`uppercase tracking-wider font-black flex items-center gap-1 ${
                 statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER' ? 'text-white' : 'text-rose-700'
               }`}>
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
-                কাস্টমার বাতিল
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block shrink-0" />
+                <span className="truncate">কাস্টমার বাতিল</span>
               </span>
               <span className={`text-[9px] font-semibold ${
                 statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER' ? 'text-rose-100' : 'text-gray-500'
@@ -2213,7 +2434,7 @@ export default function AdminDashboard() {
                 ক্লিক করে দেখুন ↗
               </span>
             </div>
-            <span className={`text-xs font-black tabular-nums px-2.5 py-1 rounded-xl shadow-xs ${
+            <span className={`text-xs font-black tabular-nums px-2.5 py-1 rounded-xl shadow-xs shrink-0 ${
               statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
                 ? 'bg-white text-rose-700'
                 : 'bg-rose-600 text-white'
@@ -2224,7 +2445,7 @@ export default function AdminDashboard() {
         </section>
 
         {/* Filters and Search */}
-        <section className="space-y-4">
+        <section ref={ordersFilterSectionRef} id="admin-orders-filter-section" className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto no-scrollbar">
               {['ALL', 'PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
@@ -2232,12 +2453,13 @@ export default function AdminDashboard() {
                   key={status}
                   onClick={() => {
                     setStatusFilter(status);
+                    setDiscountOnlyFilter(false);
                     if (status !== 'CANCELLED') {
                       setCancelSourceFilter('ALL');
                     }
                   }}
                   className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap
-                    ${statusFilter === status 
+                    ${statusFilter === status && !discountOnlyFilter
                       ? 'bg-brand-charcoal text-white shadow-lg' 
                       : 'text-gray-400 hover:text-gray-600'}`}
                 >
@@ -2255,6 +2477,7 @@ export default function AdminDashboard() {
               onClick={() => {
                 setStatusFilter('CANCELLED');
                 setCancelSourceFilter('CUSTOMER');
+                setDiscountOnlyFilter(false);
               }}
               className={`px-4 py-2.5 rounded-2xl text-[10px] font-black tracking-wider transition-all whitespace-nowrap flex items-center gap-2 border cursor-pointer shadow-xs ${
                 statusFilter === 'CANCELLED' && cancelSourceFilter === 'CUSTOMER'
@@ -2265,6 +2488,17 @@ export default function AdminDashboard() {
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
               <span>🚫 কাস্টমার বাতিলকৃত অর্ডার ({orders.filter(o => o.status === 'Cancelled' && o.cancelledBy === 'customer').length})</span>
             </button>
+
+            {discountOnlyFilter && (
+              <button
+                type="button"
+                onClick={() => setDiscountOnlyFilter(false)}
+                className="px-4 py-2.5 rounded-2xl text-[10px] font-black tracking-wider transition-all whitespace-nowrap flex items-center gap-2 border bg-indigo-600 text-white border-indigo-600 shadow-md cursor-pointer"
+              >
+                <span>🏷️ শুধুমাত্র ডিসকাউন্ট অর্ডার ({filteredOrders.length})</span>
+                <X size={12} />
+              </button>
+            )}
 
             {/* Sub-Filter for Cancelled Orders: Customer vs Admin */}
             {statusFilter === 'CANCELLED' && (
@@ -2555,10 +2789,54 @@ export default function AdminDashboard() {
                       <div className="space-y-1">
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Product</p>
                         <p className="text-sm font-black text-gray-600 uppercase">{order.productCode}</p>
+                        {(order.hasCustomTailoring || order.items?.some(i => i.isCustomTailored)) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="inline-block text-[9.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                              ✂️ বডির মাপে (অগ্রিম ৳{order.advanceAmount || 300})
+                            </span>
+                            <span
+                              className={`inline-block text-[9.5px] font-black px-2 py-0.5 rounded-md border ${
+                                order.advanceVerified
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}
+                            >
+                              {order.advanceVerified ? '✓ অগ্রিম যাচাইকৃত' : '⏳ অগ্রিম যাচাই বাকি'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Amount</p>
                         <p className="text-base font-black text-rose-600 tabular-nums">৳ {Number(order.totalAmount || 0).toLocaleString('en-US')}</p>
+                        {(order.advanceAmount || 0) > 0 && (
+                          <p className="text-[10px] font-bold text-amber-800 tabular-nums">
+                            অগ্রিম: ৳{order.advanceAmount} | বাকি COD: ৳{order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - Number(order.advanceAmount || 0))}
+                          </p>
+                        )}
+                        {(order.transactionId || order.paymentSenderNumber || order.paymentScreenshotUrl) && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            {order.transactionId && (
+                              <span className="text-[9.5px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                Trx: {order.transactionId}
+                              </span>
+                            )}
+                            {order.paymentSenderNumber && (
+                              <span className="text-[9.5px] font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {order.paymentSenderNumber}
+                              </span>
+                            )}
+                            {order.paymentScreenshotUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewProofUrl(order.paymentScreenshotUrl!)}
+                                className="text-[9.5px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <ZoomIn size={10} /> স্ক্রিনশট দেখুন
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="col-span-2 space-y-3">
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Update Status</p>
@@ -2816,6 +3094,20 @@ export default function AdminDashboard() {
         {visitedTabs.supabase_hub && (
           <div className={activeTab === 'supabase_hub' ? 'block' : 'hidden'}>
             <SupabaseManager onRefreshAll={fetchOrders} />
+          </div>
+        )}
+
+        {/* Tab 17: Custom Tailoring Measurements & ৳300 Advance Payment Proofs */}
+        {visitedTabs.custom_tailoring && (
+          <div className={activeTab === 'custom_tailoring' ? 'block' : 'hidden'}>
+            <CustomTailoringOrdersPanel
+              orders={orders}
+              onToggleAdvanceVerified={handleToggleAdvanceVerified}
+              onUpdateStatus={handleStatusUpdate}
+              onViewOrder={(ord) => setViewingOrder(ord)}
+              onPrintOrder={(ord) => setPrintingOrder(ord)}
+              onPreviewImage={(url) => setPreviewProofUrl(url)}
+            />
           </div>
         )}
       </main>
@@ -3642,6 +3934,11 @@ export default function AdminDashboard() {
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs font-black text-gray-800 truncate">{item.productTitle}</h4>
                             <p className="text-[10px] text-gray-400 font-bold">Qty: {item.quantity} | Size: {item.size}{item.color ? ` | Color: ${item.color}` : ''} | Code: {item.productCode}</p>
+                            {item.isCustomTailored && (
+                              <p className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded mt-1 inline-block border border-rose-200">
+                                ✂️ বডির মাপ: {formatBodyMeasurements(item.customMeasurements) || 'Custom Tailoring'}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-xs font-black text-rose-500 tabular-nums">৳ {item.price.toLocaleString('en-US')}</p>
@@ -3666,6 +3963,11 @@ export default function AdminDashboard() {
                           <span className="text-gray-400 uppercase tracking-widest text-[10px]">Unit Price</span>
                           <span className="text-xl font-black text-[#1a1c2e] tabular-nums">৳ {viewingOrder.price.toLocaleString('en-US')}</span>
                         </div>
+                        {viewingOrder.hasCustomTailoring && viewingOrder.customMeasurementsSummary && (
+                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[10.5px] font-black text-rose-800">
+                            ✂️ বডির মাপ: {viewingOrder.customMeasurementsSummary}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -3676,6 +3978,71 @@ export default function AdminDashboard() {
                       <span className="text-[10px] font-black text-gray-500 uppercase">Method</span>
                       <span className="text-[10px] font-black text-[#1a1c2e] uppercase">{viewingOrder.paymentMethod || 'Cash on Delivery'}</span>
                     </div>
+                    {viewingOrder.paymentSenderNumber && (
+                      <div className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
+                        <span className="text-[10px] font-black text-gray-500 uppercase">Sender Number (প্রেরক নম্বর)</span>
+                        <a href={`tel:${viewingOrder.paymentSenderNumber}`} className="text-[11px] font-mono font-black text-slate-900 hover:underline">
+                          {viewingOrder.paymentSenderNumber}
+                        </a>
+                      </div>
+                    )}
+                    {viewingOrder.transactionId && (
+                      <div className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
+                        <span className="text-[10px] font-black text-gray-500 uppercase">Transaction ID</span>
+                        <span className="text-[11px] font-mono font-black text-indigo-700">{viewingOrder.transactionId}</span>
+                      </div>
+                    )}
+                    {viewingOrder.paymentScreenshotUrl && (
+                      <div className="bg-white p-4 rounded-2xl flex items-center justify-between gap-3 shadow-sm border border-emerald-200">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={viewingOrder.paymentScreenshotUrl}
+                            alt="Payment Proof"
+                            onClick={() => setPreviewProofUrl(viewingOrder.paymentScreenshotUrl!)}
+                            className="w-14 h-14 object-cover rounded-xl border border-gray-200 cursor-pointer shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black text-emerald-700 uppercase block">Payment Screenshot</span>
+                            <span className="text-[11px] text-gray-500 font-semibold">ট্যাপ করে বড় করে দেখুন</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewProofUrl(viewingOrder.paymentScreenshotUrl!)}
+                          className="px-3 py-2 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <ZoomIn size={12} /> Zoom
+                        </button>
+                      </div>
+                    )}
+                    {(viewingOrder.advanceAmount || 0) > 0 && (
+                      <>
+                        <div className="bg-rose-50/60 p-4 rounded-2xl flex justify-between items-center border border-rose-200 tabular-nums">
+                          <span className="text-[10px] font-black text-rose-700 uppercase">অগ্রিম পরিশোধ (Advance Paid)</span>
+                          <span className="text-[12px] font-black text-rose-700">-৳ {Number(viewingOrder.advanceAmount || 0).toLocaleString('en-US')}</span>
+                        </div>
+                        <div className="bg-amber-50 p-4 rounded-2xl flex justify-between items-center border border-amber-200 tabular-nums">
+                          <span className="text-[10px] font-black text-amber-900 uppercase">ডেলিভারিতে বাকি (Due COD)</span>
+                          <span className="text-[13px] font-black text-amber-900">৳ {Number(viewingOrder.dueAmount ?? Math.max(0, Number(viewingOrder.totalAmount || 0) - Number(viewingOrder.advanceAmount || 0))).toLocaleString('en-US')}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAdvanceVerified(viewingOrder)}
+                          className={`w-full py-3 px-4 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                            viewingOrder.advanceVerified
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow'
+                              : 'bg-amber-400 hover:bg-amber-500 text-slate-950 shadow'
+                          }`}
+                        >
+                          <ShieldCheck size={15} />
+                          <span>
+                            {viewingOrder.advanceVerified
+                              ? '✓ অগ্রিম পেমেন্ট যাচাইকৃত (পরিবর্তন করতে ক্লিক করুন)'
+                              : 'অগ্রিম পেমেন্ট যাচাই নিশ্চিত করুন'}
+                          </span>
+                        </button>
+                      </>
+                    )}
                     {viewingOrder.discountAmount ? viewingOrder.discountAmount > 0 && (
                       <div className="bg-emerald-50/30 p-4 rounded-2xl flex justify-between items-center border border-emerald-50 tabular-nums">
                         <span className="text-[10px] font-black text-emerald-600 uppercase">Discount ({((viewingOrder as any).discountType || (viewingOrder.discount === 100 || viewingOrder.discount === 200 ? 'flat' : 'percentage')) === 'flat' ? `৳${viewingOrder.discount}` : `${viewingOrder.discount}%`})</span>
@@ -5011,6 +5378,48 @@ export default function AdminDashboard() {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Full-Screen Payment Screenshot & Product Proof Zoom Lightbox Modal */}
+      <AnimatePresence>
+        {previewProofUrl && (
+          <div className="fixed inset-0 z-[350] flex items-center justify-center p-3 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewProofUrl(null)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              className="relative z-10 max-w-2xl w-full bg-[#111322] rounded-3xl border border-white/15 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              <div className="px-4 py-3 bg-[#0b0d17] border-b border-white/10 flex items-center justify-between text-white">
+                <span className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                  <ImageIcon size={15} className="text-emerald-400" />
+                  পেমেন্ট প্রমাণ / ছবি প্রিভিউ
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewProofUrl(null)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto p-3 sm:p-5 flex items-center justify-center bg-black/50">
+                <img
+                  src={previewProofUrl}
+                  alt="Proof Preview"
+                  className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-lg"
+                />
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

@@ -1,5 +1,6 @@
 import { getBrandSettings } from './settingsService';
 import { Order } from '../types';
+import { formatBodyMeasurements } from '../lib/productVariants';
 
 // Chime sound for new orders
 const ORDER_ALERT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav';
@@ -75,11 +76,16 @@ export const sendTelegramNotification = async (order: any): Promise<boolean> => 
 
     // Format clean product items list
     const itemsDetails = order.items && order.items.length > 0
-      ? order.items.map((item: any, index: number) => `${index+1}. 🛍️ *${item.productTitle}* (${item.productCode})\n📏 সাইজ: ${item.size}${item.color ? ` | 🎨 কালার: ${item.color}` : ''} | পরিমাণ: ${item.quantity}টি | মূল্য: ৳${item.price}`).join('\n\n')
-      : `🛍️ *${order.category || 'Product'}* (${order.productCode || 'N/A'})\n📏 সাইজ: ${order.size || 'Free Size'}${order.color ? ` | 🎨 কালার: ${order.color}` : ''} | পরিমাণ: ${order.quantity || 1}টি | মূল্য: ৳${order.price || 0}`;
+      ? order.items.map((item: any, index: number) => {
+          const meas = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+          return `${index + 1}. 🛍️ *${item.productTitle}* (${item.productCode})\n📏 সাইজ: ${item.size}${item.color ? ` | 🎨 কালার: ${item.color}` : ''} | পরিমাণ: ${item.quantity}টি | মূল্য: ৳${item.price}${item.isCustomTailored ? `\n✂️ *বডির মাপ:* ${meas || 'কাস্টম সেলাই (৳৩০০ অগ্রিম)'}` : ''}`;
+        }).join('\n\n')
+      : `🛍️ *${order.category || 'Product'}* (${order.productCode || 'N/A'})\n📏 সাইজ: ${order.size || 'Free Size'}${order.color ? ` | 🎨 কালার: ${order.color}` : ''} | পরিমাণ: ${order.quantity || 1}টি | মূল্য: ৳${order.price || 0}${order.customMeasurementsSummary ? `\n✂️ *বডির মাপ:* ${order.customMeasurementsSummary}` : ''}`;
 
     const cleanDistrict = order.district || 'Unspecified';
     const cleanUpazila = order.upazila || 'Unspecified';
+    const advPaid = Number(order.advanceAmount || 0);
+    const codDue = advPaid > 0 ? (order.dueAmount ?? Math.max(0, Number(order.totalAmount || 0) - advPaid)) : null;
 
     const messageText = `🔔 *নতুন অর্ডার কনফার্ম হয়েছে! (NEW ORDER)* 🔔
 -------------------------------------------
@@ -93,9 +99,8 @@ ${itemsDetails}
 
 💵 *ডেলিভারি চার্জ (Delivery):* ৳${order.deliveryCharge}
 💰 *সর্বমোট বিল (Net Total):* ৳${order.totalAmount}
-💳 *পেমেন্ট পদ্ধতি (Payment):* *${order.paymentMethod}*
-${order.transactionId ? `🔑 *ট্রানজেকশন (TxID):* \`${order.transactionId}\`` : ''}
-${order.note ? `📝 *স্পেশাল নোট (Note):* _${order.note}_` : ''}
+${advPaid > 0 ? `✂️ *অগ্রিম পরিশোধিত (Advance Paid):* ৳${advPaid}\n📦 *ডেলিভারিতে বাকি (Due COD):* ৳${codDue}\n` : ''}💳 *পেমেন্ট পদ্ধতি (Payment):* *${order.paymentMethod}*
+${order.paymentSenderNumber ? `📲 *প্রেরক নম্বর (Sender):* \`${order.paymentSenderNumber}\`\n` : ''}${order.transactionId ? `🔑 *ট্রানজেকশন (TxID):* \`${order.transactionId}\`\n` : ''}${order.paymentScreenshotUrl ? `📸 *পেমেন্ট স্ক্রিনশট:* সংযুক্ত (অ্যাডমিন ড্যাশবোর্ডে দেখুন)\n` : ''}${order.note ? `📝 *স্পেশাল নোট (Note):* _${order.note}_` : ''}
 -------------------------------------------
 ⚡ *Sera Order System* ⚡`;
 

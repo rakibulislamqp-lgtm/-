@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { getAllProducts } from '../services/productService';
 import { getAllOrders } from '../services/orderService';
 import { getReviewsForProduct, createReview, deleteReview, getProductSalesCount, ProductReview } from '../services/reviewService';
-import { Product, ProductCategoryItem, BrandSettings } from '../types';
+import { Product, ProductCategoryItem, BrandSettings, BodyMeasurements } from '../types';
 import { trackProductView, logVisitorEvent, updateVisitorStage } from '../services/trackingService';
 import { trackPixelViewContent } from '../services/pixelService';
 import { fetchAllCategories, getStoredCategories } from '../services/categoryService';
@@ -13,7 +13,7 @@ import {
   subscribeToLiveViewerSummary,
   computeProductLiveViewers,
 } from '../services/liveViewerService';
-import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check, Camera } from 'lucide-react';
+import { ShoppingBag, Eye, ShoppingCart, Loader2, Sparkles, X, Star, Share2, Info, Hash, ArrowDown, ArrowUp, Flame, SlidersHorizontal, Gift, Trophy, MessageSquare, Send, CheckCircle, ZoomIn, ZoomOut, Maximize2, Video, Play, Film, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, Check, Camera, Scissors, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   getProductSizes,
@@ -21,6 +21,9 @@ import {
   getDefaultColorForProduct,
   getProductPhotoVariants,
   getPhotoVariantLabel,
+  isThreePieceCategory,
+  formatBodyMeasurements,
+  CUSTOM_TAILORING_ADVANCE_BDT,
 } from '../lib/productVariants';
 
 const PRODUCTS_PER_PAGE = 10;
@@ -34,6 +37,8 @@ export interface ProductVariantSelection {
   size: string;
   color: string;
   imageUrl?: string;
+  isCustomTailored?: boolean;
+  customMeasurements?: BodyMeasurements;
 }
 
 interface ProductShowcaseProps {
@@ -157,6 +162,7 @@ export default function ProductShowcase({
   const [pieceSelections, setPieceSelections] = useState<ProductVariantSelection[]>([
     { size: '38', color: 'ছবির কালার ও ডিজাইন', imageUrl: '' },
   ]);
+  const [measurementError, setMeasurementError] = useState<string>('');
 
   // Reviews states
   const [reviews, setReviews] = useState<ProductReview[]>([]);
@@ -259,11 +265,13 @@ export default function ProductShowcase({
       const firstImg = firstVariant?.imageUrl || selectedProduct.imageUrl;
       const firstColor = firstVariant?.label || getDefaultColorForProduct(selectedProduct);
       setQuantity(1);
+      setMeasurementError('');
       setPieceSelections([
         {
           size: getDefaultSizeForProduct(selectedProduct),
           color: firstColor,
           imageUrl: firstImg,
+          isCustomTailored: false,
         },
       ]);
       setReviewSuccessMessage('');
@@ -380,8 +388,71 @@ export default function ProductShowcase({
   };
 
   const updatePieceSize = (pieceIndex: number, size: string) => {
+    setMeasurementError('');
     setPieceSelections((prev) =>
-      prev.map((piece, idx) => (idx === pieceIndex ? { ...piece, size } : piece))
+      prev.map((piece, idx) =>
+        idx === pieceIndex
+          ? { ...piece, size, isCustomTailored: false }
+          : piece
+      )
+    );
+  };
+
+  const updatePieceTailoringMode = (pieceIndex: number, isCustom: boolean) => {
+    setMeasurementError('');
+    const defaultSize = getDefaultSizeForProduct(selectedProduct);
+    setPieceSelections((prev) =>
+      prev.map((piece, idx) => {
+        if (idx !== pieceIndex) return piece;
+        if (!isCustom) {
+          return {
+            ...piece,
+            isCustomTailored: false,
+            size: piece.size && !piece.size.startsWith('বডির মাপ') ? piece.size : defaultSize,
+          };
+        }
+        const existingChest = piece.customMeasurements?.chest?.trim();
+        return {
+          ...piece,
+          isCustomTailored: true,
+          size: existingChest ? `বডির মাপ (${existingChest})` : 'বডির মাপ (Custom)',
+          customMeasurements: piece.customMeasurements || {
+            chest: '',
+            waist: '',
+            length: '',
+            sleeve: '',
+            note: '',
+          },
+        };
+      })
+    );
+  };
+
+  const updatePieceMeasurement = (
+    pieceIndex: number,
+    field: keyof BodyMeasurements,
+    value: string
+  ) => {
+    setMeasurementError('');
+    setPieceSelections((prev) =>
+      prev.map((piece, idx) => {
+        if (idx !== pieceIndex) return piece;
+        const nextMeasurements: BodyMeasurements = {
+          chest: piece.customMeasurements?.chest || '',
+          waist: piece.customMeasurements?.waist || '',
+          length: piece.customMeasurements?.length || '',
+          sleeve: piece.customMeasurements?.sleeve || '',
+          note: piece.customMeasurements?.note || '',
+          [field]: value,
+        };
+        const chestTrimmed = nextMeasurements.chest.trim();
+        return {
+          ...piece,
+          isCustomTailored: true,
+          size: chestTrimmed ? `বডির মাপ (${chestTrimmed})` : 'বডির মাপ (Custom)',
+          customMeasurements: nextMeasurements,
+        };
+      })
     );
   };
 
@@ -399,6 +470,7 @@ export default function ProductShowcase({
   };
 
   const applyFirstPieceToAll = () => {
+    setMeasurementError('');
     setPieceSelections((prev) => {
       const firstVariant = photoVariants[0];
       const first = prev[0] || {
@@ -406,21 +478,52 @@ export default function ProductShowcase({
         color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
         imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct?.imageUrl || '',
       };
-      return prev.map(() => ({ ...first }));
+      return prev.map(() => ({
+        ...first,
+        customMeasurements: first.customMeasurements ? { ...first.customMeasurements } : undefined,
+      }));
     });
   };
 
-  const handleOrder = () => {
-    if (selectedProduct) {
-      const firstVariant = photoVariants[0];
-      const first = pieceSelections[0] || {
-        size: getDefaultSizeForProduct(selectedProduct),
-        color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
-        imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
-      };
-      onOrderNow(selectedProduct, quantity, first.size, first.color, pieceSelections);
-      setSelectedProduct(null);
+  const validateCustomMeasurements = (): boolean => {
+    for (let i = 0; i < pieceSelections.length; i++) {
+      const p = pieceSelections[i];
+      if (p.isCustomTailored && !(p.customMeasurements?.chest || '').trim()) {
+        setMeasurementError(
+          pieceSelections.length > 1
+            ? `পিস ${toBengaliNumber(i + 1)}-এর জন্য বডি / ছাতির মাপ (ইঞ্চি) লিখুন।`
+            : 'থ্রি-পিস বানিয়ে নিতে অনুগ্রহ করে বডি / ছাতির মাপ (ইঞ্চি) লিখুন।'
+        );
+        return false;
+      }
     }
+    return true;
+  };
+
+  const handleModalAddToCart = () => {
+    if (!selectedProduct) return;
+    if (!validateCustomMeasurements()) return;
+    const firstVariant = photoVariants[0];
+    const first = pieceSelections[0] || {
+      size: getDefaultSizeForProduct(selectedProduct),
+      color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
+      imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
+    };
+    onAddToCart?.(selectedProduct, quantity, first.size, first.color, pieceSelections);
+    setSelectedProduct(null);
+  };
+
+  const handleOrder = () => {
+    if (!selectedProduct) return;
+    if (!validateCustomMeasurements()) return;
+    const firstVariant = photoVariants[0];
+    const first = pieceSelections[0] || {
+      size: getDefaultSizeForProduct(selectedProduct),
+      color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
+      imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
+    };
+    onOrderNow(selectedProduct, quantity, first.size, first.color, pieceSelections);
+    setSelectedProduct(null);
   };
 
   const sortedProducts = useMemo(() => {
@@ -1193,33 +1296,149 @@ export default function ProductShowcase({
                   {/* Size & Visual Photo Selection: Single piece vs Multiple pieces */}
                   {quantity === 1 ? (
                     <>
-                      {/* Size Selection */}
+                      {/* Size Selection OR Custom Body-Measurement Tailoring (for Three-Piece) */}
                       {(modalAvailableSizes.length > 1 || selectedProduct.category !== 'SAREE') && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className="text-[11px] font-black uppercase tracking-wider text-gray-700">
-                              সাইজ নির্বাচন করুন:
+                              সাইজ / মাপ নির্বাচন করুন:
                             </span>
                             <span className="text-xs font-bold text-[#438a1a] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                               সিলেক্টেড: {pieceSelections[0]?.size}
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {modalAvailableSizes.map((s) => (
+
+                          {/* Separate Tailoring Mode Option for Three-Piece */}
+                          {isThreePieceCategory(selectedProduct.category) && (
+                            <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl border border-gray-200">
                               <button
-                                key={s}
                                 type="button"
-                                onClick={() => updatePieceSize(0, s)}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                                  pieceSelections[0]?.size === s
-                                    ? 'bg-brand-charcoal text-brand-gold border-2 border-brand-gold shadow-md scale-105'
-                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                                onClick={() => updatePieceTailoringMode(0, false)}
+                                className={`py-2 px-2.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                  !pieceSelections[0]?.isCustomTailored
+                                    ? 'bg-white text-brand-charcoal shadow-sm border border-gray-200'
+                                    : 'text-gray-500 hover:text-gray-800'
                                 }`}
                               >
-                                {s}
+                                রেডিমেড সাইজ
                               </button>
-                            ))}
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => updatePieceTailoringMode(0, true)}
+                                className={`py-2 px-2.5 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                  pieceSelections[0]?.isCustomTailored
+                                    ? 'bg-brand-charcoal text-brand-gold shadow-sm border border-brand-gold'
+                                    : 'text-gray-600 hover:text-brand-charcoal'
+                                }`}
+                              >
+                                <Scissors size={12} className="shrink-0" />
+                                <span>বডির মাপে বানান</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {!pieceSelections[0]?.isCustomTailored ? (
+                            <div className="flex flex-wrap gap-2">
+                              {modalAvailableSizes.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => updatePieceSize(0, s)}
+                                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                    pieceSelections[0]?.size === s
+                                      ? 'bg-brand-charcoal text-brand-gold border-2 border-brand-gold shadow-md scale-105'
+                                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 text-amber-950 text-[11px] font-black">
+                                  <Scissors size={13} className="text-amber-700 shrink-0" />
+                                  <span>আপনার বডির মাপ দিন (ইঞ্চিতে)</span>
+                                </div>
+                                <span className="text-[10px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full shrink-0">
+                                  ৳{toBengaliNumber(CUSTOM_TAILORING_ADVANCE_BDT)} অগ্রিম
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-700 block mb-1">
+                                    বডি / ছাতি (ইঞ্চি) <span className="text-rose-600">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={pieceSelections[0]?.customMeasurements?.chest || ''}
+                                    onChange={(e) => updatePieceMeasurement(0, 'chest', e.target.value)}
+                                    placeholder="যেমন: ৩৮"
+                                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-brand-gold focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-700 block mb-1">
+                                    কোমর (ইঞ্চি)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={pieceSelections[0]?.customMeasurements?.waist || ''}
+                                    onChange={(e) => updatePieceMeasurement(0, 'waist', e.target.value)}
+                                    placeholder="যেমন: ৩৪"
+                                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-brand-gold focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-700 block mb-1">
+                                    জামার লম্বা (ইঞ্চি)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={pieceSelections[0]?.customMeasurements?.length || ''}
+                                    onChange={(e) => updatePieceMeasurement(0, 'length', e.target.value)}
+                                    placeholder="যেমন: ৪২"
+                                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-brand-gold focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-700 block mb-1">
+                                    হাতার লম্বা (ইঞ্চি)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={pieceSelections[0]?.customMeasurements?.sleeve || ''}
+                                    onChange={(e) => updatePieceMeasurement(0, 'sleeve', e.target.value)}
+                                    placeholder="যেমন: ১৭"
+                                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-brand-gold focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-700 block mb-1">
+                                  সেলাই সম্পর্কিত নোট (ঐচ্ছিক)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={pieceSelections[0]?.customMeasurements?.note || ''}
+                                  onChange={(e) => updatePieceMeasurement(0, 'note', e.target.value)}
+                                  placeholder="যেমন: গলার ডিজাইন, সালোয়ারের লম্বা বা ফিটিং"
+                                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:ring-2 focus:ring-brand-gold focus:outline-none"
+                                />
+                              </div>
+
+                              <p className="text-[10.5px] font-bold text-amber-900 bg-white/80 px-2.5 py-2 rounded-xl border border-amber-200 leading-relaxed">
+                                ✂️ বডির মাপ দিয়ে বানিয়ে নেওয়ার জন্য অর্ডার কনফার্ম করতে ন্যূনতম <strong className="text-rose-600">৳৩০০ টাকা অগ্রিম</strong> পেমেন্ট করতে হবে (বাকি টাকা ডেলিভারির সময় পরিশোধ করবেন)।
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1324,24 +1543,105 @@ export default function ProductShowcase({
                             </div>
 
                             {(modalAvailableSizes.length > 1 || selectedProduct.category !== 'SAREE') && (
-                              <div className="space-y-1">
-                                <span className="text-[10px] font-bold text-gray-500 block">সাইজ:</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {modalAvailableSizes.map((s) => (
-                                    <button
-                                      key={s}
-                                      type="button"
-                                      onClick={() => updatePieceSize(idx, s)}
-                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                                        piece.size === s
-                                          ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-xs'
-                                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
-                                      }`}
-                                    >
-                                      {s}
-                                    </button>
-                                  ))}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-bold text-gray-500">সাইজ / মাপ:</span>
+                                  {isThreePieceCategory(selectedProduct.category) && (
+                                    <div className="inline-flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                                      <button
+                                        type="button"
+                                        onClick={() => updatePieceTailoringMode(idx, false)}
+                                        className={`px-2 py-0.5 rounded-md text-[9.5px] font-black transition-all cursor-pointer ${
+                                          !piece.isCustomTailored
+                                            ? 'bg-white text-brand-charcoal shadow-2xs'
+                                            : 'text-gray-500'
+                                        }`}
+                                      >
+                                        রেডিমেড
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updatePieceTailoringMode(idx, true)}
+                                        className={`px-2 py-0.5 rounded-md text-[9.5px] font-black transition-all cursor-pointer inline-flex items-center gap-1 ${
+                                          piece.isCustomTailored
+                                            ? 'bg-brand-charcoal text-brand-gold shadow-2xs'
+                                            : 'text-gray-600'
+                                        }`}
+                                      >
+                                        <Scissors size={9} />
+                                        বডির মাপ
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {!piece.isCustomTailored ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {modalAvailableSizes.map((s) => (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => updatePieceSize(idx, s)}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                          piece.size === s
+                                            ? 'bg-brand-charcoal text-brand-gold border border-brand-gold shadow-xs'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                                        }`}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-2 space-y-1.5">
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={piece.customMeasurements?.chest || ''}
+                                        onChange={(e) => updatePieceMeasurement(idx, 'chest', e.target.value)}
+                                        placeholder="বডি/ছাতি * (যেমন: ৩৮)"
+                                        className="px-2 py-1.5 bg-white border border-amber-300 rounded-lg text-[10.5px] font-bold text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                      />
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={piece.customMeasurements?.waist || ''}
+                                        onChange={(e) => updatePieceMeasurement(idx, 'waist', e.target.value)}
+                                        placeholder="কোমর (যেমন: ৩৪)"
+                                        className="px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-[10.5px] font-bold text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                      />
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={piece.customMeasurements?.length || ''}
+                                        onChange={(e) => updatePieceMeasurement(idx, 'length', e.target.value)}
+                                        placeholder="জামার লম্বা (৪২)"
+                                        className="px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-[10.5px] font-bold text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                      />
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={piece.customMeasurements?.sleeve || ''}
+                                        onChange={(e) => updatePieceMeasurement(idx, 'sleeve', e.target.value)}
+                                        placeholder="হাতার লম্বা (১৭)"
+                                        className="px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-[10.5px] font-bold text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                      />
+                                    </div>
+                                    <input
+                                      type="text"
+                                      value={piece.customMeasurements?.note || ''}
+                                      onChange={(e) => updatePieceMeasurement(idx, 'note', e.target.value)}
+                                      placeholder="অতিরিক্ত সেলাই নোট (ঐচ্ছিক)"
+                                      className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-[10.5px] font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                    />
+                                    {formatBodyMeasurements(piece.customMeasurements) && (
+                                      <p className="text-[9.5px] font-bold text-amber-900">
+                                        মাপ: {formatBodyMeasurements(piece.customMeasurements)}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -1398,20 +1698,25 @@ export default function ProductShowcase({
                     </div>
                   )}
 
+                  {quantity > 1 && pieceSelections.some(p => p.isCustomTailored) && (
+                    <div className="text-[10.5px] font-bold text-amber-900 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 flex items-center gap-2">
+                      <Scissors size={13} className="text-amber-700 shrink-0" />
+                      <span>বডির মাপে বানিয়ে নেওয়ার জন্য অর্ডার কনফার্ম করতে ন্যূনতম ৳৩০০ টাকা অগ্রিম দিতে হবে।</span>
+                    </div>
+                  )}
+
+                  {measurementError && (
+                    <div className="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-2.5 rounded-xl border border-rose-200 flex items-center gap-2">
+                      <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                      <span>{measurementError}</span>
+                    </div>
+                  )}
+
                   {/* Modal Action Buttons: Add to Cart & Confirm Order */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
                     <button 
                       type="button"
-                      onClick={() => {
-                        const firstVariant = photoVariants[0];
-                        const first = pieceSelections[0] || {
-                          size: getDefaultSizeForProduct(selectedProduct),
-                          color: firstVariant?.label || getPhotoVariantLabel(0, allProductImages.length),
-                          imageUrl: firstVariant?.imageUrl || allProductImages[0] || selectedProduct.imageUrl,
-                        };
-                        onAddToCart?.(selectedProduct, quantity, first.size, first.color, pieceSelections);
-                        setSelectedProduct(null);
-                      }}
+                      onClick={handleModalAddToCart}
                       className="w-full py-3.5 bg-brand-charcoal hover:bg-black text-white rounded-xl font-black uppercase tracking-wider text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ShoppingBag size={15} className="text-brand-gold" />

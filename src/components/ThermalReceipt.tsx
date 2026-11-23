@@ -6,6 +6,7 @@ export interface ThermalReceiptItem {
   code?: string;
   size?: string;
   color?: string;
+  customMeasurements?: string;
   quantity: number;
   price: number;
 }
@@ -30,6 +31,8 @@ export interface ThermalReceiptProps {
   shippingLabel?: string;
   shippingCharge: number;
   netTotal: number;
+  advanceAmount?: number;
+  dueAmount?: number;
   noteText?: string;
 }
 
@@ -53,6 +56,8 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
   shippingLabel = 'Shipping',
   shippingCharge,
   netTotal,
+  advanceAmount = 0,
+  dueAmount,
   noteText = 'আমাদের থেকে পণ্য ক্রয় করার জন্য ধন্যবাদ। কোনো সমস্যার জন্য ৭ দিনের মধ্যে মেমোসহ রিটার্ন পলিসি প্রযোজ্য।'
 }, ref) => {
   const is58 = widthMode === '58mm';
@@ -165,6 +170,11 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
                         .join(' | ')}
                     </div>
                   )}
+                  {item.customMeasurements && (
+                    <div className="text-[8px] font-bold text-black break-words mt-0.5">
+                      Body: {item.customMeasurements}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center mt-0.5 tabular-nums">
                     <span className="text-[9.5px] font-semibold">
                       {item.quantity} x {item.price.toLocaleString('en-US')} ৳
@@ -206,6 +216,11 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
                           .join(' | ')}
                       </div>
                     )}
+                    {item.customMeasurements && (
+                      <div className="text-[8.5px] font-bold text-black break-words mt-0.5">
+                        Body: {item.customMeasurements}
+                      </div>
+                    )}
                   </td>
                   <td className="py-1.5 text-center font-bold tabular-nums">{item.quantity}</td>
                   <td className="py-1.5 text-right font-semibold tabular-nums whitespace-nowrap">
@@ -245,6 +260,18 @@ export const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptPro
             {netTotal.toLocaleString('en-US')} ৳
           </span>
         </div>
+        {advanceAmount > 0 && (
+          <>
+            <div className="flex justify-between items-center font-bold">
+              <span>Advance Paid:</span>
+              <span>-{advanceAmount.toLocaleString('en-US')} ৳</span>
+            </div>
+            <div className="flex justify-between items-center font-black border-t border-dashed border-black pt-0.5">
+              <span>COD DUE:</span>
+              <span>{(dueAmount ?? Math.max(0, netTotal - advanceAmount)).toLocaleString('en-US')} ৳</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Footer Note */}

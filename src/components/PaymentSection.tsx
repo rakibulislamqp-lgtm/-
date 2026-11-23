@@ -1,14 +1,90 @@
-import { CreditCard } from 'lucide-react';
+import React, { useState } from 'react';
+import { CreditCard, Scissors, Upload, X, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
 
 interface PaymentSectionProps {
   register: any;
   errors: any;
   control: any;
+  setValue?: any;
+  requiresAdvance300?: boolean;
+  advanceAmount?: number;
+  dueAmount?: number;
 }
 
-export default function PaymentSection({ register, errors, control }: PaymentSectionProps) {
+const compressImageFile = (file: File, maxWidth = 720, quality = 0.72): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const width = Math.round(img.width * scale);
+        const height = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(String(reader.result || ''));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.onerror = () => reject(new Error('ছবিটি প্রসেস করা যায়নি'));
+      img.src = String(reader.result || '');
+    };
+    reader.onerror = () => reject(new Error('ছবিটি পড়া যায়নি'));
+    reader.readAsDataURL(file);
+  });
+};
+
+export default function PaymentSection({
+  register,
+  errors,
+  control,
+  setValue,
+  requiresAdvance300 = false,
+  advanceAmount = 300,
+  dueAmount = 0,
+}: PaymentSectionProps) {
   const paymentMethod = useWatch({ control, name: 'paymentMethod', defaultValue: 'Cash On Delivery' });
+  const paymentScreenshotUrl = useWatch({ control, name: 'paymentScreenshotUrl', defaultValue: '' });
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('অনুগ্রহ করে শুধুমাত্র ছবি (JPG/PNG/Screenshot) সিলেক্ট করুন।');
+      return;
+    }
+
+    setIsCompressing(true);
+    try {
+      const compressed = await compressImageFile(file);
+      if (setValue) {
+        setValue('paymentScreenshotUrl', compressed, { shouldDirty: true });
+      }
+    } catch {
+      setUploadError('স্ক্রিনশট আপলোড করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।');
+    } finally {
+      setIsCompressing(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleClearScreenshot = () => {
+    setUploadError(null);
+    if (setValue) {
+      setValue('paymentScreenshotUrl', '', { shouldDirty: true });
+    }
+  };
 
   const getBrandColors = (method: string) => {
     switch (method) {
@@ -65,26 +141,59 @@ export default function PaymentSection({ register, errors, control }: PaymentSec
       </div>
 
       <div className="space-y-4 sm:space-y-6">
-        <label className="text-xs font-bold text-gray-800 tracking-tight block">Select Payment Method / পেমেন্ট মাধ্যম নির্বাচন করুন *</label>
+        {requiresAdvance300 && (
+          <div className="p-3.5 sm:p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-950 space-y-1.5 shadow-sm">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-rose-700">
+              <Scissors size={16} className="shrink-0" />
+              <span>বডির মাপ অনুযায়ী বানিয়ে নেওয়ার জন্য ৳{advanceAmount} টাকা অগ্রিম প্রযোজ্য</span>
+            </div>
+            <p className="text-[11px] sm:text-xs font-semibold leading-relaxed text-amber-900">
+              আপনার অর্ডারে বডির মাপে থ্রি-পিস বানিয়ে নেওয়ার আইটেম রয়েছে। অনুগ্রহ করে নিচের <strong>bKash / Nagad / Rocket</strong> থেকে যেকোনো একটি মাধ্যমে মাত্র <strong>৳{advanceAmount} টাকা অগ্রিম</strong> পাঠিয়ে প্রেরকের নম্বর ও Transaction ID দিন। বাকি <strong>৳{dueAmount.toLocaleString('en-US')} টাকা</strong> পার্সেল হাতে পেয়ে পরিশোধ করবেন।
+            </p>
+          </div>
+        )}
+
+        <label className="text-xs font-bold text-gray-800 tracking-tight block">
+          {requiresAdvance300
+            ? '৳৩০০ অগ্রিম পেমেন্টের মাধ্যম নির্বাচন করুন *'
+            : 'Select Payment Method / পেমেন্ট মাধ্যম নির্বাচন করুন *'}
+        </label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
           {['Cash On Delivery', 'bKash', 'Nagad', 'Rocket'].map((method) => {
             const mBrand = getBrandColors(method);
+            const isCodBlocked = requiresAdvance300 && method === 'Cash On Delivery';
             return (
               <label 
                 key={method}
-                className={`flex flex-col items-center justify-center p-3 sm:p-4 border-2 rounded-xl sm:rounded-2xl cursor-pointer transition-all duration-300 shadow-sm ${
-                  paymentMethod === method 
-                    ? `${mBrand.border} ${mBrand.bg} ring-4 ring-brand-gold/5` 
-                    : 'border-gray-100 hover:border-gold-200 bg-white'
+                className={`flex flex-col items-center justify-center p-3 sm:p-4 border-2 rounded-xl sm:rounded-2xl transition-all duration-300 shadow-sm ${
+                  isCodBlocked
+                    ? 'border-gray-100 bg-gray-100/70 opacity-50 cursor-not-allowed'
+                    : paymentMethod === method 
+                      ? `${mBrand.border} ${mBrand.bg} ring-4 ring-brand-gold/5 cursor-pointer` 
+                      : 'border-gray-100 hover:border-gold-200 bg-white cursor-pointer'
                 }`}
               >
                 <input 
                   type="radio" 
                   value={method} 
+                  disabled={isCodBlocked}
                   {...register('paymentMethod', { required: 'Please select a payment method' })}
                   className="hidden"
                 />
-                <span className={`text-[11px] sm:text-xs font-black text-center uppercase tracking-wider ${paymentMethod === method ? mBrand.text : 'text-gray-400'}`}>{method}</span>
+                <span className={`text-[11px] sm:text-xs font-black text-center uppercase tracking-wider ${
+                  isCodBlocked
+                    ? 'text-gray-400 line-through'
+                    : paymentMethod === method
+                      ? mBrand.text
+                      : 'text-gray-400'
+                }`}>
+                  {method}
+                </span>
+                {isCodBlocked && (
+                  <span className="text-[9px] font-bold text-rose-600 mt-1 text-center">
+                    অগ্রিম প্রযোজ্য
+                  </span>
+                )}
               </label>
             );
           })}
@@ -127,25 +236,113 @@ export default function PaymentSection({ register, errors, control }: PaymentSec
                 </li>
                 <li className="flex gap-2">
                   <span className="font-black text-brand-gold">04.</span>
-                  <span>অর্ডারকৃত পণ্যের মোট টাকা টাইপ করে পিন নম্বর দিয়ে সফলভাবে সেন্ড করুন।</span>
+                  {requiresAdvance300 ? (
+                    <span>
+                      বডির মাপে বানানোর অগ্রিম বাবদ <span className="font-black text-rose-600">৳{advanceAmount} টাকা</span> টাইপ করে পিন নম্বর দিয়ে সেন্ড করুন (বাকি ৳{dueAmount.toLocaleString('en-US')} ডেলিভারির সময় দিবেন)।
+                    </span>
+                  ) : (
+                    <span>অর্ডারকৃত পণ্যের মোট টাকা টাইপ করে পিন নম্বর দিয়ে সফলভাবে সেন্ড করুন।</span>
+                  )}
                 </li>
                 <li className="flex gap-2">
                   <span className="font-black text-brand-gold">05.</span>
-                  <span>পেমেন্ট সফল হওয়ার পর প্রাপ্ত <span className={`font-black ${brand.text}`}>Transaction ID (TrxID)</span> নিচের বক্সে দিন।</span>
+                  <span>পেমেন্ট সফল হওয়ার পর প্রাপ্ত <span className={`font-black ${brand.text}`}>Transaction ID (TrxID)</span> এবং আপনার সেন্ডার নম্বর নিচের বক্সে দিন (চাইলে পেমেন্ট স্ক্রিনশটও যুক্ত করতে পারেন)।</span>
                 </li>
               </ul>
             </div>
 
-            <div className="pt-2">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-800 tracking-tight">Transaction Number / ট্রানজেকশন নম্বর *</label>
-                <input 
-                  {...register('transactionId', { required: paymentMethod !== 'Cash On Delivery' ? 'Transaction ID is required' : false })}
-                  placeholder="যেমন: ABC123XYZ"
-                  className={`w-full px-6 py-4 rounded-2xl border-2 border-gray-100 focus:${brand.border} focus:ring-4 focus:ring-brand-gold/10 outline-none transition-all bg-white text-base font-bold uppercase tracking-widest placeholder:text-gray-200`}
-                />
-                {errors.transactionId && <p className="text-red-500 text-xs font-bold mt-2">{errors.transactionId.message}</p>}
+            <div className="pt-2 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-800 tracking-tight block">
+                    যে নম্বর থেকে টাকা পাঠিয়েছেন {requiresAdvance300 ? '*' : '(ঐচ্ছিক)'}
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    {...register('paymentSenderNumber', {
+                      required: requiresAdvance300 && paymentMethod !== 'Cash On Delivery'
+                        ? 'যে নম্বর থেকে টাকা পাঠিয়েছেন সেটি লিখুন'
+                        : false
+                    })}
+                    placeholder="যেমন: 017XXXXXXXX"
+                    className={`w-full px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl border-2 border-gray-100 focus:${brand.border} focus:ring-4 focus:ring-brand-gold/10 outline-none transition-all bg-white text-sm sm:text-base font-bold tracking-wider placeholder:text-gray-300`}
+                  />
+                  {errors.paymentSenderNumber && (
+                    <p className="text-red-500 text-xs font-bold mt-1">{errors.paymentSenderNumber.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-800 tracking-tight block">
+                    Transaction Number / ট্রানজেকশন নম্বর *
+                  </label>
+                  <input 
+                    {...register('transactionId', { required: paymentMethod !== 'Cash On Delivery' ? 'Transaction ID is required' : false })}
+                    placeholder="যেমন: ABC123XYZ"
+                    className={`w-full px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl border-2 border-gray-100 focus:${brand.border} focus:ring-4 focus:ring-brand-gold/10 outline-none transition-all bg-white text-sm sm:text-base font-bold uppercase tracking-widest placeholder:text-gray-300`}
+                  />
+                  {errors.transactionId && <p className="text-red-500 text-xs font-bold mt-1">{errors.transactionId.message}</p>}
+                </div>
               </div>
+
+              {/* Optional Payment Screenshot Proof Upload */}
+              {setValue && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-800 tracking-tight flex items-center gap-1.5">
+                    <ImageIcon size={14} className={brand.text} />
+                    <span>পেমেন্ট স্ক্রিনশট আপলোড করুন (প্রমাণ - ঐচ্ছিক)</span>
+                  </label>
+
+                  {!paymentScreenshotUrl ? (
+                    <label className="flex items-center justify-center gap-2.5 w-full px-4 py-3.5 rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 hover:bg-white hover:border-brand-gold transition-all cursor-pointer text-xs sm:text-sm font-bold text-gray-700">
+                      <Upload size={16} className={brand.text} />
+                      <span>
+                        {isCompressing
+                          ? 'স্ক্রিনশট প্রসেস হচ্ছে...'
+                          : 'পেমেন্টের স্ক্রিনশট ছবি বেছে নিন (ট্যাপ করুন)'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleScreenshotChange}
+                        className="hidden"
+                      />
+                    </label>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-2xl border-2 border-emerald-200 shadow-sm">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={paymentScreenshotUrl}
+                          alt="Payment Proof Preview"
+                          className="w-14 h-14 object-cover rounded-xl border border-gray-200 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 size={14} className="shrink-0" />
+                            <span>পেমেন্ট স্ক্রিনশট সংযুক্ত হয়েছে</span>
+                          </p>
+                          <p className="text-[11px] text-gray-500 font-semibold truncate">
+                            অ্যাডমিন ড্যাশবোর্ডে সরাসরি দেখা যাবে
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleClearScreenshot}
+                        className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors shrink-0 cursor-pointer"
+                        title="স্ক্রিনশট সরান"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <p className="text-red-500 text-xs font-bold">{uploadError}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import {
   Package, Tag, Gift, XCircle
 } from 'lucide-react';
 import { Order } from '../types';
+import { formatBodyMeasurements } from '../lib/productVariants';
 
 interface SuccessViewProps {
   order: Order;
@@ -95,32 +96,40 @@ export default function SuccessView({ order }: SuccessViewProps) {
             {/* Products List */}
             <div className="space-y-2">
               {order.items && order.items.length > 0 ? (
-                order.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-gray-200">
-                    <img
-                      src={item.productImage}
-                      alt={item.productTitle}
-                      className="w-12 h-12 rounded-lg object-cover border border-gray-200"
-                    />
-                    <div className="flex-1 min-w-0 text-xs">
-                      <h6 className="font-bold text-slate-900 truncate">{item.productTitle}</h6>
-                      <p className="text-[10px] text-gray-500 font-medium">
-                        কোড: {item.productCode} • সাইজ: <strong className="text-amber-700">{item.size}</strong>{item.color ? <> • কালার: <strong className="text-emerald-700">{item.color}</strong></> : ''}
-                      </p>
+                order.items.map((item, idx) => {
+                  const mSummary = item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : '';
+                  return (
+                    <div key={idx} className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-gray-200">
+                      <img
+                        src={item.productImage}
+                        alt={item.productTitle}
+                        className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
+                      />
+                      <div className="flex-1 min-w-0 text-xs">
+                        <h6 className="font-bold text-slate-900 truncate">{item.productTitle}</h6>
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          কোড: {item.productCode} • সাইজ: <strong className="text-amber-700">{item.size}</strong>{item.color ? <> • কালার: <strong className="text-emerald-700">{item.color}</strong></> : ''}
+                        </p>
+                        {item.isCustomTailored && (
+                          <p className="text-[10px] text-rose-700 font-bold mt-0.5 break-words">
+                            ✂️ বডির মাপ: {mSummary || 'কাস্টম সেলাই (৳৩০০ অগ্রিম প্রযোজ্য)'}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right text-xs shrink-0">
+                        <p className="font-bold text-slate-900">৳{item.price} × {item.quantity}</p>
+                        <p className="font-black text-amber-800">৳{item.price * item.quantity}</p>
+                      </div>
                     </div>
-                    <div className="text-right text-xs shrink-0">
-                      <p className="font-bold text-slate-900">৳{item.price} × {item.quantity}</p>
-                      <p className="font-black text-amber-800">৳{item.price * item.quantity}</p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-gray-200">
                   {order.productImage && (
                     <img
                       src={order.productImage}
                       alt="Product"
-                      className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                      className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
                     />
                   )}
                   <div className="flex-1 min-w-0 text-xs">
@@ -128,6 +137,11 @@ export default function SuccessView({ order }: SuccessViewProps) {
                     <p className="text-[10px] text-gray-500 font-medium">
                       কোড: {order.productCode} • সাইজ: {(order as any).size || '38'}{(order as any).color ? ` • কালার: ${(order as any).color}` : ''} • পরিমাণ: {order.quantity}
                     </p>
+                    {order.hasCustomTailoring && order.customMeasurementsSummary && (
+                      <p className="text-[10px] text-rose-700 font-bold mt-0.5 break-words">
+                        ✂️ বডির মাপ: {order.customMeasurementsSummary}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right text-xs shrink-0">
                     <p className="font-bold text-slate-900">৳{order.price}</p>
@@ -176,6 +190,21 @@ export default function SuccessView({ order }: SuccessViewProps) {
                   ৳{order.totalAmount}
                 </span>
               </div>
+
+              {(order.advanceAmount || 0) > 0 && (
+                <>
+                  <div className="flex justify-between items-center text-rose-700 font-bold pt-1">
+                    <span>অগ্রিম পরিশোধ ({order.paymentMethod || 'Mobile Banking'}):</span>
+                    <span className="font-mono font-black">-৳{order.advanceAmount}</span>
+                  </div>
+                  <div className="flex justify-between items-center font-black text-slate-900 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                    <span>ডেলিভারিতে প্রদেয় (COD Due):</span>
+                    <span className="font-mono text-sm text-amber-900">
+                      ৳{order.dueAmount ?? Math.max(0, order.totalAmount - (order.advanceAmount || 0))}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Customer Details Summary */}

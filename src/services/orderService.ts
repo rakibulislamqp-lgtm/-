@@ -723,8 +723,8 @@ export const subscribeOrders = async (callback: (orders: Order[]) => void) => {
       : filterOut(mergeOrderLists(newList, currentList));
 
     // Prevent redundant state updates and re-renders if list hasn't changed
-    const prevKey = currentList.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}`).join('|');
-    const newKey = updated.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}`).join('|');
+    const prevKey = currentList.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}_${Boolean(o.advanceVerified)}_${o.advanceVerifiedAt || ''}_${o.paymentScreenshotUrl ? '1' : '0'}`).join('|');
+    const newKey = updated.map(o => `${o.id || o.orderId}_${o.status}_${o.totalAmount}_${Boolean(o.advanceVerified)}_${o.advanceVerifiedAt || ''}_${o.paymentScreenshotUrl ? '1' : '0'}`).join('|');
     if (currentList.length > 0 && prevKey === newKey) {
       return;
     }

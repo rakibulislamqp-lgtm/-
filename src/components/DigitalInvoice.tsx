@@ -5,6 +5,7 @@ import brandLogo from '../assets/images/sfh_logo_1779435027377.png';
 import { getBrandSettings } from '../services/settingsService';
 import { PrintFormat } from '../lib/printFormats';
 import { ThermalReceipt } from './ThermalReceipt';
+import { formatBodyMeasurements } from '../lib/productVariants';
 
 interface DigitalInvoiceProps {
   order: Order;
@@ -76,6 +77,11 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
     ? order.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
     : (order.quantity * order.price);
 
+  const advancePaid = Number(order.advanceAmount || 0);
+  const dueBalance = advancePaid > 0
+    ? (order.dueAmount ?? Math.max(0, netTotal - advancePaid))
+    : 0;
+
   if (printFormat === '58mm' || printFormat === '80mm') {
     const thermalItems = order.items && order.items.length > 0
       ? order.items.map((item) => ({
@@ -84,6 +90,7 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
           code: item.productCode,
           size: item.size,
           color: item.color,
+          customMeasurements: item.isCustomTailored ? formatBodyMeasurements(item.customMeasurements) : undefined,
           quantity: item.quantity,
           price: item.price,
         }))
@@ -93,6 +100,7 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
           code: order.productCode,
           size: (order as any).size,
           color: (order as any).color,
+          customMeasurements: order.hasCustomTailoring ? order.customMeasurementsSummary : undefined,
           quantity: order.quantity,
           price: order.price,
         }];
@@ -125,6 +133,8 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
         shippingLabel="Shipping"
         shippingCharge={deliveryCharge}
         netTotal={netTotal}
+        advanceAmount={advancePaid}
+        dueAmount={dueBalance}
       />
     );
   }
@@ -230,6 +240,11 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
                   <div className="text-[7.5px] sm:text-[8px] text-gray-400 font-bold mt-0.5 uppercase tracking-wider truncate">
                     Code: {item.productCode} | Size: {item.size}{item.color ? ` | Color: ${item.color}` : ''}
                   </div>
+                  {item.isCustomTailored && (
+                    <div className="text-[8px] sm:text-[9px] text-rose-700 font-bold mt-0.5 break-words">
+                      ✂️ বডির মাপ: {formatBodyMeasurements(item.customMeasurements) || 'Custom Tailoring (৳300 Advance)'}
+                    </div>
+                  )}
                 </div>
                 <div className="w-10 sm:w-14 text-center text-xs sm:text-sm font-black text-gray-900 tabular-nums shrink-0">
                   {item.quantity}
@@ -256,6 +271,11 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
                 <div className="text-[7.5px] sm:text-[8px] text-gray-400 font-bold mt-0.5 uppercase tracking-wider truncate">
                   Code: {order.productCode}
                 </div>
+                {order.hasCustomTailoring && order.customMeasurementsSummary && (
+                  <div className="text-[8px] sm:text-[9px] text-rose-700 font-bold mt-0.5 break-words">
+                    ✂️ বডির মাপ: {order.customMeasurementsSummary}
+                  </div>
+                )}
               </div>
               <div className="w-10 sm:w-14 text-center text-xs sm:text-sm font-black text-gray-900 tabular-nums shrink-0">
                 {order.quantity}
@@ -301,6 +321,18 @@ export const DigitalInvoice = React.forwardRef<HTMLDivElement, DigitalInvoicePro
               {netTotal.toLocaleString('en-US')} ৳
             </span>
           </div>
+          {advancePaid > 0 && (
+            <div className="pt-2 border-t border-dashed border-gray-200 space-y-1.5">
+              <div className="flex justify-between items-center text-xs font-black text-rose-600">
+                <span>Advance Paid ({order.paymentMethod || 'Mobile'}):</span>
+                <span className="tabular-nums whitespace-nowrap">-{advancePaid.toLocaleString('en-US')} ৳</span>
+              </div>
+              <div className="flex justify-between items-center text-xs sm:text-sm font-black text-amber-900 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                <span>COD DUE ON DELIVERY:</span>
+                <span className="tabular-nums whitespace-nowrap">{dueBalance.toLocaleString('en-US')} ৳</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
